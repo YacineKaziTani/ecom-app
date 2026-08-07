@@ -27,9 +27,9 @@ createdb ecom
 cd backend
 cp .env.example .env    # edit DB credentials / JWT secret
 npm install
+npm run migration:run   # creates all tables — synchronize is only enabled for the test env, so this is required even locally
 npm run dev             # http://localhost:4000
 ```
-`synchronize: true` is enabled in `data-source.ts` for dev — it auto-creates tables from entities. Switch to migrations before production.
 
 ### 3. Make yourself an admin
 Register a normal account via the app, then promote it manually:
@@ -44,6 +44,9 @@ npm install
 npm run dev              # http://localhost:5173
 ```
 Vite proxies `/api` to `http://localhost:4000`, and the axios client sends cookies (`withCredentials: true`), so no CORS/cookie configuration is needed beyond what's already set up.
+
+### Deploying to separate origins
+The axios client defaults to a relative `/api` base URL, which only resolves correctly when the frontend is served from the same origin as the backend (directly, or via a reverse proxy that rewrites `/api` to it). If you deploy the frontend and backend to different hosts (e.g. a static host for the frontend + a separate host for the API), set `VITE_API_URL` at build time to the backend's full URL — see `frontend/.env.example`. Also make sure `CLIENT_URL` on the backend matches the frontend's deployed origin exactly, since CORS is locked to it.
 
 ## Project structure
 ```
@@ -95,14 +98,6 @@ Body: { "role": "admin" | "customer" | "super_admin" }
 ```
 (No UI for this yet — wire up a simple user-management screen in the dashboard if you want one, or call it from Postman/curl for now.)
 
-### New migration needed
-Since `Shop` is a new entity and several columns changed (`User.role`, `Product.shopId`, `OrderItem.shopId`), generate and run a fresh migration:
-```bash
-cd backend
-npm run migration:generate -- src/migrations/AddShops
-npm run migration:run
-```
-
 ## Image uploads (Cloudinary)
 Product, category, and shop-logo images are uploaded directly to Cloudinary instead of pasting a URL.
 
@@ -146,14 +141,6 @@ Customers no longer need an account to buy something:
 - **`PATCH /api/auth/:id/role`** (already existed, now guarded against a super_admin accidentally demoting their own account and locking themselves out).
 - **Dashboard → Users** — a table for super_admin to search users and change roles (`customer` / `admin` / `super_admin`) via a dropdown, with a confirmation prompt before applying. A user's own row has its role selector disabled (can't self-demote from the UI either).
 
-## New migration needed
-`Order.userId` became nullable and gained `guestEmail`:
-```bash
-cd backend
-npm run migration:generate -- src/migrations/AddGuestCheckout
-npm run migration:run
-```
-
 ## Order confirmation emails (Nodemailer)
 Every order (guest or registered) triggers a real transactional email — order ID, itemized summary, total, shipping address, and a "View your order" button linking straight to `/order-confirmation/:id`.
 
@@ -179,14 +166,6 @@ Every order (guest or registered) triggers a real transactional email — order 
 - Recipient name: the registered user's first name, or the guest's `guestName` (new optional field, collected on the guest checkout form in `Cart.tsx`) — falls back to "there" if a guest skipped it
 - The email's "View your order" link points to `/order-confirmation/:id`, with `?email=` appended for guest orders so the link keeps working even without a login (see the guest-checkout section above)
 
-### New migration needed
-`Order` gained a `guestName` column:
-```bash
-cd backend
-npm run migration:generate -- src/migrations/AddGuestName
-npm run migration:run
-```
-
 ## Input sanitization & stricter validation
 - `helmet` sets standard security headers on every response (configured for a JSON-only API — CSP disabled since no HTML is served, CORP relaxed to `cross-origin` so the dev frontend on a different port can still fetch it).
 - `middleware/sanitize.ts` runs on every request body: strips any HTML tags and null bytes, and trims whitespace, recursively through nested objects/arrays. Every field in this app (names, descriptions, addresses) is meant to be plain text, so this is a blanket defense against stored XSS regardless of which route it lands on — on top of each route's own zod validation.
@@ -204,14 +183,6 @@ Sessions now use a short-lived access token + long-lived, rotating refresh token
 - The frontend's axios client (`api/client.ts`) handles this transparently: on any `401`, it calls `/auth/refresh` once and retries the original request. Concurrent requests that all 401 at once share a single in-flight refresh call rather than triggering a stampede of refresh attempts.
 - Logging out deletes the refresh token from the database (not just clearing cookies), so a copied-out cookie can't be replayed after logout.
 - Promoting/demoting a user's role (`PATCH /api/auth/:id/role`) now also revokes all of that user's existing refresh tokens, so a role change takes effect on their next refresh rather than only once their current access token happens to expire.
-
-### New migration needed
-New `refresh_tokens` table:
-```bash
-cd backend
-npm run migration:generate -- src/migrations/AddRefreshTokens
-npm run migration:run
-```
 
 ### New env vars
 ```
@@ -235,13 +206,6 @@ Each returns a `429` with a clear message once the limit is hit.
 - `Order.idempotencyKey` — new nullable, unique column. Nullable so requests without a key (or older clients) are unaffected; unique so Postgres itself is the final backstop against a race.
 - **Race handling:** if two requests with the same key arrive at nearly the same instant, both could pass the initial "does this key already exist?" check before either commits. The second `INSERT` then fails on the unique constraint (Postgres error `23505`) — instead of surfacing that as a `500`, the route catches it specifically and re-queries for the order that won the race, returning that one.
 - **Frontend:** `Cart.tsx` generates one key per visit to `/cart` (`crypto.randomUUID()`, held in a ref so it survives re-renders but not remounts) and sends it on every checkout attempt from that page load — including retries after a stock-issue correction, since a 409 never actually creates an order under that key, so reusing it for the corrected resubmission is safe. A fresh key is generated naturally next time `/cart` is visited (React remounts the component after navigating away).
-
-### New migration needed
-```bash
-cd backend
-npm run migration:generate -- src/migrations/AddIdempotencyKey
-npm run migration:run
-```
 
 ## Payments (Chargily Pay — EDAHABIA / CIB)
 Checkout now has a real payment step, using [Chargily Pay](https://dev.chargily.com/) v2 — the Algerian payment gateway supporting EDAHABIA (Algérie Poste) and CIB (SATIM) cards.
@@ -281,13 +245,6 @@ Checkout now has a real payment step, using [Chargily Pay](https://dev.chargily.
 ### Currency note
 This app's UI still displays prices with a `$` sign throughout (product cards, cart, admin, emails) — that's cosmetic only and separate from the actual payment currency, which is fixed to `"dzd"` by Chargily. If you're running a DZD storefront, you'll want to swap the `$` symbols for `DA`/`دج` across the frontend (`ProductCard`, `Cart`, `OrderConfirmation`, the dashboard, and the email template) — happy to do that pass if you'd like, it's a separate, more cosmetic change from the payment integration itself.
 
-### New migration needed
-```bash
-cd backend
-npm run migration:generate -- src/migrations/AddPaymentFields
-npm run migration:run
-```
-
 ## Discount codes / coupons
 Admins can create coupons (percentage or fixed-amount) that customers apply at checkout.
 
@@ -297,13 +254,6 @@ Admins can create coupons (percentage or fixed-amount) that customers apply at c
 - **Cart** — a coupon code field with an "Apply" button that calls `POST /api/coupons/validate` (public, no auth needed) to preview the discount before checkout; the preview recomputes the subtotal server-side from live product prices, never trusting a client-supplied amount.
 - **Checkout** applies the coupon for real inside the same database transaction as stock validation (`services/coupons.ts` → `applyCouponWithLock`), using a **pessimistic row lock** on the coupon during that transaction — so two customers racing for the last use of a limited coupon can't both succeed; whichever transaction commits first "wins" the usage slot, and the second gets a clean "usage limit reached" error rather than an inconsistent `usedCount`.
 - `Order` gained `subtotal`, `couponCode`, `discountAmount` — `total` is what's actually charged (`subtotal - discountAmount`). The confirmation email and every order-summary view (cart, confirmation page, `/orders`, admin orders table) show the subtotal/discount breakdown whenever a discount was applied, and just the total otherwise.
-
-### New migration needed
-```bash
-cd backend
-npm run migration:generate -- src/migrations/AddCoupons
-npm run migration:run
-```
 
 ## Better search
 - Product search now matches **name OR description** (case-insensitive) — previously only the name was searched, so a product only findable via a term in its description (e.g. "handmade in Oran") never showed up.
@@ -372,13 +322,4 @@ Until now there was no way for a user who forgot their password to get back in �
 - Rate limited separately: 5 forgot-password requests/hour per IP (spam + enumeration-timing defense), 10 reset-password attempts/15min per IP.
 - New password requirements match registration: 8+ characters, at least one letter and one number.
 
-### New migration needed
-New `password_reset_tokens` table:
-```bash
-cd backend
-npm run migration:generate -- src/migrations/AddPasswordResetTokens
-npm run migration:run
-```
-
-- Swap `synchronize: true` for TypeORM migrations before deploying.
 - Add role selection guard on register if you want to allow admin self-signup (currently all new users are `customer`; promote via SQL).
