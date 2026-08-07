@@ -1,4 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
 import { Order } from "./Order";
 import { Product } from "./Product";
 
@@ -14,7 +20,10 @@ export class OrderItem {
   @Column()
   orderId!: string;
 
-  @ManyToOne(() => Product, (product) => product.orderItems, { onDelete: "SET NULL", nullable: true })
+  @ManyToOne(() => Product, (product) => product.orderItems, {
+    onDelete: "SET NULL",
+    nullable: true,
+  })
   @JoinColumn({ name: "productId" })
   product?: Product;
 
@@ -22,7 +31,7 @@ export class OrderItem {
   productId?: string;
 
   @Column({ nullable: true })
-  shopId?: string; // snapshot — lets a shop admin filter "my" line items across any order
+  shopId?: string;
 
   @Column()
   productName!: string;

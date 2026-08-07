@@ -3,8 +3,8 @@ import { Request, Response, NextFunction } from "express";
 function sanitizeValue(value: unknown): unknown {
   if (typeof value === "string") {
     return value
-      .replace(/<[^>]*>/g, "") // strip HTML tags
-      .replace(/\u0000/g, "") // strip null bytes
+      .replace(/<[^>]*>/g, "")
+      .replace(/\u0000/g, "")
       .trim();
   }
   if (Array.isArray(value)) {

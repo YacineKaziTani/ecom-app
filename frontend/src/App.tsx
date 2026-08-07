@@ -67,7 +67,14 @@ export default function App() {
         </Route>
       </Route>
 
-      <Route path="*" element={<div className="flex h-screen items-center justify-center text-gray-400">Page not found</div>} />
+      <Route
+        path="*"
+        element={
+          <div className="flex h-screen items-center justify-center">
+            Page not found
+          </div>
+        }
+      />
     </Routes>
   );
 }

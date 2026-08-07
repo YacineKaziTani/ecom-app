@@ -48,7 +48,6 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
   next();
 }
 
-// super_admin OR admin (shop owner)
 export function requireAnyAdmin(
   req: Request,
   res: Response,

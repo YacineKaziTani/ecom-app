@@ -16,39 +16,55 @@ const upload = multer({
   },
 });
 
-function uploadBuffer(buffer: Buffer, folder: string): Promise<{ url: string; publicId: string }> {
+function uploadBuffer(
+  buffer: Buffer,
+  folder: string,
+): Promise<{ url: string; publicId: string }> {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder, resource_type: "image", transformation: [{ width: 1200, height: 1200, crop: "limit" }] },
+      {
+        folder,
+        resource_type: "image",
+        transformation: [{ width: 1200, height: 1200, crop: "limit" }],
+      },
       (error, result) => {
-        if (error || !result) return reject(error || new Error("Upload failed"));
+        if (error || !result)
+          return reject(error || new Error("Upload failed"));
         resolve({ url: result.secure_url, publicId: result.public_id });
-      }
+      },
     );
     stream.end(buffer);
   });
 }
 
-// Admin/super_admin only — used for product images, category images, shop logos.
-// `folder` query param namespaces uploads in Cloudinary, e.g. ?folder=products
-router.post("/", requireAuth, requireAnyAdmin, upload.single("image"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ message: "No image file provided" });
+router.post(
+  "/",
+  requireAuth,
+  requireAnyAdmin,
+  upload.single("image"),
+  async (req, res) => {
+    if (!req.file)
+      return res.status(400).json({ message: "No image file provided" });
 
-  const folder = typeof req.query.folder === "string" ? req.query.folder : "misc";
-  const safeFolder = `artisan-shop/${folder.replace(/[^a-z0-9_-]/gi, "")}`;
+    const folder =
+      typeof req.query.folder === "string" ? req.query.folder : "misc";
+    const safeFolder = `artisan-shop/${folder.replace(/[^a-z0-9_-]/gi, "")}`;
 
-  try {
-    const result = await uploadBuffer(req.file.buffer, safeFolder);
-    res.status(201).json(result);
-  } catch (err) {
-    console.error("Cloudinary upload error:", err);
-    res.status(500).json({ message: "Image upload failed" });
-  }
-});
+    try {
+      const result = await uploadBuffer(req.file.buffer, safeFolder);
+      res.status(201).json(result);
+    } catch (err) {
+      console.error("Cloudinary upload error:", err);
+      res.status(500).json({ message: "Image upload failed" });
+    }
+  },
+);
 
-// Multer error handler (file too large, wrong type, etc.) — must be registered after the route.
 router.use((err: any, _req: any, res: any, next: any) => {
-  if (err instanceof multer.MulterError || err?.message === "Only image files are allowed") {
+  if (
+    err instanceof multer.MulterError ||
+    err?.message === "Only image files are allowed"
+  ) {
     return res.status(400).json({ message: err.message });
   }
   next(err);

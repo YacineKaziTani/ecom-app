@@ -25,7 +25,17 @@ export const AppDataSource = new DataSource({
   // suite doesn't need every migration re-run whenever an entity changes.
   synchronize: process.env.NODE_ENV === "test",
   logging: false,
-  entities: [User, Shop, Category, Product, Order, OrderItem, RefreshToken, Coupon, PasswordResetToken],
+  entities: [
+    User,
+    Shop,
+    Category,
+    Product,
+    Order,
+    OrderItem,
+    RefreshToken,
+    Coupon,
+    PasswordResetToken,
+  ],
   migrations: ["src/migrations/*.ts"],
   subscribers: [],
 });

@@ -1,4 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  CreateDateColumn,
+} from "typeorm";
 import { User } from "./User";
 
 @Entity("password_reset_tokens")
@@ -13,9 +20,6 @@ export class PasswordResetToken {
   @Column()
   userId!: string;
 
-  // Same pattern as RefreshToken — only a SHA-256 hash of the actual reset
-  // token is ever stored, so a database leak alone can't be used to reset
-  // anyone's password.
   @Column({ unique: true })
   tokenHash!: string;
 
