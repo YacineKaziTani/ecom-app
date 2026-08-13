@@ -23,7 +23,8 @@ export default function PaymentSuccess() {
 
   const { data: order, refetch } = useQuery({
     queryKey: ["order", orderId, user ? "auth" : emailFromUrl],
-    queryFn: () => (user ? ordersApi.get(orderId!) : ordersApi.track(orderId!, emailFromUrl!)),
+    queryFn: () =>
+      user ? ordersApi.get(orderId!) : ordersApi.track(orderId!, emailFromUrl!),
     enabled: !!orderId && (!!user || !!emailFromUrl),
   });
 
@@ -37,37 +38,51 @@ export default function PaymentSuccess() {
     return () => clearTimeout(timer);
   }, [order, pollCount, refetch]);
 
-  const stillWaiting = order?.paymentStatus === "unpaid" && pollCount < MAX_POLLS;
+  const stillWaiting =
+    order?.paymentStatus === "unpaid" && pollCount < MAX_POLLS;
   const confirmedPaid = order?.paymentStatus === "paid";
 
   return (
     <div className="mx-auto max-w-md py-16 text-center">
       {confirmedPaid ? (
         <>
-          <CheckCircle2 className="mx-auto h-16 w-16 text-green-500" />
-          <h1 className="mt-4 text-2xl font-bold text-gray-900">Payment received!</h1>
-          <p className="mt-2 text-gray-500">Thank you — your order is confirmed and being prepared.</p>
+          <CheckCircle2 className="mx-auto h-16 w-16" />
+          <h1 className="mt-4 text-2xl font-bold">Payment received!</h1>
+          <p className="mt-2">
+            Thank you — your order is confirmed and being prepared.
+          </p>
         </>
       ) : stillWaiting ? (
         <>
-          <Loader2 className="mx-auto h-16 w-16 animate-spin text-brand-500" />
-          <h1 className="mt-4 text-2xl font-bold text-gray-900">Confirming your payment...</h1>
-          <p className="mt-2 text-gray-500">This usually takes just a few seconds.</p>
+          <Loader2 className="mx-auto h-16 w-16 animate-spin" />
+          <h1 className="mt-4 text-2xl font-bold">
+            Confirming your payment...
+          </h1>
+          <p className="mt-2 text-gray-500">
+            This usually takes just a few seconds.
+          </p>
         </>
       ) : (
         <>
-          <Clock className="mx-auto h-16 w-16 text-amber-500" />
-          <h1 className="mt-4 text-2xl font-bold text-gray-900">Payment is still processing</h1>
-          <p className="mt-2 text-gray-500">
-            Your payment was submitted but we haven't received final confirmation yet. This can take a little longer
-            sometimes — check your order status shortly.
+          <Clock className="mx-auto h-16 w-16" />
+          <h1 className="mt-4 text-2xl font-bold">
+            Payment is still processing
+          </h1>
+          <p className="mt-2">
+            Your payment was submitted but we haven't received final
+            confirmation yet. This can take a little longer sometimes — check
+            your order status shortly.
           </p>
         </>
       )}
 
       {orderId && (
         <Link
-          to={user ? "/orders" : `/order-confirmation/${orderId}${emailFromUrl ? `?email=${encodeURIComponent(emailFromUrl)}` : ""}`}
+          to={
+            user
+              ? "/orders"
+              : `/order-confirmation/${orderId}${emailFromUrl ? `?email=${encodeURIComponent(emailFromUrl)}` : ""}`
+          }
           className="btn-primary mt-6 inline-flex"
         >
           {user ? "View my orders" : "View order details"}

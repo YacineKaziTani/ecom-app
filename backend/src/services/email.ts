@@ -1,4 +1,4 @@
-import { transporter, MAIL_FROM } from "../config/mailer";
+import { resend, MAIL_FROM } from "../config/mailer";
 import {
   renderOrderConfirmationEmail,
   OrderConfirmationEmailData,
@@ -12,9 +12,9 @@ export async function sendOrderConfirmationEmail(
   to: string,
   data: OrderConfirmationEmailData,
 ) {
-  if (!process.env.SMTP_HOST) {
+  if (!resend) {
     console.warn(
-      `SMTP not configured — skipping order confirmation email to ${to}`,
+      `Resend not configured — skipping order confirmation email to ${to}`,
     );
     return;
   }
@@ -22,7 +22,18 @@ export async function sendOrderConfirmationEmail(
   const { subject, html, text } = renderOrderConfirmationEmail(data);
 
   try {
-    await transporter.sendMail({ from: MAIL_FROM, to, subject, html, text });
+    const { error } = await resend.emails.send({
+      from: MAIL_FROM,
+      to,
+      subject,
+      html,
+      text,
+    });
+    if (error)
+      console.error(
+        `Resend rejected order confirmation email to ${to}:`,
+        error,
+      );
   } catch (err) {
     console.error(`Failed to send order confirmation email to ${to}:`, err);
   }
@@ -32,9 +43,9 @@ export async function sendPasswordResetEmail(
   to: string,
   data: PasswordResetEmailData,
 ): Promise<boolean> {
-  if (!process.env.SMTP_HOST) {
+  if (!resend) {
     console.warn(
-      `SMTP not configured — skipping password reset email to ${to}`,
+      `Resend not configured — skipping password reset email to ${to}`,
     );
     return false;
   }
@@ -42,7 +53,17 @@ export async function sendPasswordResetEmail(
   const { subject, html, text } = renderPasswordResetEmail(data);
 
   try {
-    await transporter.sendMail({ from: MAIL_FROM, to, subject, html, text });
+    const { error } = await resend.emails.send({
+      from: MAIL_FROM,
+      to,
+      subject,
+      html,
+      text,
+    });
+    if (error) {
+      console.error(`Resend rejected password reset email to ${to}:`, error);
+      return false;
+    }
     return true;
   } catch (err) {
     console.error(`Failed to send password reset email to ${to}:`, err);

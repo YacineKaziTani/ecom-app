@@ -31,12 +31,12 @@ export default function ProductDetail() {
       </Link>
 
       <div className="grid gap-8 sm:grid-cols-2 sm:gap-12">
-        <div className="relative aspect-square overflow-hidden rounded-2xl border border-border bg-muted">
+        <div className="relative aspect-square overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-muted to-secondary p-8">
           {product.imageUrl ? (
             <img
               src={product.imageUrl}
               alt={product.name}
-              className="h-full w-full object-cover"
+              className="h-full w-full object-contain drop-shadow-sm"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">

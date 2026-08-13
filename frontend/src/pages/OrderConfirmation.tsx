@@ -1,18 +1,28 @@
 import { useState } from "react";
 import { useLocation, useParams, useSearchParams, Link } from "react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { CheckCircle2, Copy, Check, CreditCard, AlertCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  Copy,
+  Check,
+  CreditCard,
+  AlertCircle,
+} from "lucide-react";
 import { ordersApi } from "../api/orders";
 import { paymentsApi } from "../api/payments";
 import { useAuth } from "../store/AuthContext";
 import { Order } from "../api/types";
 import toast from "react-hot-toast";
 
-const paymentStatusLabel: Record<string, { label: string; className: string }> = {
-  unpaid: { label: "Payment pending", className: "bg-amber-100 text-amber-700" },
-  paid: { label: "Paid", className: "bg-green-100 text-green-700" },
-  failed: { label: "Payment failed", className: "bg-red-100 text-red-700" },
-};
+const paymentStatusLabel: Record<string, { label: string; className: string }> =
+  {
+    unpaid: {
+      label: "Payment pending",
+      className: "bg-amber-100 text-amber-700",
+    },
+    paid: { label: "Paid", className: "bg-green-100 text-green-700" },
+    failed: { label: "Payment failed", className: "bg-red-100 text-red-700" },
+  };
 
 export default function OrderConfirmation() {
   const { id } = useParams<{ id: string }>();
@@ -31,7 +41,8 @@ export default function OrderConfirmation() {
 
   const { data: fetchedOrder, isLoading } = useQuery({
     queryKey: ["order", id, user ? "auth" : emailFromUrl],
-    queryFn: () => (user ? ordersApi.get(id!) : ordersApi.track(id!, emailFromUrl!)),
+    queryFn: () =>
+      user ? ordersApi.get(id!) : ordersApi.track(id!, emailFromUrl!),
     enabled: !stateOrder && !!id && (!!user || !!emailFromUrl),
   });
 
@@ -43,7 +54,8 @@ export default function OrderConfirmation() {
     onSuccess: ({ checkoutUrl }) => {
       window.location.href = checkoutUrl;
     },
-    onError: (err: any) => toast.error(String(err) || "Could not start payment"),
+    onError: (err: any) =>
+      toast.error(String(err) || "Could not start payment"),
   });
 
   function handleCopy() {
@@ -54,7 +66,10 @@ export default function OrderConfirmation() {
     });
   }
 
-  if (!order && isLoading) return <div className="py-20 text-center text-gray-400">Loading order...</div>;
+  if (!order && isLoading)
+    return (
+      <div className="py-20 text-center text-gray-400">Loading order...</div>
+    );
   if (!order) {
     return (
       <div className="py-20 text-center">
@@ -62,13 +77,18 @@ export default function OrderConfirmation() {
         {!user && (
           <p className="mt-2 text-sm text-gray-400">
             If you checked out as a guest, try the{" "}
-            <Link to="/track-order" className="font-medium text-brand-600 hover:underline">
+            <Link
+              to="/track-order"
+              className="font-medium text-brand-600 hover:underline"
+            >
               order tracker
             </Link>{" "}
             with your order ID and email instead.
           </p>
         )}
-        <Link to="/" className="btn-primary mt-4 inline-flex">Back to shop</Link>
+        <Link to="/" className="btn-primary mt-4 inline-flex">
+          Back to shop
+        </Link>
       </div>
     );
   }
@@ -76,36 +96,50 @@ export default function OrderConfirmation() {
   const paymentInfo = paymentStatusLabel[order.paymentStatus];
 
   return (
-    <div className="mx-auto max-w-lg py-8 text-center">
-      <CheckCircle2 className="mx-auto h-14 w-14 text-green-500" />
-      <h1 className="mt-4 text-2xl font-bold text-gray-900">Order placed!</h1>
-      <p className="mt-1 text-gray-500">Your order has been recorded.</p>
+    <div className="mx-auto max-w-lg px-4 py-12 text-center">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/10">
+        <CheckCircle2 className="h-9 w-9 text-emerald-600 dark:text-emerald-400" />
+      </div>
+      <h1 className="mt-5 font-serif text-3xl font-bold text-foreground">
+        Order placed!
+      </h1>
+      <p className="mt-1.5 text-muted-foreground">
+        Your order has been recorded.
+      </p>
 
-      <span className={`mt-3 inline-block rounded-full px-3 py-1 text-xs font-semibold ${paymentInfo.className}`}>
+      <span
+        className={`mt-4 inline-block rounded-full px-3 py-1 text-xs font-semibold ${paymentInfo.className}`}
+      >
         {paymentInfo.label}
       </span>
 
-      <div className="mt-4 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2">
-        <span className="font-mono text-sm text-gray-700">{order.id}</span>
+      <div className="mt-4 inline-flex items-center gap-2 rounded-lg border border-border bg-muted px-4 py-2">
+        <span className="font-mono text-sm text-foreground">{order.id}</span>
         <button
           onClick={handleCopy}
-          className="rounded-md p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           title="Copy order ID"
         >
-          {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+          {copied ? (
+            <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          ) : (
+            <Copy className="h-4 w-4" />
+          )}
         </button>
       </div>
 
       {order.paymentStatus !== "paid" && (
-        <div className="mt-4 card border-amber-200 bg-amber-50/60 p-4 text-left">
-          <p className="flex items-center gap-2 text-sm font-medium text-amber-800">
-            <AlertCircle className="h-4 w-4" />
-            {order.paymentStatus === "failed" ? "Your last payment attempt failed." : "Payment hasn't been completed yet."}
+        <div className="mt-5 rounded-lg border border-amber-300 bg-amber-50/60 p-4 text-left shadow-sm dark:border-amber-500/30 dark:bg-amber-500/5">
+          <p className="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-400">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            {order.paymentStatus === "failed"
+              ? "Your last payment attempt failed."
+              : "Payment hasn't been completed yet."}
           </p>
           <button
             onClick={() => payMutation.mutate()}
             disabled={payMutation.isPending}
-            className="btn-primary mt-3 w-full gap-2"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             <CreditCard className="h-4 w-4" />
             {payMutation.isPending ? "Redirecting..." : "Pay now"}
@@ -113,48 +147,73 @@ export default function OrderConfirmation() {
         </div>
       )}
 
-      <div className="card mt-6 p-6 text-left">
-        <h2 className="mb-3 font-semibold text-gray-900">Summary</h2>
-        <div className="divide-y divide-gray-100">
+      <div className="mt-6 rounded-lg border border-border bg-card p-6 text-left shadow-sm">
+        <h2 className="mb-3 font-semibold text-foreground">Summary</h2>
+        <div className="divide-y divide-border">
           {order.items.map((item) => (
             <div key={item.id} className="flex justify-between py-2 text-sm">
-              <span className="text-gray-700">{item.productName} × {item.quantity}</span>
-              <span className="font-medium text-gray-900">${(Number(item.price) * item.quantity).toFixed(2)}</span>
+              <span className="text-foreground">
+                {item.productName} × {item.quantity}
+              </span>
+              <span className="font-medium text-foreground">
+                ${(Number(item.price) * item.quantity).toFixed(2)}
+              </span>
             </div>
           ))}
         </div>
-        <div className="mt-3 space-y-1 border-t border-gray-100 pt-3">
+        <div className="mt-3 space-y-1 border-t border-border pt-3">
           {order.discountAmount > 0 && (
             <>
-              <div className="flex justify-between text-sm text-gray-500">
+              <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Subtotal</span>
                 <span>${Number(order.subtotal).toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-sm text-green-700">
-                <span>Discount{order.couponCode ? ` (${order.couponCode})` : ""}</span>
+              <div className="flex justify-between text-sm text-emerald-700 dark:text-emerald-400">
+                <span>
+                  Discount{order.couponCode ? ` (${order.couponCode})` : ""}
+                </span>
                 <span>-${Number(order.discountAmount).toFixed(2)}</span>
               </div>
             </>
           )}
-          <div className="flex justify-between font-semibold text-gray-900">
+          <div className="flex justify-between font-semibold text-foreground">
             <span>Total</span>
             <span>${Number(order.total).toFixed(2)}</span>
           </div>
         </div>
-        <p className="mt-4 text-sm text-gray-500">Shipping to: {order.shippingAddress}</p>
+        <p className="mt-4 text-sm text-muted-foreground">
+          Shipping to: {order.shippingAddress}
+        </p>
       </div>
 
       {user ? (
-        <Link to="/orders" className="btn-primary mt-6 inline-flex">View all my orders</Link>
+        <Link
+          to="/orders"
+          className="mt-6 inline-flex rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+        >
+          View all my orders
+        </Link>
       ) : (
-        <div className="mt-6 space-y-2">
-          <p className="text-sm text-gray-500">
+        <div className="mt-6 space-y-3">
+          <p className="text-sm text-muted-foreground">
             {guestEmail ? (
-              <>We sent a confirmation to <span className="font-medium">{guestEmail}</span>. </>
+              <>
+                We sent a confirmation to{" "}
+                <span className="font-medium text-foreground">
+                  {guestEmail}
+                </span>
+                .{" "}
+              </>
             ) : null}
-            Save the order ID above (copy button included) — you'll need it along with your email to check status later.
+            Save the order ID above (copy button included) — you'll need it
+            along with your email to check status later.
           </p>
-          <Link to="/track-order" className="btn-secondary inline-flex">Track this order later</Link>
+          <Link
+            to="/track-order"
+            className="inline-flex rounded-md border border-border px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary"
+          >
+            Track this order later
+          </Link>
         </div>
       )}
     </div>

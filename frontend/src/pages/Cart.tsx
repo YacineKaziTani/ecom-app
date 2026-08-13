@@ -141,15 +141,21 @@ export default function Cart() {
   return (
     <div className="grid gap-8 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
-        <h1 className="text-xl font-bold text-gray-900">Your Cart</h1>
+        <h1 className="font-serif text-2xl font-bold text-foreground">
+          Your Cart
+        </h1>
         {lines.map(({ product, quantity }) => {
           const issue = stockIssues[product.id];
           return (
             <div
               key={product.id}
-              className={`card flex items-center gap-4 p-4 ${issue ? "border-amber-300 bg-amber-50/50" : ""}`}
+              className={`flex items-center gap-4 rounded-lg border p-4 shadow-sm ${
+                issue
+                  ? "border-amber-300 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-500/5"
+                  : "border-border bg-card"
+              }`}
             >
-              <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-gray-100">
+              <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-muted">
                 {product.imageUrl && (
                   <img
                     src={product.imageUrl}
@@ -158,40 +164,42 @@ export default function Cart() {
                 )}
               </div>
               <div className="flex-1">
-                <p className="font-medium text-gray-900">{product.name}</p>
-                <p className="text-sm text-gray-500">
+                <p className="font-medium text-foreground">{product.name}</p>
+                <p className="text-sm text-muted-foreground">
                   ${Number(product.price).toFixed(2)}
                 </p>
                 {issue && (
-                  <p className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-700">
+                  <p className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
                     <AlertTriangle className="h-3 w-3" />
                     Only {issue.availableStock} left — quantity updated
                   </p>
                 )}
               </div>
-              <div className="flex items-center rounded-lg border border-gray-300">
+              <div className="flex items-center rounded-lg border border-border">
                 <button
                   onClick={() =>
                     setQuantity(product.id, Math.max(1, quantity - 1))
                   }
-                  className="p-1.5 hover:bg-gray-50"
+                  className="p-1.5 text-foreground transition-colors hover:bg-secondary"
                 >
                   <Minus className="h-3.5 w-3.5" />
                 </button>
-                <span className="w-8 text-center text-sm">{quantity}</span>
+                <span className="w-8 text-center text-sm text-foreground">
+                  {quantity}
+                </span>
                 <button
                   onClick={() => setQuantity(product.id, quantity + 1)}
-                  className="p-1.5 hover:bg-gray-50"
+                  className="p-1.5 text-foreground transition-colors hover:bg-secondary"
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <p className="w-16 text-right font-semibold">
+              <p className="w-16 text-right font-semibold text-foreground">
                 ${(Number(product.price) * quantity).toFixed(2)}
               </p>
               <button
                 onClick={() => removeItem(product.id)}
-                className="p-2 text-gray-400 hover:text-red-500"
+                className="p-2 text-muted-foreground transition-colors hover:text-red-500"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -200,15 +208,15 @@ export default function Cart() {
         })}
       </div>
 
-      <div className="card h-fit p-6">
-        <h2 className="mb-4 font-semibold text-gray-900">Order Summary</h2>
-        <div className="flex justify-between text-sm text-gray-600">
+      <div className="h-fit rounded-lg border border-border bg-card p-6 shadow-sm">
+        <h2 className="mb-4 font-semibold text-foreground">Order Summary</h2>
+        <div className="flex justify-between text-sm text-muted-foreground">
           <span>Subtotal</span>
           <span>${total().toFixed(2)}</span>
         </div>
 
         {appliedCoupon ? (
-          <div className="mt-2 flex items-center justify-between text-sm text-green-700">
+          <div className="mt-2 flex items-center justify-between text-sm text-emerald-700 dark:text-emerald-400">
             <span className="flex items-center gap-1">
               <Tag className="h-3.5 w-3.5" />
               {appliedCoupon.code}
@@ -218,7 +226,7 @@ export default function Cart() {
                   setAppliedCoupon(null);
                   setCouponInput("");
                 }}
-                className="ml-1 text-gray-400 hover:text-gray-600"
+                className="ml-1 text-muted-foreground transition-colors hover:text-foreground"
                 title="Remove coupon"
               >
                 <X className="h-3.5 w-3.5" />
@@ -232,21 +240,21 @@ export default function Cart() {
               value={couponInput}
               onChange={(e) => setCouponInput(e.target.value)}
               placeholder="Coupon code"
-              className="input flex-1"
+              className="flex-1 rounded-lg border border-border bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
             />
             <button
               type="button"
               onClick={() => couponMutation.mutate()}
               disabled={!couponInput.trim() || couponMutation.isPending}
-              className="btn-secondary whitespace-nowrap"
+              className="whitespace-nowrap rounded-md border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
             >
               {couponMutation.isPending ? "Checking..." : "Apply"}
             </button>
           </div>
         )}
 
-        <div className="my-3 border-t border-gray-100" />
-        <div className="flex justify-between font-bold text-gray-900">
+        <div className="my-3 border-t border-border" />
+        <div className="flex justify-between font-bold text-foreground">
           <span>Total</span>
           <span>
             $
@@ -260,18 +268,18 @@ export default function Cart() {
         <form onSubmit={handleCheckout} className="mt-6 space-y-3">
           {!user && (
             <>
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-foreground">
                 Full name
               </label>
               <input
                 required
                 value={guestName}
                 onChange={(e) => setGuestName(e.target.value)}
-                className="input"
+                className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
                 placeholder="Jane Doe"
               />
 
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-foreground">
                 Email
               </label>
               <input
@@ -279,14 +287,14 @@ export default function Cart() {
                 required
                 value={guestEmail}
                 onChange={(e) => setGuestEmail(e.target.value)}
-                className="input"
+                className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
                 placeholder="you@example.com"
               />
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-muted-foreground">
                 We'll use this to send your order confirmation.{" "}
                 <Link
                   to="/login"
-                  className="font-medium text-brand-600 hover:underline"
+                  className="font-medium text-accent hover:underline"
                 >
                   Sign in
                 </Link>{" "}
@@ -295,21 +303,21 @@ export default function Cart() {
             </>
           )}
 
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-foreground">
             Shipping address
           </label>
           <textarea
             required
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            className="input"
             rows={3}
+            className="w-full resize-none rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
             placeholder="Street, city, postal code..."
           />
           <button
             type="submit"
             disabled={mutation.isPending}
-            className="btn-primary w-full"
+            className="w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {mutation.isPending
               ? "Redirecting to payment..."

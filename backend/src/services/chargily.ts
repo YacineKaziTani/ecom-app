@@ -3,8 +3,10 @@ import crypto from "crypto";
 // Reference: https://dev.chargily.com/pay-v2/the-full-guide/create-a-checkout
 // and https://dev.chargily.com/pay-v2/webhooks
 const CHARGILY_MODE = process.env.CHARGILY_MODE === "live" ? "live" : "test";
-const CHARGILY_BASE_URL =
-  CHARGILY_MODE === "live" ? "https://pay.chargily.net/api/v2" : "https://pay.chargily.net/test/api/v2";
+const CHARGILY_BASE_URL = process.env.CHARGILY_BASE_URL;
+CHARGILY_MODE === "live"
+  ? "https://pay.chargily.net/api/v2"
+  : "https://pay.chargily.net/test/api/v2";
 const CHARGILY_API_KEY = process.env.CHARGILY_API_KEY;
 const CHARGILY_LOCALE = process.env.CHARGILY_LOCALE || "ar"; // 'ar' | 'en' | 'fr'
 
@@ -25,7 +27,9 @@ export interface ChargilyCheckout {
   currency: string;
 }
 
-export async function createChargilyCheckout(params: CreateCheckoutParams): Promise<ChargilyCheckout> {
+export async function createChargilyCheckout(
+  params: CreateCheckoutParams,
+): Promise<ChargilyCheckout> {
   if (!CHARGILY_API_KEY) {
     throw new Error("CHARGILY_API_KEY is not configured");
   }
@@ -50,7 +54,9 @@ export async function createChargilyCheckout(params: CreateCheckoutParams): Prom
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    throw new Error(`Chargily checkout creation failed (${response.status}): ${body}`);
+    throw new Error(
+      `Chargily checkout creation failed (${response.status}): ${body}`,
+    );
   }
 
   return response.json();
@@ -61,10 +67,16 @@ export async function createChargilyCheckout(params: CreateCheckoutParams): Prom
 // the exact raw bytes received — not a re-serialized/re-parsed version of the
 // JSON — which is why the webhook route is mounted with a raw body parser
 // instead of the app's normal express.json().
-export function verifyChargilySignature(rawBody: string, signature: string): boolean {
+export function verifyChargilySignature(
+  rawBody: string,
+  signature: string,
+): boolean {
   if (!CHARGILY_API_KEY || !signature) return false;
 
-  const expected = crypto.createHmac("sha256", CHARGILY_API_KEY).update(rawBody, "utf8").digest("hex");
+  const expected = crypto
+    .createHmac("sha256", CHARGILY_API_KEY)
+    .update(rawBody, "utf8")
+    .digest("hex");
 
   const expectedBuf = Buffer.from(expected, "hex");
   const providedBuf = Buffer.from(signature, "hex");
