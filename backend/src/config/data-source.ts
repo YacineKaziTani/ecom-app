@@ -15,16 +15,15 @@ dotenv.config();
 
 export const AppDataSource = new DataSource({
   type: "postgres",
-  host: process.env.DB_HOST || "localhost",
-  port: Number(process.env.DB_PORT) || 5432,
-  username: process.env.DB_USER || "postgres",
-  password: process.env.DB_PASSWORD || "postgres",
-  database: process.env.DB_NAME || "ecom",
-  // Real environments are migration-managed (see /migrations). Tests run
-  // against a disposable database and auto-sync instead, purely so the test
-  // suite doesn't need every migration re-run whenever an entity changes.
-  synchronize: process.env.NODE_ENV === "test",
-  logging: false,
+  // host: process.env.DB_HOST || "localhost",
+  // port: Number(process.env.DB_PORT) || 5432,
+  // username: process.env.DB_USER || "postgres",
+  // password: process.env.DB_PASSWORD || "postgres",
+  // database: process.env.DB_NAME || "ecom",
+  url: process.env.DATABASE_URL,
+  ssl: true,
+  synchronize: false,
+  logging: true,
   entities: [
     User,
     Shop,
