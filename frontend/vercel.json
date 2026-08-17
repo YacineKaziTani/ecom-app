@@ -2,8 +2,11 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://ecom-app-zgvi.onrender.com/api"
+      "destination": "https://ecom-app-zgvi.onrender.com/api/$1"
     },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
