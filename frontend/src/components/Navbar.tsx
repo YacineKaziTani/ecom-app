@@ -17,11 +17,16 @@ export function Navbar() {
   const navigate = useNavigate();
 
   async function handleLogout() {
-    await authApi.logout();
-    qc.clear();
-    navigate("/");
+    try {
+      await authApi.logout();
+    } catch (error) {
+      console.error("Logout API failed", error);
+    } finally {
+      qc.setQueryData(["me"], null);
+      qc.removeQueries();
+      navigate("/");
+    }
   }
-
   return (
     <header className="sticky top-0 z-50 bg-card border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
