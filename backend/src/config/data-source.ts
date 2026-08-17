@@ -35,6 +35,6 @@ export const AppDataSource = new DataSource({
     Coupon,
     PasswordResetToken,
   ],
-  migrations: ["src/migrations/*.ts"],
+  migrations: [__dirname + "/../migrations/*.js"],
   subscribers: [],
 });
