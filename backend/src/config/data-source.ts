@@ -10,7 +10,7 @@ import { RefreshToken } from "../entities/RefreshToken";
 import { Coupon } from "../entities/Coupon";
 import { PasswordResetToken } from "../entities/PasswordResetToken";
 import dotenv from "dotenv";
-import { CartItem } from "../entities/Cartitem";
+import { CartItem } from "../entities/CartItem";
 
 dotenv.config();
 

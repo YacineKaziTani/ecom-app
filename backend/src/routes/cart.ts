@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { AppDataSource } from "../config/data-source";
-import { CartItem } from "../entities/Cartitem";
+import { CartItem } from "../entities/CartItem";
 import { Product } from "../entities/Product";
 import { requireAuth } from "../middleware/auth";
 
