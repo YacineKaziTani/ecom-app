@@ -8,9 +8,17 @@ import toast from "react-hot-toast";
 export default function MyShop() {
   const { isSuperAdmin } = useAuth();
   const qc = useQueryClient();
-  const [form, setForm] = useState<ShopInput>({ name: "", description: "", logoUrl: "" });
+  const [form, setForm] = useState<ShopInput>({
+    name: "",
+    description: "",
+    logoUrl: "",
+  });
 
-  const { data: shop, isLoading, isError } = useQuery({
+  const {
+    data: shop,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["myShop"],
     queryFn: shopsApi.mine,
     retry: false,
@@ -18,7 +26,12 @@ export default function MyShop() {
   });
 
   useEffect(() => {
-    if (shop) setForm({ name: shop.name, description: shop.description || "", logoUrl: shop.logoUrl || "" });
+    if (shop)
+      setForm({
+        name: shop.name,
+        description: shop.description || "",
+        logoUrl: shop.logoUrl || "",
+      });
   }, [shop]);
 
   const createMutation = useMutation({
@@ -46,28 +59,43 @@ export default function MyShop() {
   }
 
   if (isSuperAdmin) {
-    return <p className="text-gray-500">Super admins don't own an individual shop — you manage every shop from here.</p>;
+    return (
+      <p className="">
+        Super admins don't own an individual shop — you manage every shop from
+        here.
+      </p>
+    );
   }
 
   if (isLoading) return <p className="text-gray-400">Loading...</p>;
 
   return (
     <div className="mx-auto max-w-lg">
-      <h1 className="mb-2 text-2xl font-bold text-gray-900">My Shop</h1>
+      <h1 className="mb-2 text-2xl font-bold">My Shop</h1>
       {!shop && (
-        <p className="mb-6 text-sm text-gray-500">
+        <p className="mb-6 text-sm">
           You don't have a shop yet — create one below before adding products.
         </p>
       )}
 
       <form onSubmit={handleSubmit} className="card space-y-4 p-6">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Shop name</label>
-          <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" />
+          <label className="mb-1 block text-sm font-medium">Shop name</label>
+          <input
+            required
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground transition focus:border-accent focus:outline-none"
+          />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
-          <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input" rows={3} />
+          <label className="mb-1 block text-sm font-medium">Description</label>
+          <textarea
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground transition focus:border-accent focus:outline-none"
+            rows={3}
+          />
         </div>
         <ImageUpload
           value={form.logoUrl}
@@ -75,7 +103,11 @@ export default function MyShop() {
           folder="shops"
           label="Shop logo"
         />
-        <button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className="btn-primary w-full">
+        <button
+          type="submit"
+          disabled={createMutation.isPending || updateMutation.isPending}
+          className="btn-primary w-full"
+        >
           {shop ? "Save changes" : "Create my shop"}
         </button>
       </form>

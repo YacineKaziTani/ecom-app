@@ -2,7 +2,7 @@ import { useState, useRef, FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { Trash2, Minus, Plus, AlertTriangle, Tag, X } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCartStore } from "../store/cartStore";
+import { useCart } from "../hooks/useCart";
 import { useAuth } from "../store/AuthContext";
 import { ordersApi, CreateOrderInput } from "../api/orders";
 import { paymentsApi } from "../api/payments";
@@ -18,7 +18,7 @@ interface StockIssue {
 }
 
 export default function Cart() {
-  const { lines, removeItem, setQuantity, total, clear } = useCartStore();
+  const { lines, removeItem, setQuantity, total, clear } = useCart();
   const { user } = useAuth();
   const [address, setAddress] = useState(user?.address || "");
   const [guestEmail, setGuestEmail] = useState("");

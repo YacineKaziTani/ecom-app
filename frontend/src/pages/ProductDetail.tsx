@@ -2,14 +2,14 @@ import { useParams, Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { productsApi } from "../api/products";
-import { useCartStore } from "../store/cartStore";
+import { useCart } from "../hooks/useCart";
 import toast from "react-hot-toast";
 import { ArrowLeft, Minus, Plus } from "lucide-react";
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const [qty, setQty] = useState(1);
-  const addItem = useCartStore((s) => s.addItem);
+  const { addItem } = useCart();
 
   const { data: product, isLoading } = useQuery({
     queryKey: ["product", id],

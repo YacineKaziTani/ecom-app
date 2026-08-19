@@ -41,11 +41,11 @@ export default function ShopsDirectory() {
                   <div className="bg-card rounded-lg overflow-hidden border border-border hover:border-accent transition">
                     {/* Shop Image */}
                     <div className="aspect-video bg-secondary group-hover:bg-border transition flex items-center justify-center">
-                      <div className="text-center">
-                        <p className="font-serif text-2xl text-muted/50">
-                          {shop.name}
-                        </p>
-                      </div>
+                      <img
+                        src={shop.logoUrl}
+                        alt={shop.name}
+                        className="h-full w-full object-cover"
+                      />
                     </div>
 
                     {/* Shop Info */}

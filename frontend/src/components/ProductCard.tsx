@@ -1,11 +1,11 @@
 import { Link } from "react-router";
 import { ShoppingCart } from "lucide-react";
 import { Product } from "../api/types";
-import { useCartStore } from "../store/cartStore";
+import { useCart } from "../hooks/useCart";
 import toast from "react-hot-toast";
 
 export function ProductCard({ product }: { product: Product }) {
-  const addItem = useCartStore((s) => s.addItem);
+  const { addItem } = useCart();
 
   return (
     <div className="group overflow-hidden rounded-lg border border-border bg-card transition-shadow duration-300 hover:shadow-md">

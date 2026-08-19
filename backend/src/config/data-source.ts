@@ -10,6 +10,7 @@ import { RefreshToken } from "../entities/RefreshToken";
 import { Coupon } from "../entities/Coupon";
 import { PasswordResetToken } from "../entities/PasswordResetToken";
 import dotenv from "dotenv";
+import { CartItem } from "../entities/Cartitem";
 
 dotenv.config();
 
@@ -34,7 +35,8 @@ export const AppDataSource = new DataSource({
     RefreshToken,
     Coupon,
     PasswordResetToken,
+    CartItem,
   ],
-  migrations: [__dirname + "/../migrations/*.js"],
+  migrations: [__dirname + "/../migrations/*{.ts,.js}"],
   subscribers: [],
 });

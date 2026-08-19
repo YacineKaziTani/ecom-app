@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn, JoinColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  OneToMany,
+  CreateDateColumn,
+  UpdateDateColumn,
+  JoinColumn,
+} from "typeorm";
 import { Category } from "./Category";
 import { OrderItem } from "./OrderItem";
 import { Shop } from "./Shop";
@@ -30,7 +39,10 @@ export class Product {
   @Column({ nullable: true })
   imageUrl?: string;
 
-  @ManyToOne(() => Category, (category) => category.products, { onDelete: "SET NULL", nullable: true })
+  @ManyToOne(() => Category, (category) => category.products, {
+    onDelete: "SET NULL",
+    nullable: true,
+  })
   @JoinColumn({ name: "categoryId" })
   category?: Category;
 

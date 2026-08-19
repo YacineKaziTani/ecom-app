@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { AppDataSource } from "../config/data-source";
 import { PasswordResetToken } from "../entities/PasswordResetToken";
 
-const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+const RESET_TOKEN_TTL_MS = 90 * 60 * 1000;
 
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");

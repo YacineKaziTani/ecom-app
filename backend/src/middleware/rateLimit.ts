@@ -15,8 +15,8 @@ export const apiLimiter = rateLimit({
 });
 
 export const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
+  windowMs: 15 * 60 * 100,
+  limit: 50,
   standardHeaders: true,
   legacyHeaders: false,
   skip,
@@ -27,8 +27,8 @@ export const loginLimiter = rateLimit({
 });
 
 export const registerLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  limit: 10,
+  windowMs: 60 * 60 * 100,
+  limit: 50,
   standardHeaders: true,
   legacyHeaders: false,
   skip,
@@ -39,7 +39,7 @@ export const registerLimiter = rateLimit({
 });
 
 export const refreshLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 15 * 60 * 100,
   limit: 60,
   standardHeaders: true,
   legacyHeaders: false,
@@ -48,8 +48,8 @@ export const refreshLimiter = rateLimit({
 });
 
 export const forgotPasswordLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  limit: 5,
+  windowMs: 60 * 60 * 100,
+  limit: 15,
   standardHeaders: true,
   legacyHeaders: false,
   skip,
@@ -59,8 +59,8 @@ export const forgotPasswordLimiter = rateLimit({
 });
 
 export const resetPasswordLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
+  windowMs: 15 * 60 * 100,
+  limit: 15,
   standardHeaders: true,
   legacyHeaders: false,
   skip,

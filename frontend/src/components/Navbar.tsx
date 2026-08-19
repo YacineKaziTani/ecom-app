@@ -7,13 +7,14 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../store/AuthContext";
-import { useCartStore } from "../store/cartStore";
+import { useCart } from "../hooks/useCart";
 import { authApi } from "../api/auth";
 
 export function Navbar() {
   const { user, isAdmin } = useAuth();
   const qc = useQueryClient();
-  const count = useCartStore((s) => s.count());
+  const { count } = useCart();
+  const cartCount = count();
   const navigate = useNavigate();
 
   async function handleLogout() {
@@ -82,9 +83,9 @@ export function Navbar() {
               className="relative p-2 hover:bg-secondary rounded-md transition"
             >
               <ShoppingCart className="w-6 h-6" />
-              {count > 0 && (
+              {cartCount > 0 && (
                 <span className="absolute top-0 right-0 bg-accent text-accent-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                  {count}
+                  {cartCount}
                 </span>
               )}
             </Link>

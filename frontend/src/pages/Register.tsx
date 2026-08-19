@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { authApi } from "../api/auth";
 import toast from "react-hot-toast";
 import { useInvalidateAuth } from "../store/AuthContext";
+import { mergeGuestCartIntoAccount } from "../hooks/useCart";
 import { ArrowLeft } from "lucide-react";
 
 export default function Register() {
@@ -19,9 +20,10 @@ export default function Register() {
 
   const mutation = useMutation({
     mutationFn: authApi.register,
-    onSuccess: () => {
+    onSuccess: async () => {
       invalidateAuth();
       qc.clear();
+      await mergeGuestCartIntoAccount(qc);
       toast.success("Account created!");
       navigate("/");
     },

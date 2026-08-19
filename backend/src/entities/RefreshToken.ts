@@ -23,7 +23,7 @@ export class RefreshToken {
   @Column({ unique: true })
   tokenHash!: string;
 
-  @Column()
+  @Column({ type: "timestamptz" })
   expiresAt!: Date;
 
   @CreateDateColumn()

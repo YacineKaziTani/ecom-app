@@ -170,7 +170,7 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
   sendPasswordResetEmail(user.email, {
     name: user.firstName,
     resetLink,
-    expiresInMinutes: 60,
+    expiresInMinutes: 90,
   });
 
   res.json(GENERIC_RESPONSE);

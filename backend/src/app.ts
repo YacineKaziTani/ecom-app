@@ -16,6 +16,7 @@ import paymentRoutes from "./routes/payments";
 import paymentWebhookRoutes from "./routes/paymentWebhook";
 import couponRoutes from "./routes/coupons";
 import analyticsRoutes from "./routes/analytics";
+import cartRoutes from "./routes/cart";
 
 export const app = express();
 
@@ -52,5 +53,6 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/coupons", couponRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/cart", cartRoutes);
 
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
