@@ -7,7 +7,12 @@ import toast from "react-hot-toast";
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
-  const token = searchParams.get("token");
+  const rawToken = searchParams.get("token");
+  // Some email clients mangle long plain-text URLs (quoted-printable line
+  // wrapping can glue the next word onto the end of the link). The token is
+  // always exactly 64 lowercase hex chars, so recover it even if something
+  // got appended after it.
+  const token = rawToken?.match(/^[a-f0-9]{64}/)?.[0] ?? null;
   const navigate = useNavigate();
 
   const [password, setPassword] = useState("");

@@ -177,7 +177,12 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
 });
 
 const resetPasswordSchema = z.object({
-  token: z.string().min(1).max(200),
+  token: z
+    .string()
+    .regex(
+      /^[a-f0-9]{64}$/,
+      "Reset link is malformed — please request a new one",
+    ),
   newPassword: passwordSchema,
 });
 
