@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface PaginationProps {
   page: number;
@@ -24,7 +25,13 @@ function buildPageList(page: number, totalPages: number): (number | "...")[] {
   return range;
 }
 
-export function Pagination({ page, totalPages, total, limit, onPageChange }: PaginationProps) {
+export function Pagination({
+  page,
+  totalPages,
+  total,
+  limit,
+  onPageChange,
+}: PaginationProps) {
   if (totalPages <= 1) return null;
 
   const start = (page - 1) * limit + 1;
@@ -32,18 +39,23 @@ export function Pagination({ page, totalPages, total, limit, onPageChange }: Pag
   const pages = buildPageList(page, totalPages);
 
   return (
-    <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
-      <p className="text-sm text-gray-500">
-        Showing <span className="font-medium text-gray-700">{start}</span>–
-        <span className="font-medium text-gray-700">{end}</span> of{" "}
-        <span className="font-medium text-gray-700">{total}</span>
+    <nav
+      aria-label="Pagination"
+      className="mt-10 flex flex-col items-center gap-4 border-t border-border pt-6 sm:flex-row sm:justify-between"
+    >
+      <p className="text-sm text-muted-foreground">
+        Showing <span className="font-semibold text-foreground">{start}</span>–
+        <span className="font-semibold text-foreground">{end}</span> of{" "}
+        <span className="font-semibold text-foreground">{total}</span>
       </p>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1.5">
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page === 1}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card
+                     text-muted-foreground transition-colors hover:border-accent/50 hover:text-foreground
+                     disabled:pointer-events-none disabled:opacity-40"
           aria-label="Previous page"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -51,31 +63,40 @@ export function Pagination({ page, totalPages, total, limit, onPageChange }: Pag
 
         {pages.map((p, i) =>
           p === "..." ? (
-            <span key={`ellipsis-${i}`} className="px-2 text-sm text-gray-400">
+            <span
+              key={`ellipsis-${i}`}
+              className="px-1.5 text-sm text-muted-foreground"
+            >
               …
             </span>
           ) : (
             <button
               key={p}
               onClick={() => onPageChange(p)}
-              className={`h-9 w-9 rounded-lg text-sm font-medium ${
-                p === page ? "bg-brand-600 text-white" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
-              }`}
+              aria-current={p === page ? "page" : undefined}
+              className={cn(
+                "h-9 w-9 rounded-lg text-sm font-semibold transition-all duration-200",
+                p === page
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "border border-border bg-card text-muted-foreground hover:border-accent/50 hover:text-foreground",
+              )}
             >
               {p}
             </button>
-          )
+          ),
         )}
 
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={page === totalPages}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card
+                     text-muted-foreground transition-colors hover:border-accent/50 hover:text-foreground
+                     disabled:pointer-events-none disabled:opacity-40"
           aria-label="Next page"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
-    </div>
+    </nav>
   );
 }

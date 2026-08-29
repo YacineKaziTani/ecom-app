@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Loader2, Clock } from "lucide-react";
 import { ordersApi } from "../api/orders";
 import { useAuth } from "../store/AuthContext";
+import { cn } from "@/lib/utils";
 
 // Chargily redirects the browser here immediately after a successful payment,
 // but the *authoritative* confirmation is the separate server-to-server
@@ -42,52 +43,67 @@ export default function PaymentSuccess() {
     order?.paymentStatus === "unpaid" && pollCount < MAX_POLLS;
   const confirmedPaid = order?.paymentStatus === "paid";
 
-  return (
-    <div className="mx-auto max-w-md py-16 text-center">
-      {confirmedPaid ? (
-        <>
-          <CheckCircle2 className="mx-auto h-16 w-16" />
-          <h1 className="mt-4 text-2xl font-bold">Payment received!</h1>
-          <p className="mt-2">
-            Thank you — your order is confirmed and being prepared.
-          </p>
-        </>
-      ) : stillWaiting ? (
-        <>
-          <Loader2 className="mx-auto h-16 w-16 animate-spin" />
-          <h1 className="mt-4 text-2xl font-bold">
-            Confirming your payment...
-          </h1>
-          <p className="mt-2 text-gray-500">
-            This usually takes just a few seconds.
-          </p>
-        </>
-      ) : (
-        <>
-          <Clock className="mx-auto h-16 w-16" />
-          <h1 className="mt-4 text-2xl font-bold">
-            Payment is still processing
-          </h1>
-          <p className="mt-2">
-            Your payment was submitted but we haven't received final
-            confirmation yet. This can take a little longer sometimes — check
-            your order status shortly.
-          </p>
-        </>
-      )}
+  const state = confirmedPaid
+    ? {
+        icon: CheckCircle2,
+        tone: "bg-success-soft text-success",
+        title: "Payment received",
+        body: "Thank you — your order is confirmed and being prepared for shipping.",
+      }
+    : stillWaiting
+      ? {
+          icon: Loader2,
+          tone: "bg-info-soft text-info",
+          title: "Confirming your payment…",
+          body: "This usually takes just a few seconds. Hang tight.",
+          spin: true,
+        }
+      : {
+          icon: Clock,
+          tone: "bg-warning-soft text-warning",
+          title: "Payment is still processing",
+          body: "Your payment was submitted but we haven't had final confirmation yet. This can occasionally take longer — check your order status shortly.",
+        };
 
-      {orderId && (
-        <Link
-          to={
-            user
-              ? "/orders"
-              : `/order-confirmation/${orderId}${emailFromUrl ? `?email=${encodeURIComponent(emailFromUrl)}` : ""}`
-          }
-          className="btn-primary mt-6 inline-flex"
+  const Icon = state.icon;
+
+  return (
+    <div className="container-narrow py-16 sm:py-24">
+      <div className="mx-auto max-w-md animate-fade-up text-center">
+        <span
+          className={cn(
+            "mx-auto flex h-16 w-16 items-center justify-center rounded-full",
+            state.tone,
+          )}
         >
-          {user ? "View my orders" : "View order details"}
-        </Link>
-      )}
+          <Icon className={cn("h-8 w-8", state.spin && "animate-spin")} />
+        </span>
+
+        <h1 className="mt-6 text-3xl font-bold text-foreground">
+          {state.title}
+        </h1>
+        <p className="mt-3 leading-relaxed text-muted-foreground">
+          {state.body}
+        </p>
+
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          {orderId && (
+            <Link
+              to={
+                user
+                  ? "/orders"
+                  : `/order-confirmation/${orderId}${emailFromUrl ? `?email=${encodeURIComponent(emailFromUrl)}` : ""}`
+              }
+              className="btn-primary"
+            >
+              {user ? "View my orders" : "View order details"}
+            </Link>
+          )}
+          <Link to="/" className="btn-outline">
+            Keep shopping
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

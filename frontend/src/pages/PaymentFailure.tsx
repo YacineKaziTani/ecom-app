@@ -9,26 +9,38 @@ export default function PaymentFailure() {
   const { user } = useAuth();
 
   return (
-    <div className="mx-auto max-w-md py-16 text-center">
-      <XCircle className="mx-auto h-16 w-16 text-red-500" />
-      <h1 className="mt-4 text-2xl font-bold">Payment didn't go through</h1>
-      <p className="mt-2">
-        Your payment was canceled or declined. Your order hasn't been charged —
-        you can try again whenever you're ready.
-      </p>
+    <div className="container-narrow py-16 sm:py-24">
+      <div className="mx-auto max-w-md animate-fade-up text-center">
+        <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-destructive-soft">
+          <XCircle className="h-8 w-8 text-destructive" />
+        </span>
 
-      {orderId && (
-        <Link
-          to={
-            user
-              ? "/orders"
-              : `/order-confirmation/${orderId}${emailFromUrl ? `?email=${encodeURIComponent(emailFromUrl)}` : ""}`
-          }
-          className="btn-primary mt-6 inline-flex"
-        >
-          {user ? "View my orders" : "View order & retry payment"}
-        </Link>
-      )}
+        <h1 className="mt-6 text-3xl font-bold text-foreground">
+          Payment didn't go through
+        </h1>
+        <p className="mt-3 leading-relaxed text-muted-foreground">
+          Your payment was cancelled or declined, so nothing has been charged.
+          Your order is still saved — you can retry whenever you're ready.
+        </p>
+
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          {orderId && (
+            <Link
+              to={
+                user
+                  ? "/orders"
+                  : `/order-confirmation/${orderId}${emailFromUrl ? `?email=${encodeURIComponent(emailFromUrl)}` : ""}`
+              }
+              className="btn-primary"
+            >
+              {user ? "View my orders" : "View order & retry payment"}
+            </Link>
+          )}
+          <Link to="/cart" className="btn-outline">
+            Back to cart
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,15 +1,17 @@
 import { useState, FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { authApi } from "../api/auth";
-import toast from "react-hot-toast";
 import { useInvalidateAuth } from "../store/AuthContext";
 import { mergeGuestCartIntoAccount } from "../hooks/useCart";
-import { ArrowLeft } from "lucide-react";
+import { AuthLayout } from "../components/AuthLayout";
+import toast from "react-hot-toast";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const invalidateAuth = useInvalidateAuth();
@@ -32,89 +34,84 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <Link
-          to="/"
-          className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition mb-8"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back
-        </Link>
+    <AuthLayout
+      title="Welcome back"
+      subtitle="Sign in to track your orders and check out faster."
+      footer={
+        <p className="text-center text-sm text-muted-foreground">
+          Don't have an account?{" "}
+          <Link to="/register" className="link-accent">
+            Create one
+          </Link>
+        </p>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div>
+          <label htmlFor="email" className="label">
+            Email address
+          </label>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="input"
+            required
+          />
+        </div>
 
-        <div className="bg-card rounded-lg border border-border p-8">
-          <div className="mb-8">
-            <h1 className="font-serif font-bold text-3xl mb-2">Welcome Back</h1>
-            <p className="text-muted-foreground">
-              Sign in to your Luxora account
-            </p>
+        <div>
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <label htmlFor="password" className="label mb-0">
+              Password
+            </label>
+            <Link
+              to="/forgot-password"
+              className="text-xs font-medium text-muted-foreground transition-colors hover:text-accent"
+            >
+              Forgot password?
+            </Link>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-2">
-                Email Address
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:border-accent transition"
-                required
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium mb-2"
-              >
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:border-accent transition"
-                required
-              />
-            </div>
-
-            <div className="flex justify-between items-center text-sm">
-              <Link
-                to="/forgot-password"
-                className="text-accent hover:text-muted transition"
-              >
-                Forgot password?
-              </Link>
-            </div>
-
+          <div className="relative">
+            <input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="input pr-11"
+              required
+            />
             <button
-              type="submit"
-              disabled={mutation.isPending}
-              className="w-full bg-accent text-accent-foreground py-2 rounded-lg font-medium hover:bg-muted transition disabled:opacity-50"
+              type="button"
+              onClick={() => setShowPassword((s) => !s)}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5
+                         text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={showPassword ? "Hide password" : "Show password"}
             >
-              {mutation.isPending ? "Signing in..." : "Sign In"}
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </button>
-          </form>
-
-          <div className="mt-6 pt-6 border-t border-border">
-            <p className="text-center text-muted-foreground">
-              Don&apos;t have an account?{" "}
-              <Link
-                to="/register"
-                className="text-accent hover:text-muted transition font-medium"
-              >
-                Sign up
-              </Link>
-            </p>
           </div>
         </div>
-      </div>
-    </div>
+
+        <button
+          type="submit"
+          disabled={mutation.isPending}
+          className="btn-primary btn-lg w-full"
+        >
+          {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          {mutation.isPending ? "Signing in…" : "Sign in"}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }

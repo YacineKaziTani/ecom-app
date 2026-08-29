@@ -1,8 +1,9 @@
 import { useState, FormEvent } from "react";
 import { Link } from "react-router";
 import { useMutation } from "@tanstack/react-query";
-import { CheckCircle2 } from "lucide-react";
+import { MailCheck, Loader2 } from "lucide-react";
 import { authApi } from "../api/auth";
+import { AuthLayout } from "../components/AuthLayout";
 import toast from "react-hot-toast";
 
 export default function ForgotPassword() {
@@ -18,107 +19,76 @@ export default function ForgotPassword() {
     mutation.mutate();
   }
 
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12 ">
-      <div className="w-full max-w-md bg-card rounded-lg border border-border">
-        <div className="mb-8 text-center">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-2xl font-bold tracking-tight"
-          >
-            ArtisanShop
-          </Link>
+  if (mutation.isSuccess) {
+    return (
+      <AuthLayout
+        title="Check your inbox"
+        subtitle="If an account exists for that address, a reset link is on its way."
+      >
+        <div className="card p-6 text-center">
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success-soft">
+            <MailCheck className="h-6 w-6 text-success" />
+          </span>
 
-          <h1 className="mt-8 text-3xl font-bold tracking-tight">
-            Reset your password
-          </h1>
-
-          <p className="mt-2 text-sm leading-6 text-gray-500">
-            Enter your email address and we'll send you a link to reset your
-            password.
+          <p className="mt-5 text-sm leading-relaxed text-muted-foreground">
+            We've sent a password reset link to{" "}
+            <span className="font-semibold text-foreground">{email}</span>.
           </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            The link expires in one hour. Don't forget to check your spam
+            folder.
+          </p>
+
+          <Link to="/login" className="btn-outline mt-6 w-full">
+            Back to sign in
+          </Link>
         </div>
+      </AuthLayout>
+    );
+  }
 
-        {mutation.isSuccess ? (
-          <div className="bg-card rounded-lg border border-border p-8 text-center shadow-sm">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full">
-              <CheckCircle2 className="h-7 w-7" />
-            </div>
-
-            <h2 className="mt-5 text-lg font-semibold">Check your inbox</h2>
-
-            <p className="mt-2 text-sm leading-6">
-              If an account exists for{" "}
-              <span className="font-medium">{email}</span>, we've sent a
-              password reset link.
-            </p>
-
-            <p className="mt-2 text-xs">The link will expire in one hour.</p>
-
-            <Link
-              to="/login"
-              className="mt-6 inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-mediumtransition hover:bg-brand-50"
-            >
-              Back to sign in
-            </Link>
-          </div>
-        ) : (
-          <form
-            onSubmit={handleSubmit}
-            className="card space-y-6 p-8 shadow-sm"
-          >
-            <div>
-              <label htmlFor="email" className="mb-2 block text-sm font-medium">
-                Email address
-              </label>
-
-              <input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:border-accent transition"
-                placeholder="you@example.com"
-                autoComplete="email"
-              />
-
-              <p className="mt-2 text-xs">
-                We'll send a secure password reset link to this address.
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              disabled={mutation.isPending}
-              className="btn-primary w-full"
-            >
-              {mutation.isPending ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  Sending...
-                </span>
-              ) : (
-                "Send reset link"
-              )}
-            </button>
-          </form>
-        )}
-
-        <p className="mt-6 text-center text-sm">
-          Remembered your password?{" "}
-          <Link
-            to="/login"
-            className="font-medium text-brand-600 transition hover:underline"
-          >
+  return (
+    <AuthLayout
+      title="Reset your password"
+      subtitle="Enter your email address and we'll send you a link to set a new password."
+      footer={
+        <p className="text-center text-sm text-muted-foreground">
+          Remembered it?{" "}
+          <Link to="/login" className="link-accent">
             Sign in
           </Link>
         </p>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div>
+          <label htmlFor="email" className="label">
+            Email address
+          </label>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="input"
+          />
+          <p className="field-hint">
+            We'll send a secure reset link to this address.
+          </p>
+        </div>
 
-        <p className="mt-8 text-center text-xs">
-          © {new Date().getFullYear()} ArtisanShop. All rights reserved.
-        </p>
-      </div>
-    </div>
+        <button
+          type="submit"
+          disabled={mutation.isPending}
+          className="btn-primary btn-lg w-full"
+        >
+          {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          {mutation.isPending ? "Sending…" : "Send reset link"}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }

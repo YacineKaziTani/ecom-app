@@ -1,8 +1,10 @@
 import { useState, FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useMutation } from "@tanstack/react-query";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Loader2, Check } from "lucide-react";
 import { authApi } from "../api/auth";
+import { AuthLayout } from "../components/AuthLayout";
+import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 
 export default function ResetPassword() {
@@ -17,6 +19,7 @@ export default function ResetPassword() {
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const mutation = useMutation({
     mutationFn: () => authApi.resetPassword(token!, password),
@@ -38,76 +41,129 @@ export default function ResetPassword() {
 
   if (!token) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4">
-        <div className="w-full max-w-sm text-center">
-          <AlertCircle className="mx-auto h-10 w-10 text-red-500" />
-          <p className="mt-3 text-sm text-gray-600">
-            This reset link is missing its token — please request a new one.
+      <AuthLayout
+        title="Link is incomplete"
+        subtitle="This reset link is missing its token."
+      >
+        <div className="card p-6 text-center">
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive-soft">
+            <AlertCircle className="h-6 w-6 text-destructive" />
+          </span>
+          <p className="mt-5 text-sm leading-relaxed text-muted-foreground">
+            Your email client may have cut the link short. Request a fresh one
+            and open it directly from your inbox.
           </p>
-          <Link to="/forgot-password" className="btn-primary mt-4 inline-flex">
+          <Link to="/forgot-password" className="btn-primary mt-6 w-full">
             Request a new link
           </Link>
         </div>
-      </div>
+      </AuthLayout>
     );
   }
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <Link to="/" className="text-2xl font-extrabold text-brand-700">
-            Artisan<span className="text-brand-500">Shop</span>
-          </Link>
-          <p className="mt-2 text-sm">Choose a new password</p>
-        </div>
+  const rules = [
+    { label: "At least 8 characters", ok: password.length >= 8 },
+    { label: "Contains a letter", ok: /[a-zA-Z]/.test(password) },
+    { label: "Contains a number", ok: /\d/.test(password) },
+    {
+      label: "Both entries match",
+      ok: password.length > 0 && password === confirmPassword,
+    },
+  ];
 
-        <form onSubmit={handleSubmit} className="card space-y-4 p-6">
-          <div>
-            <label className="mb-1 block text-sm font-medium">
-              New password
-            </label>
+  return (
+    <AuthLayout
+      title="Choose a new password"
+      subtitle="Pick something you haven't used elsewhere."
+      footer={
+        <p className="text-center text-sm text-muted-foreground">
+          <Link to="/login" className="link-accent">
+            Back to sign in
+          </Link>
+        </p>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div>
+          <label htmlFor="password" className="label">
+            New password
+          </label>
+          <div className="relative">
             <input
-              type="password"
+              id="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
               required
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:border-accent transition"
-              placeholder="At least 8 characters, with a letter and a number"
+              className="input pr-11"
+              placeholder="••••••••"
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword((s) => !s)}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5
+                         text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
           </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">
-              Confirm new password
-            </label>
-            <input
-              type="password"
-              required
-              minLength={8}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:border-accent transition"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={mutation.isPending}
-            className="btn-primary w-full"
-          >
-            {mutation.isPending ? "Resetting..." : "Reset password"}
-          </button>
-        </form>
+        </div>
 
-        <p className="mt-4 text-center text-sm">
-          <Link
-            to="/login"
-            className="font-medium text-brand-600 hover:underline"
-          >
-            Back to sign in
-          </Link>
-        </p>
-      </div>
-    </div>
+        <div>
+          <label htmlFor="confirmPassword" className="label">
+            Confirm new password
+          </label>
+          <input
+            id="confirmPassword"
+            type={showPassword ? "text" : "password"}
+            autoComplete="new-password"
+            required
+            minLength={8}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="input"
+            placeholder="••••••••"
+          />
+        </div>
+
+        {password.length > 0 && (
+          <ul className="space-y-1">
+            {rules.map((rule) => (
+              <li
+                key={rule.label}
+                className={cn(
+                  "flex items-center gap-1.5 text-xs transition-colors",
+                  rule.ok ? "text-success" : "text-muted-foreground",
+                )}
+              >
+                <Check
+                  className={cn(
+                    "h-3.5 w-3.5 flex-shrink-0",
+                    rule.ok ? "opacity-100" : "opacity-30",
+                  )}
+                />
+                {rule.label}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <button
+          type="submit"
+          disabled={mutation.isPending}
+          className="btn-primary btn-lg w-full"
+        >
+          {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          {mutation.isPending ? "Resetting…" : "Reset password"}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }

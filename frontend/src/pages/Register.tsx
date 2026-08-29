@@ -1,11 +1,13 @@
 import { useState, FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Eye, EyeOff, Loader2, Check } from "lucide-react";
 import { authApi } from "../api/auth";
-import toast from "react-hot-toast";
 import { useInvalidateAuth } from "../store/AuthContext";
 import { mergeGuestCartIntoAccount } from "../hooks/useCart";
-import { ArrowLeft } from "lucide-react";
+import { AuthLayout } from "../components/AuthLayout";
+import { cn } from "@/lib/utils";
+import toast from "react-hot-toast";
 
 export default function Register() {
   const [form, setForm] = useState({
@@ -14,6 +16,7 @@ export default function Register() {
     email: "",
     password: "",
   });
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const invalidateAuth = useInvalidateAuth();
@@ -39,116 +42,142 @@ export default function Register() {
     mutation.mutate(form);
   }
 
+  // Mirrors the backend rule: at least 8 chars, with a letter and a number.
+  const rules = [
+    { label: "At least 8 characters", ok: form.password.length >= 8 },
+    { label: "Contains a letter", ok: /[a-zA-Z]/.test(form.password) },
+    { label: "Contains a number", ok: /\d/.test(form.password) },
+  ];
+
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <Link
-          to="/"
-          className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition mb-8"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back
-        </Link>
-
-        <div className="bg-card rounded-lg border border-border p-8">
-          <div className="mb-8">
-            <h1 className="font-serif font-bold text-3xl mb-2">
-              Create Account
-            </h1>
-            <p className="text-muted-foreground">
-              Join Luxora and start shopping
-            </p>
+    <AuthLayout
+      title="Create your account"
+      subtitle="Join ArtisanShop to track orders and check out faster."
+      footer={
+        <p className="text-center text-sm text-muted-foreground">
+          Already have an account?{" "}
+          <Link to="/login" className="link-accent">
+            Sign in
+          </Link>
+        </p>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="firstName" className="label">
+              First name
+            </label>
+            <input
+              id="firstName"
+              name="firstName"
+              type="text"
+              autoComplete="given-name"
+              value={form.firstName}
+              onChange={handleChange}
+              placeholder="Jane"
+              className="input"
+              required
+            />
           </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium mb-2">
-                First name
-              </label>
-              <input
-                id="firstName"
-                type="text"
-                name="firstName"
-                value={form.firstName}
-                onChange={handleChange}
-                placeholder="John"
-                className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:border-accent transition"
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium mb-2">
-                Last name
-              </label>
-              <input
-                id="lastName"
-                type="text"
-                name="lastName"
-                value={form.lastName}
-                onChange={handleChange}
-                placeholder="Doe"
-                className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:border-accent transition"
-                required
-              />
-            </div>
-
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-2">
-                Email Address
-              </label>
-              <input
-                id="email"
-                type="email"
-                name="email"
-                value={form.email}
-                onChange={handleChange}
-                placeholder="you@example.com"
-                className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:border-accent transition"
-                required
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium mb-2"
-              >
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                name="password"
-                value={form.password}
-                onChange={handleChange}
-                placeholder="••••••••"
-                className="w-full px-4 py-2 bg-secondary rounded-lg border border-border focus:outline-none focus:border-accent transition"
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={mutation.isPending}
-              className="w-full bg-accent text-accent-foreground py-2 rounded-lg font-medium hover:bg-muted transition disabled:opacity-50"
-            >
-              {mutation.isPending ? "Creating account..." : "Sign Up"}
-            </button>
-          </form>
-
-          <div className="mt-6 pt-6 border-t border-border">
-            <p className="text-center text-muted-foreground">
-              Already have an account?{" "}
-              <Link
-                to="/login"
-                className="text-accent hover:text-muted transition font-medium"
-              >
-                Sign in
-              </Link>
-            </p>
+          <div>
+            <label htmlFor="lastName" className="label">
+              Last name
+            </label>
+            <input
+              id="lastName"
+              name="lastName"
+              type="text"
+              autoComplete="family-name"
+              value={form.lastName}
+              onChange={handleChange}
+              placeholder="Doe"
+              className="input"
+              required
+            />
           </div>
         </div>
-      </div>
-    </div>
+
+        <div>
+          <label htmlFor="email" className="label">
+            Email address
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            value={form.email}
+            onChange={handleChange}
+            placeholder="you@example.com"
+            className="input"
+            required
+          />
+        </div>
+
+        <div>
+          <label htmlFor="password" className="label">
+            Password
+          </label>
+          <div className="relative">
+            <input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              value={form.password}
+              onChange={handleChange}
+              placeholder="••••••••"
+              className="input pr-11"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((s) => !s)}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5
+                         text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+
+          {form.password.length > 0 && (
+            <ul className="mt-2.5 space-y-1">
+              {rules.map((rule) => (
+                <li
+                  key={rule.label}
+                  className={cn(
+                    "flex items-center gap-1.5 text-xs transition-colors",
+                    rule.ok ? "text-success" : "text-muted-foreground",
+                  )}
+                >
+                  <Check
+                    className={cn(
+                      "h-3.5 w-3.5 flex-shrink-0",
+                      rule.ok ? "opacity-100" : "opacity-30",
+                    )}
+                  />
+                  {rule.label}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <button
+          type="submit"
+          disabled={mutation.isPending}
+          className="btn-primary btn-lg w-full"
+        >
+          {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          {mutation.isPending ? "Creating account…" : "Create account"}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }

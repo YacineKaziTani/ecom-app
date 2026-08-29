@@ -1,7 +1,9 @@
 import { useState, FormEvent, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { Loader2, Mail, ShieldCheck } from "lucide-react";
 import { authApi } from "../api/auth";
 import { useAuth, useInvalidateAuth } from "../store/AuthContext";
+import { roleBadge, formatDate } from "../lib/status";
 import toast from "react-hot-toast";
 
 export default function Profile() {
@@ -48,85 +50,125 @@ export default function Profile() {
   if (!user) return null;
 
   return (
-    <div>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="font-serif font-bold text-4xl md:text-5xl mb-4 text-foreground">
-          My Profile
-        </h1>
+    // Rendered inside both the public layout and the dashboard, so it keeps its
+    // own centred column rather than assuming either shell's padding.
+    <div className="mx-auto w-full max-w-2xl px-4 py-10 sm:px-6 sm:py-14">
+      {/* Identity card ------------------------------------------ */}
+      <div className="card mb-6 flex flex-col items-center gap-4 p-6 text-center sm:flex-row sm:text-left">
+        <span className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full bg-accent-soft font-serif text-xl font-bold uppercase text-brand-700 dark:text-accent">
+          {user.firstName?.[0]}
+          {user.lastName?.[0]}
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-bold text-foreground">
+            {user.firstName} {user.lastName}
+          </h1>
+          <p className="mt-1 flex items-center justify-center gap-1.5 text-sm text-muted-foreground sm:justify-start">
+            <Mail className="h-3.5 w-3.5" />
+            <span className="truncate">{user.email}</span>
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Member since {formatDate(user.createdAt)}
+          </p>
+        </div>
+
+        <span className={roleBadge[user.role]}>
+          <ShieldCheck className="h-3.5 w-3.5" />
+          {user.role.replace("_", " ")}
+        </span>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="mx-auto max-w-lg space-y-4 rounded-lg border border-border bg-card p-6 shadow-sm m-4"
-      >
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">
-            Email
-          </label>
-          <input
-            value={user.email}
-            disabled
-            className="w-full cursor-not-allowed rounded-lg border border-border bg-muted px-4 py-3 text-muted-foreground"
-          />
+      {/* Editable details --------------------------------------- */}
+      <form onSubmit={handleSubmit} className="card overflow-hidden">
+        <div className="border-b border-border bg-secondary/40 px-6 py-4">
+          <h2 className="font-serif text-lg font-bold text-foreground">
+            Account details
+          </h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Used to pre-fill your shipping information at checkout.
+          </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-5 p-6">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">
-              First name
+            <label htmlFor="email" className="label">
+              Email
+            </label>
+            <input id="email" value={user.email} disabled className="input" />
+            <p className="field-hint">
+              Your email address can't be changed here.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="firstName" className="label">
+                First name
+              </label>
+              <input
+                id="firstName"
+                name="firstName"
+                value={form.firstName}
+                onChange={handleChange}
+                className="input"
+              />
+            </div>
+            <div>
+              <label htmlFor="lastName" className="label">
+                Last name
+              </label>
+              <input
+                id="lastName"
+                name="lastName"
+                value={form.lastName}
+                onChange={handleChange}
+                className="input"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="phone" className="label">
+              Phone
             </label>
             <input
-              name="firstName"
-              value={form.firstName}
+              id="phone"
+              name="phone"
+              type="tel"
+              value={form.phone}
               onChange={handleChange}
-              className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
+              className="input"
+              placeholder="Optional"
             />
           </div>
+
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">
-              Last name
+            <label htmlFor="address" className="label">
+              Default shipping address
             </label>
-            <input
-              name="lastName"
-              value={form.lastName}
+            <textarea
+              id="address"
+              name="address"
+              value={form.address}
               onChange={handleChange}
-              className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
+              rows={3}
+              className="textarea"
+              placeholder="Street, city, postal code…"
             />
           </div>
         </div>
 
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">
-            Phone
-          </label>
-          <input
-            name="phone"
-            value={form.phone}
-            onChange={handleChange}
-            className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
-          />
+        <div className="flex justify-end border-t border-border bg-secondary/30 px-6 py-4">
+          <button
+            type="submit"
+            disabled={mutation.isPending}
+            className="btn-primary w-full sm:w-auto"
+          >
+            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {mutation.isPending ? "Saving…" : "Save changes"}
+          </button>
         </div>
-
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">
-            Address
-          </label>
-          <textarea
-            name="address"
-            value={form.address}
-            onChange={handleChange}
-            rows={3}
-            className="w-full resize-none rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={mutation.isPending}
-          className="w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {mutation.isPending ? "Saving..." : "Save changes"}
-        </button>
       </form>
     </div>
   );

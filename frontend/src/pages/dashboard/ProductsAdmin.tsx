@@ -1,6 +1,7 @@
 import { useState, FormEvent } from "react";
+import { Link } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Package, Store, ArrowRight } from "lucide-react";
 import { productsApi, ProductInput } from "../../api/products";
 import { categoriesApi } from "../../api/categories";
 import { shopsApi } from "../../api/shops";
@@ -8,6 +9,12 @@ import { Product } from "../../api/types";
 import { useAuth } from "../../store/AuthContext";
 import { Pagination } from "../../components/Pagination";
 import { ImageUpload } from "../../components/ImageUpload";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { Modal } from "../../components/ui/Modal";
+import { TableSkeleton } from "../../components/ui/Skeleton";
+import { formatPrice } from "../../lib/status";
+import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 
 const emptyForm: ProductInput = {
@@ -42,10 +49,7 @@ export default function ProductsAdmin() {
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: [
-      "products",
-      { page, limit: 10, admin: true, shopId: myShop?.id },
-    ],
+    queryKey: ["products", { page, limit: 10, admin: true, shopId: myShop?.id }],
     queryFn: () =>
       productsApi.list({
         page,
@@ -129,114 +133,158 @@ export default function ProductsAdmin() {
   // Shop-admin without a shop yet — block product management until they create one.
   if (!isSuperAdmin && !myShop) {
     return (
-      <div className="card p-8 text-center">
-        <p>You need to create your shop before adding products.</p>
-        <a href="/dashboard/my-shop" className="btn-primary mt-4 inline-flex">
-          Create my shop
-        </a>
-      </div>
+      <EmptyState
+        icon={Store}
+        title="Create your shop first"
+        description="Products belong to a shop, so you'll need to set yours up before adding any."
+        action={
+          <Link to="/dashboard/my-shop" className="btn-primary">
+            Create my shop
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        }
+      />
     );
   }
 
-  return (
-    <div className="p-8">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="font-serif text-4xl font-bold mb-2">Products</h1>
-          <p className="text-muted-foreground">Manage your product catalog</p>
-        </div>
-        <button
-          onClick={openCreate}
-          className="bg-accent text-accent-foreground font-semibold py-2 px-4 rounded-lg hover:bg-accent/90 transition-colors flex items-center gap-2"
-        >
-          <Plus size={20} />
-          Add Product
-        </button>
-      </div>
+  const colCount = isSuperAdmin ? 6 : 5;
 
-      <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        <table className="w-full text-sm">
-          <thead className="bg-muted text-left text-muted-foreground">
-            <tr>
-              <th className="px-4 py-3 font-medium">Product</th>
-              {isSuperAdmin && <th className="px-4 py-3 font-medium">Shop</th>}
-              <th className="px-4 py-3 font-medium">Category</th>
-              <th className="px-4 py-3 font-medium">Price</th>
-              <th className="px-4 py-3 font-medium">Stock</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
+  return (
+    <div>
+      <PageHeader
+        eyebrow="Catalogue"
+        title="Products"
+        description="Add, edit and remove the items in your shop."
+        actions={
+          <button onClick={openCreate} className="btn-primary">
+            <Plus className="h-4 w-4" />
+            Add product
+          </button>
+        }
+      />
+
+      <div className="table-wrap">
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Product</th>
+                {isSuperAdmin && <th>Shop</th>}
+                <th>Category</th>
+                <th className="text-right">Price</th>
+                <th className="text-right">Stock</th>
+                <th className="text-right">Actions</th>
+              </tr>
+            </thead>
+
             {isLoading ? (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-8 text-center text-muted-foreground"
-                >
-                  Loading...
-                </td>
-              </tr>
-            ) : data?.items.length ? (
-              data.items.map((p) => (
-                <tr key={p.id} className="border-t border-border">
-                  <td className="flex items-center gap-3 px-4 py-3">
-                    <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-muted">
-                      {p.imageUrl && (
-                        <img
-                          src={p.imageUrl}
-                          className="h-full w-full object-cover"
-                        />
-                      )}
-                    </div>
-                    <span className="font-medium text-foreground">
-                      {p.name}
-                    </span>
-                  </td>
-                  {isSuperAdmin && (
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {p.shop?.name || "—"}
-                    </td>
-                  )}
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {p.category?.name || "—"}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    ${Number(p.price).toFixed(2)}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{p.stock}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => openEdit(p)}
-                        className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirm(`Delete "${p.name}"?`))
-                            deleteMutation.mutate(p.id);
-                        }}
-                        className="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+              <TableSkeleton rows={5} cols={colCount} />
             ) : (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-8 text-center text-muted-foreground"
-                >
-                  No products yet.
-                </td>
-              </tr>
+              <tbody>
+                {data?.items.length ? (
+                  data.items.map((p) => (
+                    <tr key={p.id}>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-secondary">
+                            {p.imageUrl ? (
+                              <img
+                                src={p.imageUrl}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center">
+                                <Package className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            )}
+                          </div>
+                          <span className="font-medium text-foreground">
+                            {p.name}
+                          </span>
+                        </div>
+                      </td>
+
+                      {isSuperAdmin && (
+                        <td className="text-muted-foreground">
+                          {p.shop?.name || "—"}
+                        </td>
+                      )}
+
+                      <td>
+                        {p.category ? (
+                          <span className="badge-neutral">
+                            {p.category.name}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+
+                      <td className="text-right font-medium tabular-nums text-foreground">
+                        {formatPrice(p.price)}
+                      </td>
+
+                      <td className="text-right">
+                        <span
+                          className={cn(
+                            "font-medium tabular-nums",
+                            p.stock === 0
+                              ? "text-destructive"
+                              : p.stock <= 5
+                                ? "text-warning"
+                                : "text-muted-foreground",
+                          )}
+                        >
+                          {p.stock}
+                        </span>
+                      </td>
+
+                      <td>
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() => openEdit(p)}
+                            className="icon-btn"
+                            aria-label={`Edit ${p.name}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete "${p.name}"?`))
+                                deleteMutation.mutate(p.id);
+                            }}
+                            className="icon-btn-danger"
+                            aria-label={`Delete ${p.name}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={colCount} className="p-0">
+                      <EmptyState
+                        icon={Package}
+                        title="No products yet"
+                        description="Add your first product to start selling."
+                        action={
+                          <button onClick={openCreate} className="btn-primary">
+                            <Plus className="h-4 w-4" />
+                            Add product
+                          </button>
+                        }
+                        className="rounded-none border-0"
+                      />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
             )}
-          </tbody>
-        </table>
+          </table>
+        </div>
       </div>
 
       {data && (
@@ -249,137 +297,151 @@ export default function ProductsAdmin() {
         />
       )}
 
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-serif text-lg font-bold text-foreground">
-                {editing ? "Edit product" : "New product"}
-              </h2>
-              <button
-                onClick={closeModal}
-                className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-secondary"
+      <Modal
+        open={modalOpen}
+        onClose={closeModal}
+        title={editing ? "Edit product" : "New product"}
+        description={
+          editing
+            ? "Update the details of this listing."
+            : "Add a new item to your catalogue."
+        }
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {isSuperAdmin && (
+            <div>
+              <label htmlFor="shopId" className="label">
+                Shop
+              </label>
+              <select
+                id="shopId"
+                required
+                value={form.shopId}
+                onChange={(e) => setForm({ ...form, shopId: e.target.value })}
+                className="select"
               >
-                <X className="h-5 w-5" />
-              </button>
+                <option value="">Select a shop…</option>
+                {allShops?.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
             </div>
+          )}
 
-            <form onSubmit={handleSubmit} className="space-y-3">
-              {isSuperAdmin && (
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-foreground">
-                    Shop
-                  </label>
-                  <select
-                    required
-                    value={form.shopId}
-                    onChange={(e) =>
-                      setForm({ ...form, shopId: e.target.value })
-                    }
-                    className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground transition focus:border-accent focus:outline-none"
-                  >
-                    <option value="">Select a shop...</option>
-                    {allShops?.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">
-                  Name
-                </label>
-                <input
-                  required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">
-                  Description
-                </label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm({ ...form, description: e.target.value })
-                  }
-                  rows={2}
-                  className="w-full resize-none rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-foreground">
-                    Price
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    required
-                    value={form.price}
-                    onChange={(e) =>
-                      setForm({ ...form, price: Number(e.target.value) })
-                    }
-                    className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground transition focus:border-accent focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-foreground">
-                    Stock
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={form.stock}
-                    onChange={(e) =>
-                      setForm({ ...form, stock: Number(e.target.value) })
-                    }
-                    className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground transition focus:border-accent focus:outline-none"
-                  />
-                </div>
-              </div>
-              <ImageUpload
-                value={form.imageUrl}
-                onChange={(url) => setForm({ ...form, imageUrl: url })}
-                folder="products"
-                label="Product image"
-              />
-              <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">
-                  Category
-                </label>
-                <select
-                  value={form.categoryId}
-                  onChange={(e) =>
-                    setForm({ ...form, categoryId: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground transition focus:border-accent focus:outline-none"
-                >
-                  <option value="">None</option>
-                  {categories?.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button
-                type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
-                className="w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {editing ? "Save changes" : "Create product"}
-              </button>
-            </form>
+          <div>
+            <label htmlFor="name" className="label">
+              Name
+            </label>
+            <input
+              id="name"
+              required
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="input"
+              placeholder="Hand-thrown ceramic mug"
+            />
           </div>
-        </div>
-      )}
+
+          <div>
+            <label htmlFor="description" className="label">
+              Description
+            </label>
+            <textarea
+              id="description"
+              value={form.description}
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
+              rows={3}
+              className="textarea"
+              placeholder="What makes this piece special?"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="price" className="label">
+                Price ($)
+              </label>
+              <input
+                id="price"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={form.price}
+                onChange={(e) =>
+                  setForm({ ...form, price: Number(e.target.value) })
+                }
+                className="input"
+              />
+            </div>
+            <div>
+              <label htmlFor="stock" className="label">
+                Stock
+              </label>
+              <input
+                id="stock"
+                type="number"
+                min="0"
+                required
+                value={form.stock}
+                onChange={(e) =>
+                  setForm({ ...form, stock: Number(e.target.value) })
+                }
+                className="input"
+              />
+            </div>
+          </div>
+
+          <ImageUpload
+            value={form.imageUrl}
+            onChange={(url) => setForm({ ...form, imageUrl: url })}
+            folder="products"
+            label="Product image"
+          />
+
+          <div>
+            <label htmlFor="categoryId" className="label">
+              Category
+            </label>
+            <select
+              id="categoryId"
+              value={form.categoryId}
+              onChange={(e) =>
+                setForm({ ...form, categoryId: e.target.value })
+              }
+              className="select"
+            >
+              <option value="">None</option>
+              {categories?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex gap-3 border-t border-border pt-4">
+            <button
+              type="button"
+              onClick={closeModal}
+              className="btn-outline flex-1"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={createMutation.isPending || updateMutation.isPending}
+              className="btn-primary flex-1"
+            >
+              {editing ? "Save changes" : "Create product"}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

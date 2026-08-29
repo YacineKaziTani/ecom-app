@@ -1,9 +1,14 @@
 import { useState, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, X, Tag } from "lucide-react";
+import { Plus, Trash2, Tag, Info } from "lucide-react";
 import { couponsApi, CouponInput } from "../../api/coupons";
 import { Coupon } from "../../api/types";
 import { useAuth } from "../../store/AuthContext";
+import { formatDate } from "../../lib/status";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { Modal } from "../../components/ui/Modal";
+import { TableSkeleton } from "../../components/ui/Skeleton";
 import toast from "react-hot-toast";
 
 const emptyForm: CouponInput = {
@@ -70,263 +75,285 @@ export default function CouponsAdmin() {
   }
 
   function statusFor(c: Coupon) {
-    if (!c.isActive)
-      return { label: "Disabled", className: "bg-gray-100 text-gray-500" };
+    if (!c.isActive) return { label: "Disabled", className: "badge-neutral" };
     if (c.expiresAt && new Date(c.expiresAt).getTime() < Date.now())
-      return { label: "Expired", className: "bg-red-100 text-red-600" };
+      return { label: "Expired", className: "badge-danger" };
     if (c.maxUses != null && c.usedCount >= c.maxUses)
-      return { label: "Used up", className: "bg-red-100 text-red-600" };
-    return { label: "Active", className: "bg-green-100 text-green-700" };
+      return { label: "Used up", className: "badge-danger" };
+    return { label: "Active", className: "badge-success" };
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="font-serif text-2xl font-bold text-foreground">
-          Coupons
-        </h1>
-        <button
-          onClick={() => setModalOpen(true)}
-          className="flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-        >
-          <Plus className="h-4 w-4" /> New coupon
-        </button>
-      </div>
-      {!isSuperAdmin && (
-        <p className="mb-4 text-sm text-muted-foreground">
-          Coupons you create only apply to orders made up entirely of your
-          shop's products.
-        </p>
-      )}
-      {isSuperAdmin && (
-        <p className="mb-4 text-sm text-muted-foreground">
-          Coupons created here are platform-wide and work across any shop.
-        </p>
-      )}
+    <div>
+      <PageHeader
+        eyebrow="Promotions"
+        title="Coupons"
+        description="Create discount codes and control how often they can be used."
+        actions={
+          <button onClick={() => setModalOpen(true)} className="btn-primary">
+            <Plus className="h-4 w-4" />
+            New coupon
+          </button>
+        }
+      />
 
-      <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        <table className="w-full text-sm">
-          <thead className="bg-muted text-left text-muted-foreground">
-            <tr>
-              <th className="px-4 py-3 font-medium">Code</th>
-              <th className="px-4 py-3 font-medium">Discount</th>
-              <th className="px-4 py-3 font-medium">Usage</th>
-              <th className="px-4 py-3 font-medium">Expires</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
+      <p className="mb-6 flex items-start gap-2 rounded-lg border border-info/30 bg-info-soft px-4 py-3 text-sm text-info">
+        <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
+        {isSuperAdmin
+          ? "Coupons created here are platform-wide and work across any shop."
+          : "Coupons you create only apply to orders made up entirely of your shop's products."}
+      </p>
+
+      <div className="table-wrap">
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
               <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-8 text-center text-muted-foreground"
-                >
-                  Loading...
-                </td>
+                <th>Code</th>
+                <th>Discount</th>
+                <th className="text-right">Usage</th>
+                <th>Expires</th>
+                <th>Status</th>
+                <th className="text-right">Actions</th>
               </tr>
-            ) : coupons?.length ? (
-              coupons.map((c) => {
-                const status = statusFor(c);
-                return (
-                  <tr key={c.id} className="border-t border-border">
-                    <td className="px-4 py-3">
-                      <span className="flex items-center gap-1.5 font-mono font-medium text-foreground">
-                        <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-                        {c.code}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {c.type === "percentage"
-                        ? `${Number(c.value)}%`
-                        : `$${Number(c.value).toFixed(2)}`}
-                      {c.minOrderAmount
-                        ? ` (min $${Number(c.minOrderAmount).toFixed(2)})`
-                        : ""}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {c.usedCount}
-                      {c.maxUses ? ` / ${c.maxUses}` : ""}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {c.expiresAt
-                        ? new Date(c.expiresAt).toLocaleDateString()
-                        : "Never"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() =>
-                          toggleActiveMutation.mutate({
-                            id: c.id,
-                            isActive: !c.isActive,
-                          })
+            </thead>
+
+            {isLoading ? (
+              <TableSkeleton rows={4} cols={6} />
+            ) : (
+              <tbody>
+                {coupons?.length ? (
+                  coupons.map((c) => {
+                    const status = statusFor(c);
+                    return (
+                      <tr key={c.id}>
+                        <td>
+                          <span className="flex items-center gap-2 font-mono text-sm font-semibold text-foreground">
+                            <Tag className="h-3.5 w-3.5 text-accent" />
+                            {c.code}
+                          </span>
+                        </td>
+
+                        <td className="text-foreground">
+                          <span className="font-medium">
+                            {c.type === "percentage"
+                              ? `${Number(c.value)}% off`
+                              : `$${Number(c.value).toFixed(2)} off`}
+                          </span>
+                          {c.minOrderAmount ? (
+                            <span className="block text-xs text-muted-foreground">
+                              min ${Number(c.minOrderAmount).toFixed(2)}
+                            </span>
+                          ) : null}
+                        </td>
+
+                        <td className="text-right tabular-nums text-muted-foreground">
+                          {c.usedCount}
+                          {c.maxUses ? ` / ${c.maxUses}` : ""}
+                        </td>
+
+                        <td className="whitespace-nowrap text-muted-foreground">
+                          {c.expiresAt ? formatDate(c.expiresAt) : "Never"}
+                        </td>
+
+                        <td>
+                          <button
+                            onClick={() =>
+                              toggleActiveMutation.mutate({
+                                id: c.id,
+                                isActive: !c.isActive,
+                              })
+                            }
+                            title={
+                              c.isActive ? "Disable coupon" : "Enable coupon"
+                            }
+                            className={`${status.className} transition-opacity hover:opacity-80`}
+                          >
+                            {status.label}
+                          </button>
+                        </td>
+
+                        <td className="text-right">
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete coupon "${c.code}"?`))
+                                deleteMutation.mutate(c.id);
+                            }}
+                            className="icon-btn-danger"
+                            aria-label={`Delete coupon ${c.code}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="p-0">
+                      <EmptyState
+                        icon={Tag}
+                        title="No coupons yet"
+                        description="Create a discount code to run your first promotion."
+                        action={
+                          <button
+                            onClick={() => setModalOpen(true)}
+                            className="btn-primary"
+                          >
+                            <Plus className="h-4 w-4" />
+                            New coupon
+                          </button>
                         }
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-opacity hover:opacity-80 ${status.className}`}
-                      >
-                        {status.label}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => {
-                          if (confirm(`Delete coupon "${c.code}"?`))
-                            deleteMutation.mutate(c.id);
-                        }}
-                        className="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                        className="rounded-none border-0"
+                      />
                     </td>
                   </tr>
-                );
-              })
-            ) : (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-8 text-center text-muted-foreground"
-                >
-                  No coupons yet.
-                </td>
-              </tr>
+                )}
+              </tbody>
             )}
-          </tbody>
-        </table>
+          </table>
+        </div>
       </div>
 
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-serif text-lg font-bold text-foreground">
-                New coupon
-              </h2>
-              <button
-                onClick={() => setModalOpen(false)}
-                className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-secondary"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">
-                  Code
-                </label>
-                <input
-                  required
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                  className="w-full rounded-lg border border-border bg-card px-4 py-3 font-mono uppercase text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
-                  placeholder="SAVE10"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-foreground">
-                    Type
-                  </label>
-                  <select
-                    value={form.type}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        type: e.target.value as "percentage" | "fixed",
-                      })
-                    }
-                    className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground transition focus:border-accent focus:outline-none"
-                  >
-                    <option value="percentage">Percentage</option>
-                    <option value="fixed">Fixed amount</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-foreground">
-                    Value {form.type === "percentage" ? "(%)" : "($)"}
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max={form.type === "percentage" ? 100 : undefined}
-                    required
-                    value={form.value}
-                    onChange={(e) =>
-                      setForm({ ...form, value: Number(e.target.value) })
-                    }
-                    className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground transition focus:border-accent focus:outline-none"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-foreground">
-                    Min order ($)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={form.minOrderAmount ?? ""}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        minOrderAmount: e.target.value
-                          ? Number(e.target.value)
-                          : undefined,
-                      })
-                    }
-                    className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
-                    placeholder="Optional"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-foreground">
-                    Max uses
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={form.maxUses ?? ""}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        maxUses: e.target.value
-                          ? Number(e.target.value)
-                          : undefined,
-                      })
-                    }
-                    className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
-                    placeholder="Unlimited"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">
-                  Expires
-                </label>
-                <input
-                  type="date"
-                  value={form.expiresAt ? form.expiresAt.slice(0, 10) : ""}
-                  onChange={(e) =>
-                    setForm({ ...form, expiresAt: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground transition focus:border-accent focus:outline-none"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={createMutation.isPending}
-                className="w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                Create coupon
-              </button>
-            </form>
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="New coupon"
+        description="Codes are case-insensitive and stored in uppercase."
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="code" className="label">
+              Code
+            </label>
+            <input
+              id="code"
+              required
+              value={form.code}
+              onChange={(e) => setForm({ ...form, code: e.target.value })}
+              className="input font-mono uppercase"
+              placeholder="SAVE10"
+            />
           </div>
-        </div>
-      )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="type" className="label">
+                Type
+              </label>
+              <select
+                id="type"
+                value={form.type}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    type: e.target.value as "percentage" | "fixed",
+                  })
+                }
+                className="select"
+              >
+                <option value="percentage">Percentage</option>
+                <option value="fixed">Fixed amount</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="value" className="label">
+                Value {form.type === "percentage" ? "(%)" : "($)"}
+              </label>
+              <input
+                id="value"
+                type="number"
+                step="0.01"
+                min="0"
+                max={form.type === "percentage" ? 100 : undefined}
+                required
+                value={form.value}
+                onChange={(e) =>
+                  setForm({ ...form, value: Number(e.target.value) })
+                }
+                className="input"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="minOrderAmount" className="label">
+                Min order ($)
+              </label>
+              <input
+                id="minOrderAmount"
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.minOrderAmount ?? ""}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    minOrderAmount: e.target.value
+                      ? Number(e.target.value)
+                      : undefined,
+                  })
+                }
+                className="input"
+                placeholder="Optional"
+              />
+            </div>
+            <div>
+              <label htmlFor="maxUses" className="label">
+                Max uses
+              </label>
+              <input
+                id="maxUses"
+                type="number"
+                min="1"
+                value={form.maxUses ?? ""}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    maxUses: e.target.value
+                      ? Number(e.target.value)
+                      : undefined,
+                  })
+                }
+                className="input"
+                placeholder="Unlimited"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="expiresAt" className="label">
+              Expires
+            </label>
+            <input
+              id="expiresAt"
+              type="date"
+              value={form.expiresAt ? form.expiresAt.slice(0, 10) : ""}
+              onChange={(e) => setForm({ ...form, expiresAt: e.target.value })}
+              className="input"
+            />
+            <p className="field-hint">Leave blank for a code that never expires.</p>
+          </div>
+
+          <div className="flex gap-3 border-t border-border pt-4">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="btn-outline flex-1"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={createMutation.isPending}
+              className="btn-primary flex-1"
+            >
+              Create coupon
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

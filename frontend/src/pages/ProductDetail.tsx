@@ -1,10 +1,30 @@
 import { useParams, Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import {
+  ArrowLeft,
+  Minus,
+  Plus,
+  ShoppingBag,
+  Store,
+  Truck,
+  ShieldCheck,
+  RotateCcw,
+  ImageOff,
+} from "lucide-react";
 import { productsApi } from "../api/products";
 import { useCart } from "../hooks/useCart";
+import { formatPrice } from "../lib/status";
+import { Skeleton } from "../components/ui/Skeleton";
+import { EmptyState } from "../components/ui/EmptyState";
+import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
-import { ArrowLeft, Minus, Plus } from "lucide-react";
+
+const guarantees = [
+  { icon: Truck, label: "Free shipping", hint: "On orders over $75" },
+  { icon: RotateCcw, label: "30-day returns", hint: "No questions asked" },
+  { icon: ShieldCheck, label: "Secure checkout", hint: "Encrypted payment" },
+];
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -17,98 +37,193 @@ export default function ProductDetail() {
     enabled: !!id,
   });
 
-  if (isLoading) return <div className="py-20 text-center">Loading...</div>;
-  if (!product)
-    return <div className="py-20 text-center">Product not found.</div>;
+  if (isLoading) {
+    return (
+      <div className="container-page py-10">
+        <Skeleton className="mb-8 h-4 w-28" />
+        <div className="grid gap-10 lg:grid-cols-2">
+          <Skeleton className="aspect-square w-full rounded-2xl" />
+          <div className="space-y-4 pt-4">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-9 w-3/4" />
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-8 w-32" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="container-page py-16">
+        <EmptyState
+          icon={ImageOff}
+          title="Product not found"
+          description="This product may have been removed or is no longer available."
+          action={
+            <Link to="/" className="btn-primary">
+              Back to shop
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
+
+  const soldOut = product.stock === 0;
 
   return (
-    <div>
+    <div className="container-page py-8 sm:py-10">
       <Link
         to="/"
-        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-accent"
+        className="mb-7 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-accent"
       >
         <ArrowLeft className="h-4 w-4" /> Back to shop
       </Link>
 
-      <div className="grid gap-8 sm:grid-cols-2 sm:gap-12">
-        <div className="relative aspect-square overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-muted to-secondary p-8">
-          {product.imageUrl ? (
-            <img
-              src={product.imageUrl}
-              alt={product.name}
-              className="h-full w-full object-contain drop-shadow-sm"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
-              No image
-            </div>
-          )}
-          {product.stock === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-[1px]">
-              <span className="rounded-full bg-foreground px-4 py-1.5 text-sm font-semibold text-background">
-                Out of stock
-              </span>
-            </div>
-          )}
+      <div className="grid gap-10 lg:grid-cols-2 lg:gap-14">
+        {/* Gallery ---------------------------------------------- */}
+        <div className="animate-fade-in">
+          <div className="relative aspect-square overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-secondary to-muted p-8 shadow-sm">
+            {product.imageUrl ? (
+              <img
+                src={product.imageUrl}
+                alt={product.name}
+                className="h-full w-full object-contain drop-shadow-lg transition-transform duration-700 hover:scale-105"
+              />
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
+                <ImageOff className="h-9 w-9" />
+                <span className="text-sm">No image available</span>
+              </div>
+            )}
+
+            {soldOut && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-[2px]">
+                <span className="rounded-full bg-foreground px-5 py-2 text-sm font-semibold text-background">
+                  Sold out
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            {guarantees.map(({ icon: Icon, label, hint }) => (
+              <div
+                key={label}
+                className="rounded-xl border border-border bg-card px-3 py-3 text-center"
+              >
+                <Icon className="mx-auto h-4 w-4 text-accent" />
+                <p className="mt-1.5 text-xs font-semibold text-foreground">
+                  {label}
+                </p>
+                <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">
+                  {hint}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div>
+        {/* Details ---------------------------------------------- */}
+        <div className="animate-fade-up lg:pt-2">
           {product.category && (
-            <span className="text-xs font-semibold uppercase tracking-wide text-accent">
-              {product.category.name}
-            </span>
+            <span className="eyebrow">{product.category.name}</span>
           )}
-          <h1 className="mt-1.5 font-serif text-3xl font-bold text-foreground">
+
+          <h1 className="mt-2 text-3xl font-bold leading-tight text-foreground sm:text-4xl">
             {product.name}
           </h1>
+
           {product.shop && (
             <Link
               to={`/shops/${product.shop.slug}`}
-              className="mt-1.5 inline-block text-sm text-muted-foreground transition-colors hover:text-accent hover:underline"
+              className="mt-3 inline-flex items-center gap-2 rounded-full border border-border
+                         bg-card py-1.5 pl-1.5 pr-3.5 text-sm transition-colors hover:border-accent/50"
             >
-              Sold by {product.shop.name}
+              <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-accent-soft">
+                {product.shop.logoUrl ? (
+                  <img
+                    src={product.shop.logoUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <Store className="h-3 w-3 text-accent" />
+                )}
+              </span>
+              <span className="font-medium text-muted-foreground">
+                by{" "}
+                <span className="text-foreground">{product.shop.name}</span>
+              </span>
             </Link>
           )}
 
-          <p className="mt-4 font-serif text-3xl font-bold text-foreground">
-            ${Number(product.price).toFixed(2)}
+          <p className="mt-6 font-serif text-4xl font-bold text-foreground">
+            {formatPrice(product.price)}
           </p>
 
-          <p className="mt-4 leading-relaxed text-muted-foreground">
-            {product.description || "No description available."}
-          </p>
-
-          <p className="mt-3 flex items-center gap-1.5 text-sm">
+          <div className="mt-3 flex items-center gap-2 text-sm">
             <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                product.stock > 0 ? "bg-emerald-500" : "bg-red-500"
-              }`}
+              className={cn(
+                "h-2 w-2 rounded-full",
+                soldOut
+                  ? "bg-destructive"
+                  : product.stock <= 5
+                    ? "bg-warning"
+                    : "bg-success",
+              )}
             />
             <span
-              className={
-                product.stock > 0 ? "text-muted-foreground" : "text-red-500"
-              }
+              className={cn(
+                soldOut ? "font-medium text-destructive" : "text-muted-foreground",
+              )}
             >
-              {product.stock > 0 ? `${product.stock} in stock` : "Out of stock"}
+              {soldOut
+                ? "Out of stock"
+                : product.stock <= 5
+                  ? `Only ${product.stock} left in stock`
+                  : `${product.stock} in stock`}
             </span>
-          </p>
+          </div>
 
-          <div className="mt-6 flex items-center gap-4">
-            <div className="flex items-center rounded-lg border border-border">
+          <div className="my-7 divider" />
+
+          <div className="prose-sm">
+            <h2 className="font-sans text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Description
+            </h2>
+            <p className="mt-2.5 leading-relaxed text-muted-foreground">
+              {product.description ||
+                "No description has been provided for this product yet."}
+            </p>
+          </div>
+
+          {/* Buy box */}
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex items-center justify-between rounded-lg border border-border bg-card p-1 sm:justify-start">
               <button
                 onClick={() => setQty((q) => Math.max(1, q - 1))}
                 disabled={qty <= 1}
-                className="p-2.5 text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
+                className="icon-btn h-9 w-9"
+                aria-label="Decrease quantity"
               >
                 <Minus className="h-4 w-4" />
               </button>
-              <span className="w-8 text-center text-sm font-medium text-foreground">
+              <span
+                className="w-10 text-center text-sm font-semibold tabular-nums text-foreground"
+                aria-live="polite"
+              >
                 {qty}
               </span>
               <button
                 onClick={() => setQty((q) => Math.min(product.stock, q + 1))}
                 disabled={qty >= product.stock}
-                className="p-2.5 text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
+                className="icon-btn h-9 w-9"
+                aria-label="Increase quantity"
               >
                 <Plus className="h-4 w-4" />
               </button>
@@ -119,12 +234,22 @@ export default function ProductDetail() {
                 addItem(product, qty);
                 toast.success(`${product.name} added to cart`);
               }}
-              disabled={product.stock === 0}
-              className="flex-1 rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={soldOut}
+              className="btn-primary btn-lg flex-1"
             >
-              Add to cart
+              <ShoppingBag className="h-4 w-4" />
+              {soldOut ? "Out of stock" : "Add to cart"}
             </button>
           </div>
+
+          {!soldOut && (
+            <p className="mt-3 text-center text-xs text-muted-foreground sm:text-left">
+              Subtotal for {qty} {qty === 1 ? "item" : "items"}:{" "}
+              <span className="font-semibold text-foreground">
+                {formatPrice(Number(product.price) * qty)}
+              </span>
+            </p>
+          )}
         </div>
       </div>
     </div>

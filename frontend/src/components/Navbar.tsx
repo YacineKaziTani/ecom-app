@@ -1,21 +1,72 @@
-import { Link, useNavigate } from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import {
-  ShoppingCart,
+  ShoppingBag,
   User as UserIcon,
   LayoutDashboard,
   LogOut,
+  Menu,
+  X,
+  Sun,
+  Moon,
+  Package,
+  ChevronDown,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../store/AuthContext";
+import { useTheme } from "../store/ThemeContext";
 import { useCart } from "../hooks/useCart";
 import { authApi } from "../api/auth";
+import { cn } from "@/lib/utils";
 
 export function Navbar() {
   const { user, isAdmin } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const qc = useQueryClient();
   const { count } = useCart();
   const cartCount = count();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close both menus whenever the route changes.
+  useEffect(() => {
+    setMobileOpen(false);
+    setMenuOpen(false);
+  }, [location.pathname]);
+
+  // Solidify the header once the page scrolls under it.
+  useEffect(() => {
+    function onScroll() {
+      setScrolled(window.scrollY > 8);
+    }
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Dismiss the account dropdown on outside click / Escape.
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointerDown(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
 
   async function handleLogout() {
     try {
@@ -28,100 +79,257 @@ export function Navbar() {
       navigate("/");
     }
   }
+
+  const links = [
+    { to: "/", label: "Products", end: true },
+    { to: "/shops", label: "Shops" },
+    user
+      ? { to: "/orders", label: "My Orders" }
+      : { to: "/track-order", label: "Track Order" },
+    ...(isAdmin ? [{ to: "/dashboard", label: "Dashboard" }] : []),
+  ];
+
+  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    cn(
+      "relative text-sm font-medium transition-colors",
+      "after:absolute after:-bottom-1.5 after:left-0 after:h-0.5 after:rounded-full after:bg-accent after:transition-all after:duration-300",
+      isActive
+        ? "text-foreground after:w-full"
+        : "text-muted-foreground hover:text-foreground after:w-0 hover:after:w-full",
+    );
+
   return (
-    <header className="sticky top-0 z-50 bg-card border-b border-border">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <Link
-            to="/"
-            className="text-xl font-extrabold tracking-tight text-brand-700"
-          >
-            Artisan<span className="text-brand-500">Shop</span>
+    <header
+      className={cn(
+        "sticky top-0 z-50 border-b transition-all duration-300",
+        scrolled
+          ? "border-border bg-card/85 shadow-sm backdrop-blur-xl"
+          : "border-transparent bg-background",
+      )}
+    >
+      <div className="container-page">
+        <div className="flex h-16 items-center justify-between gap-4">
+          {/* Brand */}
+          <Link to="/" className="group flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm transition-transform duration-300 group-hover:-rotate-6">
+              <ShoppingBag className="h-4.5 w-4.5" strokeWidth={2.2} />
+            </span>
+            <span className="font-serif text-xl font-bold tracking-tight text-foreground">
+              Artisan<span className="text-accent">Shop</span>
+            </span>
           </Link>
 
-          <nav className="hidden md:flex gap-8">
-            <Link
-              to="/"
-              className="text-foreground hover:text-accent transition"
-            >
-              Products
-            </Link>
-            <Link
-              to="/shops"
-              className="text-foreground hover:text-accent transition"
-            >
-              Shops
-            </Link>
-            {user ? (
-              <Link
-                to="/orders"
-                className="text-foreground hover:text-accent transition"
+          {/* Desktop nav */}
+          <nav className="hidden items-center gap-8 md:flex">
+            {links.map((link) => (
+              <NavLink
+                key={link.to}
+                to={link.to}
+                end={link.end}
+                className={navLinkClass}
               >
-                My Orders
-              </Link>
-            ) : (
-              <Link
-                to="/track-order"
-                className="text-foreground hover:text-accent transition"
-              >
-                Track Order
-              </Link>
-            )}
-            {isAdmin && (
-              <Link
-                to="/dashboard"
-                className="text-foreground hover:text-accent transition"
-              >
-                Dashboard
-              </Link>
-            )}
+                {link.label}
+              </NavLink>
+            ))}
           </nav>
 
-          <div className="flex items-center gap-4">
+          {/* Actions */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={toggleTheme}
+              className="icon-btn"
+              aria-label={
+                theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+              }
+              title={
+                theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+              }
+            >
+              {theme === "dark" ? (
+                <Sun className="h-5 w-5" />
+              ) : (
+                <Moon className="h-5 w-5" />
+              )}
+            </button>
+
             <Link
               to="/cart"
-              className="relative p-2 hover:bg-secondary rounded-md transition"
+              className="icon-btn relative"
+              aria-label={`Cart, ${cartCount} item${cartCount === 1 ? "" : "s"}`}
             >
-              <ShoppingCart className="w-6 h-6" />
+              <ShoppingBag className="h-5 w-5" />
               {cartCount > 0 && (
-                <span className="absolute top-0 right-0 bg-accent text-accent-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                  {cartCount}
+                <span
+                  key={cartCount}
+                  className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 animate-pop items-center justify-center
+                             rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground shadow-sm"
+                >
+                  {cartCount > 99 ? "99+" : cartCount}
                 </span>
               )}
             </Link>
 
             {user ? (
-              <div className="flex items-center gap-2">
-                <Link
-                  to="/profile"
-                  className="flex items-center gap-1 rounded-full p-2 hover:bg-gray-100"
-                >
-                  <UserIcon className="h-5 w-5 text-gray-700" />
-                </Link>
-                {isAdmin && (
-                  <Link
-                    to="/dashboard"
-                    className="rounded-full p-2 hover:bg-gray-100 sm:hidden"
-                  >
-                    <LayoutDashboard className="h-5 w-5 text-gray-700" />
-                  </Link>
-                )}
+              <div className="relative hidden md:block" ref={menuRef}>
                 <button
-                  onClick={handleLogout}
-                  className="rounded-full p-2 hover:bg-gray-100"
-                  title="Logout"
+                  onClick={() => setMenuOpen((o) => !o)}
+                  className="flex items-center gap-2 rounded-lg py-1.5 pl-1.5 pr-2 transition-colors hover:bg-secondary"
+                  aria-expanded={menuOpen}
+                  aria-haspopup="menu"
                 >
-                  <LogOut className="h-5 w-5 text-gray-700" />
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-soft text-xs font-bold uppercase text-brand-700 dark:text-accent">
+                    {user.firstName?.[0]}
+                    {user.lastName?.[0]}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                      menuOpen && "rotate-180",
+                    )}
+                  />
                 </button>
+
+                {menuOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-full z-50 mt-2 w-56 origin-top-right animate-fade-up
+                               overflow-hidden rounded-xl border border-border bg-popover p-1.5 shadow-lg"
+                  >
+                    <div className="border-b border-border px-3 pb-2.5 pt-2">
+                      <p className="truncate text-sm font-semibold text-foreground">
+                        {user.firstName} {user.lastName}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {user.email}
+                      </p>
+                    </div>
+
+                    <MenuLink to="/profile" icon={UserIcon}>
+                      Profile
+                    </MenuLink>
+                    <MenuLink to="/orders" icon={Package}>
+                      My orders
+                    </MenuLink>
+                    {isAdmin && (
+                      <MenuLink to="/dashboard" icon={LayoutDashboard}>
+                        Dashboard
+                      </MenuLink>
+                    )}
+
+                    <div className="my-1 h-px bg-border" />
+
+                    <button
+                      onClick={handleLogout}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium
+                                 text-destructive transition-colors hover:bg-destructive-soft"
+                      role="menuitem"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sign out
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
-              <Link to="/login" className="btn-primary">
+              <Link to="/login" className="btn-primary btn-sm ml-1 hidden md:inline-flex">
                 Sign in
               </Link>
             )}
+
+            <button
+              onClick={() => setMobileOpen((o) => !o)}
+              className="icon-btn md:hidden"
+              aria-label="Toggle menu"
+              aria-expanded={mobileOpen}
+            >
+              {mobileOpen ? (
+                <X className="h-5 w-5" />
+              ) : (
+                <Menu className="h-5 w-5" />
+              )}
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div className="animate-fade-in border-t border-border bg-card md:hidden">
+          <nav className="container-page flex flex-col py-3">
+            {links.map((link) => (
+              <NavLink
+                key={link.to}
+                to={link.to}
+                end={link.end}
+                className={({ isActive }) =>
+                  cn(
+                    "rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-secondary text-foreground"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  )
+                }
+              >
+                {link.label}
+              </NavLink>
+            ))}
+
+            <div className="my-2 h-px bg-border" />
+
+            {user ? (
+              <>
+                <div className="px-3 pb-2">
+                  <p className="text-sm font-semibold text-foreground">
+                    {user.firstName} {user.lastName}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {user.email}
+                  </p>
+                </div>
+                <NavLink
+                  to="/profile"
+                  className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
+                >
+                  Profile
+                </NavLink>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-destructive hover:bg-destructive-soft"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <Link to="/login" className="btn-primary mx-3 my-1">
+                Sign in
+              </Link>
+            )}
+          </nav>
+        </div>
+      )}
     </header>
+  );
+}
+
+function MenuLink({
+  to,
+  icon: Icon,
+  children,
+}: {
+  to: string;
+  icon: typeof UserIcon;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      to={to}
+      role="menuitem"
+      className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium
+                 text-foreground transition-colors hover:bg-secondary"
+    >
+      <Icon className="h-4 w-4 text-muted-foreground" />
+      {children}
+    </Link>
   );
 }

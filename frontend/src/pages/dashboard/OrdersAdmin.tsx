@@ -1,7 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ClipboardList, Info } from "lucide-react";
 import { ordersApi } from "../../api/orders";
-import { OrderStatus, PaymentStatus } from "../../api/types";
+import { OrderStatus } from "../../api/types";
 import { useAuth } from "../../store/AuthContext";
+import {
+  orderStatusBadge,
+  paymentStatusBadge,
+  formatPrice,
+  formatDate,
+} from "../../lib/status";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { TableSkeleton } from "../../components/ui/Skeleton";
+import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 
 const statuses: OrderStatus[] = [
@@ -12,23 +23,10 @@ const statuses: OrderStatus[] = [
   "cancelled",
 ];
 
-const statusColors: Record<OrderStatus, string> = {
-  pending: "bg-amber-100 text-amber-700",
-  processing: "bg-blue-100 text-blue-700",
-  shipped: "bg-indigo-100 text-indigo-700",
-  delivered: "bg-green-100 text-green-700",
-  cancelled: "bg-red-100 text-red-700",
-};
-
-const paymentStatusColors: Record<PaymentStatus, string> = {
-  unpaid: "bg-gray-100 text-gray-600",
-  paid: "bg-green-100 text-green-700",
-  failed: "bg-red-100 text-red-700",
-};
-
 export default function OrdersAdmin() {
   const { isSuperAdmin } = useAuth();
   const qc = useQueryClient();
+
   const { data: orders, isLoading } = useQuery({
     queryKey: ["orders"],
     queryFn: ordersApi.list,
@@ -85,102 +83,124 @@ export default function OrdersAdmin() {
   }
 
   return (
-    <div className="p-8">
-      <h1 className="mb-2 font-serif text-2xl font-bold text-foreground">
-        Orders
-      </h1>
+    <div>
+      <PageHeader
+        eyebrow="Fulfilment"
+        title="Orders"
+        description="Track incoming orders and move them through fulfilment."
+      />
+
       {!isSuperAdmin && (
-        <p className="mb-6 text-sm text-muted-foreground">
+        <p className="mb-6 flex items-start gap-2 rounded-lg border border-info/30 bg-info-soft px-4 py-3 text-sm text-info">
+          <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
           Showing orders that include at least one item from your shop. Totals
           and item counts reflect your items only.
         </p>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        <table className="w-full text-sm">
-          <thead className="bg-muted text-left text-muted-foreground">
-            <tr>
-              <th className="px-4 py-3 font-medium">Order</th>
-              <th className="px-4 py-3 font-medium">Customer</th>
-              <th className="px-4 py-3 font-medium">Items</th>
-              <th className="px-4 py-3 font-medium">Total</th>
-              <th className="px-4 py-3 font-medium">Payment</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
+      <div className="table-wrap">
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
               <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-8 text-center text-muted-foreground"
-                >
-                  Loading...
-                </td>
+                <th>Order</th>
+                <th>Customer</th>
+                <th>Date</th>
+                <th className="text-right">Items</th>
+                <th className="text-right">Total</th>
+                <th>Payment</th>
+                <th>Status</th>
               </tr>
-            ) : orders?.length ? (
-              orders.map((o) => {
-                const total = isSuperAdmin
-                  ? Number(o.total)
-                  : o.items.reduce(
-                      (s, i) => s + Number(i.price) * i.quantity,
-                      0,
+            </thead>
+
+            {isLoading ? (
+              <TableSkeleton rows={5} cols={7} />
+            ) : (
+              <tbody>
+                {orders?.length ? (
+                  orders.map((o) => {
+                    const total = isSuperAdmin
+                      ? Number(o.total)
+                      : o.items.reduce(
+                          (s, i) => s + Number(i.price) * i.quantity,
+                          0,
+                        );
+                    return (
+                      <tr key={o.id}>
+                        <td className="font-mono text-xs font-semibold text-accent">
+                          #{o.id.slice(0, 8)}
+                        </td>
+                        <td className="text-foreground">
+                          {o.user ? (
+                            `${o.user.firstName} ${o.user.lastName}`
+                          ) : o.guestEmail ? (
+                            <span>
+                              {o.guestEmail}
+                              <span className="ml-1.5 text-xs text-muted-foreground">
+                                (guest)
+                              </span>
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap text-muted-foreground">
+                          {formatDate(o.createdAt)}
+                        </td>
+                        <td className="text-right tabular-nums text-muted-foreground">
+                          {o.items.length}
+                        </td>
+                        <td className="text-right font-medium tabular-nums text-foreground">
+                          {formatPrice(total)}
+                        </td>
+                        <td>
+                          <span className={paymentStatusBadge[o.paymentStatus]}>
+                            {o.paymentStatus}
+                          </span>
+                        </td>
+                        <td>
+                          <select
+                            value={o.status}
+                            onChange={(e) =>
+                              handleStatusChange(
+                                o,
+                                e.target.value as OrderStatus,
+                              )
+                            }
+                            aria-label={`Status for order ${o.id.slice(0, 8)}`}
+                            className={cn(
+                              "cursor-pointer appearance-none rounded-full border-0 py-1 pl-2.5 pr-2.5",
+                              "text-xs font-semibold capitalize transition-opacity hover:opacity-80",
+                              "focus:outline-none focus:ring-2 focus:ring-ring/60",
+                              orderStatusBadge[o.status],
+                            )}
+                          >
+                            {statuses.map((s) => (
+                              <option key={s} value={s}>
+                                {s}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
                     );
-                return (
-                  <tr key={o.id} className="border-t border-border">
-                    <td className="px-4 py-3 text-foreground">
-                      #{o.id.slice(0, 8)}
-                    </td>
-                    <td className="px-4 py-3 text-foreground">
-                      {o.user
-                        ? `${o.user.firstName} ${o.user.lastName}`
-                        : o.guestEmail
-                          ? `${o.guestEmail} (guest)`
-                          : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {o.items.length} item(s)
-                    </td>
-                    <td className="px-4 py-3 font-medium text-foreground">
-                      ${total.toFixed(2)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${paymentStatusColors[o.paymentStatus]}`}
-                      >
-                        {o.paymentStatus}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={o.status}
-                        onChange={(e) =>
-                          handleStatusChange(o, e.target.value as OrderStatus)
-                        }
-                        className={`cursor-pointer rounded-full border-0 px-3 py-1 text-xs font-semibold capitalize focus:outline-none focus:ring-2 focus:ring-accent ${statusColors[o.status]}`}
-                      >
-                        {statuses.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="p-0">
+                      <EmptyState
+                        icon={ClipboardList}
+                        title="No orders yet"
+                        description="Orders will appear here as soon as customers start buying."
+                        className="rounded-none border-0"
+                      />
                     </td>
                   </tr>
-                );
-              })
-            ) : (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-8 text-center text-muted-foreground"
-                >
-                  No orders yet.
-                </td>
-              </tr>
+                )}
+              </tbody>
             )}
-          </tbody>
-        </table>
+          </table>
+        </div>
       </div>
     </div>
   );

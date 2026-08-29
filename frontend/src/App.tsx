@@ -18,6 +18,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import NotFound from "./pages/NotFound";
 
 import Overview from "./pages/dashboard/Overview";
 import ProductsAdmin from "./pages/dashboard/ProductsAdmin";
@@ -67,14 +68,7 @@ export default function App() {
         </Route>
       </Route>
 
-      <Route
-        path="*"
-        element={
-          <div className="flex h-screen items-center justify-center">
-            Page not found
-          </div>
-        }
-      />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

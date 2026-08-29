@@ -1,9 +1,13 @@
 import { useState, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Tags } from "lucide-react";
 import { categoriesApi, CategoryInput } from "../../api/categories";
 import { Category } from "../../api/types";
 import { ImageUpload } from "../../components/ImageUpload";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { Modal } from "../../components/ui/Modal";
+import { Skeleton } from "../../components/ui/Skeleton";
 import toast from "react-hot-toast";
 
 const emptyForm: CategoryInput = { name: "", description: "", imageUrl: "" };
@@ -30,6 +34,7 @@ export default function CategoriesAdmin() {
     },
     onError: (err: any) => toast.error(String(err)),
   });
+
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<CategoryInput> }) =>
       categoriesApi.update(id, data),
@@ -40,6 +45,7 @@ export default function CategoriesAdmin() {
     },
     onError: (err: any) => toast.error(String(err)),
   });
+
   const deleteMutation = useMutation({
     mutationFn: categoriesApi.remove,
     onSuccess: () => {
@@ -54,6 +60,7 @@ export default function CategoriesAdmin() {
     setForm(emptyForm);
     setModalOpen(true);
   }
+
   function openEdit(c: Category) {
     setEditing(c);
     setForm({
@@ -63,6 +70,7 @@ export default function CategoriesAdmin() {
     });
     setModalOpen(true);
   }
+
   function closeModal() {
     setModalOpen(false);
     setEditing(null);
@@ -75,116 +83,151 @@ export default function CategoriesAdmin() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="font-serif text-2xl font-bold text-foreground">
-          Categories
-        </h1>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-        >
-          <Plus className="h-4 w-4" /> Add category
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        eyebrow="Taxonomy"
+        title="Categories"
+        description="Group products so shoppers can filter the catalogue."
+        actions={
+          <button onClick={openCreate} className="btn-primary">
+            <Plus className="h-4 w-4" />
+            Add category
+          </button>
+        }
+      />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {isLoading ? (
-          <p className="text-muted-foreground">Loading...</p>
-        ) : categories?.length ? (
-          categories.map((c) => (
-            <div
-              key={c.id}
-              className="rounded-lg border border-border bg-card p-5 shadow-sm"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="font-semibold text-foreground">{c.name}</h3>
-                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                    {c.description || "No description"}
-                  </p>
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => openEdit(c)}
-                    className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (confirm(`Delete "${c.name}"?`))
-                        deleteMutation.mutate(c.id);
-                    }}
-                    className="rounded-lg p-1.5 text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
+      {isLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="card p-5">
+              <Skeleton className="h-12 w-12 rounded-lg" />
+              <Skeleton className="mt-4 h-4 w-2/3" />
+              <Skeleton className="mt-2 h-3 w-full" />
             </div>
-          ))
-        ) : (
-          <p className="text-muted-foreground">No categories yet.</p>
-        )}
-      </div>
-
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-serif text-lg font-bold text-foreground">
-                {editing ? "Edit category" : "New category"}
-              </h2>
-              <button
-                onClick={closeModal}
-                className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-secondary"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">
-                  Name
-                </label>
-                <input
-                  required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">
-                  Description
-                </label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm({ ...form, description: e.target.value })
-                  }
-                  rows={2}
-                  className="w-full resize-none rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
-                />
-              </div>
-              <ImageUpload
-                value={form.imageUrl}
-                onChange={(url) => setForm({ ...form, imageUrl: url })}
-                folder="categories"
-                label="Category image"
-              />
-              <button
-                type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
-                className="w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {editing ? "Save changes" : "Create category"}
-              </button>
-            </form>
-          </div>
+          ))}
         </div>
+      ) : categories?.length ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {categories.map((c) => (
+            <div key={c.id} className="card group flex gap-4 p-5">
+              <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-secondary">
+                {c.imageUrl ? (
+                  <img
+                    src={c.imageUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <Tags className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-foreground">{c.name}</h3>
+                <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+                  {c.description || "No description"}
+                </p>
+              </div>
+
+              <div className="flex flex-shrink-0 flex-col gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100">
+                <button
+                  onClick={() => openEdit(c)}
+                  className="icon-btn p-1.5"
+                  aria-label={`Edit ${c.name}`}
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete "${c.name}"?`))
+                      deleteMutation.mutate(c.id);
+                  }}
+                  className="icon-btn-danger p-1.5"
+                  aria-label={`Delete ${c.name}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={Tags}
+          title="No categories yet"
+          description="Create your first category to help shoppers navigate the catalogue."
+          action={
+            <button onClick={openCreate} className="btn-primary">
+              <Plus className="h-4 w-4" />
+              Add category
+            </button>
+          }
+        />
       )}
+
+      <Modal
+        open={modalOpen}
+        onClose={closeModal}
+        title={editing ? "Edit category" : "New category"}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="name" className="label">
+              Name
+            </label>
+            <input
+              id="name"
+              required
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="input"
+              placeholder="Ceramics"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="description" className="label">
+              Description
+            </label>
+            <textarea
+              id="description"
+              value={form.description}
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
+              rows={3}
+              className="textarea"
+              placeholder="What belongs in this category?"
+            />
+          </div>
+
+          <ImageUpload
+            value={form.imageUrl}
+            onChange={(url) => setForm({ ...form, imageUrl: url })}
+            folder="categories"
+            label="Category image"
+          />
+
+          <div className="flex gap-3 border-t border-border pt-4">
+            <button
+              type="button"
+              onClick={closeModal}
+              className="btn-outline flex-1"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={createMutation.isPending || updateMutation.isPending}
+              className="btn-primary flex-1"
+            >
+              {editing ? "Save changes" : "Create category"}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

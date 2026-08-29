@@ -1,6 +1,16 @@
 import { useState, useRef, FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
-import { Trash2, Minus, Plus, AlertTriangle, Tag, X } from "lucide-react";
+import {
+  Trash2,
+  Minus,
+  Plus,
+  AlertTriangle,
+  Tag,
+  X,
+  ShoppingBag,
+  Lock,
+  ArrowLeft,
+} from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCart } from "../hooks/useCart";
 import { useAuth } from "../store/AuthContext";
@@ -8,6 +18,9 @@ import { ordersApi, CreateOrderInput } from "../api/orders";
 import { paymentsApi } from "../api/payments";
 import { couponsApi, CouponPreview } from "../api/coupons";
 import { ApiError } from "../api/client";
+import { formatPrice } from "../lib/status";
+import { EmptyState } from "../components/ui/EmptyState";
+import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 
 interface StockIssue {
@@ -23,13 +36,9 @@ export default function Cart() {
   const [address, setAddress] = useState(user?.address || "");
   const [guestEmail, setGuestEmail] = useState("");
   const [guestName, setGuestName] = useState("");
-  const [stockIssues, setStockIssues] = useState<Record<string, StockIssue>>(
-    {},
-  );
+  const [stockIssues, setStockIssues] = useState<Record<string, StockIssue>>({});
   const [couponInput, setCouponInput] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState<CouponPreview | null>(
-    null,
-  );
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponPreview | null>(null);
   const navigate = useNavigate();
   const qc = useQueryClient();
 
@@ -42,7 +51,7 @@ export default function Cart() {
     onSuccess: (preview) => {
       setAppliedCoupon(preview);
       toast.success(
-        `Coupon applied — you saved $${preview.discountAmount.toFixed(2)}`,
+        `Coupon applied — you saved ${formatPrice(preview.discountAmount)}`,
       );
     },
     onError: (err: any) => {
@@ -129,201 +138,277 @@ export default function Cart() {
 
   if (lines.length === 0) {
     return (
-      <div className="py-20 text-center">
-        <p className="text-gray-400">Your cart is empty.</p>
-        <Link to="/" className="btn-primary mt-4 inline-flex">
-          Continue shopping
-        </Link>
+      <div className="container-page py-16">
+        <EmptyState
+          icon={ShoppingBag}
+          title="Your cart is empty"
+          description="Once you find something you like, it will show up here ready for checkout."
+          action={
+            <Link to="/" className="btn-primary">
+              <ArrowLeft className="h-4 w-4" />
+              Continue shopping
+            </Link>
+          }
+        />
       </div>
     );
   }
 
+  const subtotal = total();
+  const discount = appliedCoupon?.discountAmount ?? 0;
+  const grandTotal = Math.max(subtotal - discount, 0);
+  const itemCount = lines.reduce((n, l) => n + l.quantity, 0);
+
   return (
-    <div className="grid gap-8 lg:grid-cols-3">
-      <div className="space-y-4 lg:col-span-2">
-        <h1 className="font-serif text-2xl font-bold text-foreground">
-          Your Cart
-        </h1>
-        {lines.map(({ product, quantity }) => {
-          const issue = stockIssues[product.id];
-          return (
-            <div
-              key={product.id}
-              className={`flex items-center gap-4 rounded-lg border p-4 shadow-sm ${
-                issue
-                  ? "border-amber-300 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-500/5"
-                  : "border-border bg-card"
-              }`}
-            >
-              <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-muted">
-                {product.imageUrl && (
-                  <img
-                    src={product.imageUrl}
-                    className="h-full w-full object-cover"
-                  />
-                )}
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-foreground">{product.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  ${Number(product.price).toFixed(2)}
-                </p>
-                {issue && (
-                  <p className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
-                    <AlertTriangle className="h-3 w-3" />
-                    Only {issue.availableStock} left — quantity updated
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center rounded-lg border border-border">
-                <button
-                  onClick={() =>
-                    setQuantity(product.id, Math.max(1, quantity - 1))
-                  }
-                  className="p-1.5 text-foreground transition-colors hover:bg-secondary"
-                >
-                  <Minus className="h-3.5 w-3.5" />
-                </button>
-                <span className="w-8 text-center text-sm text-foreground">
-                  {quantity}
-                </span>
-                <button
-                  onClick={() => setQuantity(product.id, quantity + 1)}
-                  className="p-1.5 text-foreground transition-colors hover:bg-secondary"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <p className="w-16 text-right font-semibold text-foreground">
-                ${(Number(product.price) * quantity).toFixed(2)}
-              </p>
-              <button
-                onClick={() => removeItem(product.id)}
-                className="p-2 text-muted-foreground transition-colors hover:text-red-500"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          );
-        })}
+    <div className="container-page py-8 sm:py-12">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-foreground">Your cart</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          {itemCount} {itemCount === 1 ? "item" : "items"} ready for checkout
+        </p>
       </div>
 
-      <div className="h-fit rounded-lg border border-border bg-card p-6 shadow-sm">
-        <h2 className="mb-4 font-semibold text-foreground">Order Summary</h2>
-        <div className="flex justify-between text-sm text-muted-foreground">
-          <span>Subtotal</span>
-          <span>${total().toFixed(2)}</span>
-        </div>
-
-        {appliedCoupon ? (
-          <div className="mt-2 flex items-center justify-between text-sm text-emerald-700 dark:text-emerald-400">
-            <span className="flex items-center gap-1">
-              <Tag className="h-3.5 w-3.5" />
-              {appliedCoupon.code}
-              <button
-                type="button"
-                onClick={() => {
-                  setAppliedCoupon(null);
-                  setCouponInput("");
-                }}
-                className="ml-1 text-muted-foreground transition-colors hover:text-foreground"
-                title="Remove coupon"
+      <div className="grid gap-8 lg:grid-cols-[1fr_400px] lg:items-start">
+        {/* Line items -------------------------------------------- */}
+        <div className="space-y-3">
+          {lines.map(({ product, quantity }) => {
+            const issue = stockIssues[product.id];
+            return (
+              <div
+                key={product.id}
+                className={cn(
+                  "flex flex-wrap items-center gap-4 rounded-xl border p-4 transition-colors sm:flex-nowrap",
+                  issue
+                    ? "border-warning/40 bg-warning-soft"
+                    : "border-border bg-card shadow-xs",
+                )}
               >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </span>
-            <span>-${appliedCoupon.discountAmount.toFixed(2)}</span>
-          </div>
-        ) : (
-          <div className="mt-3 flex gap-2">
-            <input
-              value={couponInput}
-              onChange={(e) => setCouponInput(e.target.value)}
-              placeholder="Coupon code"
-              className="flex-1 rounded-lg border border-border bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => couponMutation.mutate()}
-              disabled={!couponInput.trim() || couponMutation.isPending}
-              className="whitespace-nowrap rounded-md border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {couponMutation.isPending ? "Checking..." : "Apply"}
-            </button>
-          </div>
-        )}
+                <Link
+                  to={`/products/${product.id}`}
+                  className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-secondary"
+                >
+                  {product.imageUrl && (
+                    <img
+                      src={product.imageUrl}
+                      alt={product.name}
+                      className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+                    />
+                  )}
+                </Link>
 
-        <div className="my-3 border-t border-border" />
-        <div className="flex justify-between font-bold text-foreground">
-          <span>Total</span>
-          <span>
-            $
-            {Math.max(
-              total() - (appliedCoupon?.discountAmount ?? 0),
-              0,
-            ).toFixed(2)}
-          </span>
+                <div className="min-w-0 flex-1">
+                  <Link
+                    to={`/products/${product.id}`}
+                    className="line-clamp-2 font-semibold text-foreground transition-colors hover:text-accent"
+                  >
+                    {product.name}
+                  </Link>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {formatPrice(product.price)} each
+                  </p>
+                  {issue && (
+                    <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-warning">
+                      <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                      Only {issue.availableStock} left — quantity updated
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center rounded-lg border border-border bg-background p-0.5">
+                  <button
+                    onClick={() =>
+                      setQuantity(product.id, Math.max(1, quantity - 1))
+                    }
+                    className="icon-btn h-7 w-7 p-0"
+                    aria-label={`Decrease quantity of ${product.name}`}
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="w-9 text-center text-sm font-semibold tabular-nums text-foreground">
+                    {quantity}
+                  </span>
+                  <button
+                    onClick={() => setQuantity(product.id, quantity + 1)}
+                    className="icon-btn h-7 w-7 p-0"
+                    aria-label={`Increase quantity of ${product.name}`}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                <p className="w-20 text-right font-serif text-lg font-bold text-foreground">
+                  {formatPrice(Number(product.price) * quantity)}
+                </p>
+
+                <button
+                  onClick={() => removeItem(product.id)}
+                  className="icon-btn-danger"
+                  aria-label={`Remove ${product.name} from cart`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
+
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 pt-2 text-sm font-medium text-muted-foreground transition-colors hover:text-accent"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Continue shopping
+          </Link>
         </div>
 
-        <form onSubmit={handleCheckout} className="mt-6 space-y-3">
-          {!user && (
-            <>
-              <label className="block text-sm font-medium text-foreground">
-                Full name
-              </label>
-              <input
-                required
-                value={guestName}
-                onChange={(e) => setGuestName(e.target.value)}
-                className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
-                placeholder="Jane Doe"
-              />
+        {/* Summary ----------------------------------------------- */}
+        <div className="card sticky top-24 overflow-hidden">
+          <div className="border-b border-border bg-secondary/40 px-6 py-4">
+            <h2 className="font-serif text-lg font-bold text-foreground">
+              Order summary
+            </h2>
+          </div>
 
-              <label className="block text-sm font-medium text-foreground">
-                Email
-              </label>
-              <input
-                type="email"
-                required
-                value={guestEmail}
-                onChange={(e) => setGuestEmail(e.target.value)}
-                className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
-                placeholder="you@example.com"
-              />
-              <p className="text-xs text-muted-foreground">
-                We'll use this to send your order confirmation.{" "}
-                <Link
-                  to="/login"
-                  className="font-medium text-accent hover:underline"
+          <div className="space-y-4 px-6 py-5">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span className="font-medium text-foreground">
+                {formatPrice(subtotal)}
+              </span>
+            </div>
+
+            {appliedCoupon ? (
+              <div className="flex items-center justify-between rounded-lg bg-success-soft px-3 py-2.5 text-sm">
+                <span className="flex items-center gap-1.5 font-medium text-success">
+                  <Tag className="h-3.5 w-3.5" />
+                  {appliedCoupon.code}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAppliedCoupon(null);
+                      setCouponInput("");
+                    }}
+                    className="ml-1 rounded-full p-0.5 opacity-70 transition-opacity hover:opacity-100"
+                    aria-label="Remove coupon"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </span>
+                <span className="font-semibold text-success">
+                  −{formatPrice(appliedCoupon.discountAmount)}
+                </span>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value)}
+                  placeholder="Coupon code"
+                  aria-label="Coupon code"
+                  className="input flex-1 font-mono uppercase"
+                />
+                <button
+                  type="button"
+                  onClick={() => couponMutation.mutate()}
+                  disabled={!couponInput.trim() || couponMutation.isPending}
+                  className="btn-outline"
                 >
-                  Sign in
-                </Link>{" "}
-                instead to track orders in your account.
-              </p>
-            </>
-          )}
+                  {couponMutation.isPending ? "Checking…" : "Apply"}
+                </button>
+              </div>
+            )}
 
-          <label className="block text-sm font-medium text-foreground">
-            Shipping address
-          </label>
-          <textarea
-            required
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            rows={3}
-            className="w-full resize-none rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder:text-muted-foreground transition focus:border-accent focus:outline-none"
-            placeholder="Street, city, postal code..."
-          />
-          <button
-            type="submit"
-            disabled={mutation.isPending}
-            className="w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Shipping</span>
+              <span className="font-medium text-muted-foreground">
+                Calculated at payment
+              </span>
+            </div>
+
+            <div className="divider" />
+
+            <div className="flex items-baseline justify-between">
+              <span className="font-semibold text-foreground">Total</span>
+              <span className="font-serif text-2xl font-bold text-foreground">
+                {formatPrice(grandTotal)}
+              </span>
+            </div>
+          </div>
+
+          <form
+            onSubmit={handleCheckout}
+            className="space-y-4 border-t border-border bg-secondary/30 px-6 py-5"
           >
-            {mutation.isPending
-              ? "Redirecting to payment..."
-              : "Continue to payment"}
-          </button>
-        </form>
+            {!user && (
+              <>
+                <div>
+                  <label htmlFor="guestName" className="label">
+                    Full name
+                  </label>
+                  <input
+                    id="guestName"
+                    required
+                    value={guestName}
+                    onChange={(e) => setGuestName(e.target.value)}
+                    className="input"
+                    placeholder="Jane Doe"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="guestEmail" className="label">
+                    Email
+                  </label>
+                  <input
+                    id="guestEmail"
+                    type="email"
+                    required
+                    value={guestEmail}
+                    onChange={(e) => setGuestEmail(e.target.value)}
+                    className="input"
+                    placeholder="you@example.com"
+                  />
+                  <p className="field-hint">
+                    We'll send your order confirmation here.{" "}
+                    <Link to="/login" className="link-accent">
+                      Sign in
+                    </Link>{" "}
+                    instead to track orders in your account.
+                  </p>
+                </div>
+              </>
+            )}
+
+            <div>
+              <label htmlFor="address" className="label">
+                Shipping address
+              </label>
+              <textarea
+                id="address"
+                required
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                rows={3}
+                className="textarea"
+                placeholder="Street, city, postal code…"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="btn-primary btn-lg w-full"
+            >
+              <Lock className="h-4 w-4" />
+              {mutation.isPending
+                ? "Redirecting to payment…"
+                : "Continue to payment"}
+            </button>
+
+            <p className="text-center text-xs text-muted-foreground">
+              Payments are encrypted and processed securely.
+            </p>
+          </form>
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { Navigate, Outlet } from "react-router";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "../store/AuthContext";
 
 export function ProtectedRoute({ adminOnly = false }: { adminOnly?: boolean }) {
@@ -6,8 +7,9 @@ export function ProtectedRoute({ adminOnly = false }: { adminOnly?: boolean }) {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        Loading...
+      <div className="flex h-screen flex-col items-center justify-center gap-3">
+        <Loader2 className="h-6 w-6 animate-spin text-accent" />
+        <p className="text-sm text-muted-foreground">Checking your session…</p>
       </div>
     );
   }
