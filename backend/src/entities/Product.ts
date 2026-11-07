@@ -7,12 +7,17 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   JoinColumn,
+  Index,
 } from "typeorm";
 import { Category } from "./Category";
 import { OrderItem } from "./OrderItem";
 import { Shop } from "./Shop";
 
 @Entity("products")
+// Trigram indexes so the storefront's ILIKE '%term%' search doesn't scan the
+// whole table (see migration AddIndexes); TypeORM can't express gin_trgm_ops.
+@Index("IDX_products_name_trgm", { synchronize: false })
+@Index("IDX_products_description_trgm", { synchronize: false })
 export class Product {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -21,6 +26,7 @@ export class Product {
   @JoinColumn({ name: "shopId" })
   shop!: Shop;
 
+  @Index("IDX_products_shopId")
   @Column()
   shopId!: string;
 
@@ -36,8 +42,8 @@ export class Product {
   @Column({ default: 0 })
   stock!: number;
 
-  @Column({ nullable: true })
-  imageUrl?: string;
+  @Column({ type: "varchar", nullable: true })
+  imageUrl?: string | null;
 
   @ManyToOne(() => Category, (category) => category.products, {
     onDelete: "SET NULL",
@@ -46,12 +52,14 @@ export class Product {
   @JoinColumn({ name: "categoryId" })
   category?: Category;
 
-  @Column({ nullable: true })
-  categoryId?: string;
+  @Index("IDX_products_categoryId")
+  @Column({ type: "uuid", nullable: true })
+  categoryId?: string | null;
 
   @OneToMany(() => OrderItem, (item) => item.product)
   orderItems!: OrderItem[];
 
+  @Index("IDX_products_createdAt")
   @CreateDateColumn()
   createdAt!: Date;
 

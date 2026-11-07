@@ -12,8 +12,8 @@ export class Category {
   @Column({ nullable: true })
   description?: string;
 
-  @Column({ nullable: true })
-  imageUrl?: string;
+  @Column({ type: "varchar", nullable: true })
+  imageUrl?: string | null;
 
   @OneToMany(() => Product, (product) => product.category)
   products!: Product[];

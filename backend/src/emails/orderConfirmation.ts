@@ -1,3 +1,6 @@
+import { escapeHtml } from "../utils/escapeHtml";
+import { formatDzd } from "../utils/money";
+
 export interface OrderConfirmationEmailData {
   name: string;
   orderId: string;
@@ -10,14 +13,6 @@ export interface OrderConfirmationEmailData {
   shippingAddress: string;
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export function renderOrderConfirmationEmail(
   data: OrderConfirmationEmailData,
@@ -33,6 +28,7 @@ export function renderOrderConfirmationEmail(
     total,
     shippingAddress,
   } = data;
+  const safeLink = escapeHtml(orderLink);
 
   const itemRows = items
     .map(
@@ -42,7 +38,7 @@ export function renderOrderConfirmationEmail(
             ${escapeHtml(item.productName)} × ${item.quantity}
           </td>
           <td style="padding: 10px 0; border-bottom: 1px solid #e6ede8; color: #1f342b; font-size: 14px; text-align: right; font-weight: 600;">
-            $${(Number(item.price) * item.quantity).toFixed(2)}
+            ${formatDzd(Number(item.price) * item.quantity)}
           </td>
         </tr>`,
     )
@@ -87,17 +83,17 @@ export function renderOrderConfirmationEmail(
                       ? `
                   <tr>
                     <td style="padding: 10px 0 0; font-size: 13px; color: #6b7280;">Subtotal</td>
-                    <td style="padding: 10px 0 0; font-size: 13px; color: #6b7280; text-align: right;">$${(subtotal ?? total + discountAmount).toFixed(2)}</td>
+                    <td style="padding: 10px 0 0; font-size: 13px; color: #6b7280; text-align: right;">${formatDzd(subtotal ?? total + discountAmount)}</td>
                   </tr>
                   <tr>
                     <td style="padding: 4px 0 0; font-size: 13px; color: #16a34a;">Discount${couponCode ? ` (${escapeHtml(couponCode)})` : ""}</td>
-                    <td style="padding: 4px 0 0; font-size: 13px; color: #16a34a; text-align: right;">-$${discountAmount.toFixed(2)}</td>
+                    <td style="padding: 4px 0 0; font-size: 13px; color: #16a34a; text-align: right;">-${formatDzd(discountAmount)}</td>
                   </tr>`
                       : ""
                   }
                   <tr>
                     <td style="padding: 14px 0 0; font-size: 15px; font-weight: 700; color: #1f342b;">Total</td>
-                    <td style="padding: 14px 0 0; font-size: 15px; font-weight: 700; color: #1f342b; text-align: right;">$${total.toFixed(2)}</td>
+                    <td style="padding: 14px 0 0; font-size: 15px; font-weight: 700; color: #1f342b; text-align: right;">${formatDzd(total)}</td>
                   </tr>
                 </table>
 
@@ -108,7 +104,7 @@ export function renderOrderConfirmationEmail(
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 28px;">
                   <tr>
                     <td align="center">
-                      <a href="${orderLink}" style="display: inline-block; background-color: #35604b; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 28px; border-radius: 10px;">
+                      <a href="${safeLink}" style="display: inline-block; background-color: #35604b; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 28px; border-radius: 10px;">
                         View your order
                       </a>
                     </td>
@@ -121,7 +117,7 @@ export function renderOrderConfirmationEmail(
               <td style="padding: 20px 32px; background-color: #f4f7f5; text-align: center;">
                 <p style="margin: 0; font-size: 12px; color: #9ca3af;">
                   If the button doesn't work, copy this link: <br />
-                  <a href="${orderLink}" style="color: #477a60;">${orderLink}</a>
+                  <a href="${safeLink}" style="color: #477a60;">${safeLink}</a>
                 </p>
               </td>
             </tr>
@@ -141,16 +137,16 @@ export function renderOrderConfirmationEmail(
     ``,
     ...items.map(
       (i) =>
-        `${i.productName} x${i.quantity} — $${(Number(i.price) * i.quantity).toFixed(2)}`,
+        `${i.productName} x${i.quantity} — ${formatDzd(Number(i.price) * i.quantity)}`,
     ),
     ``,
     ...(discountAmount && discountAmount > 0
       ? [
-          `Subtotal: $${(subtotal ?? total + discountAmount).toFixed(2)}`,
-          `Discount${couponCode ? ` (${couponCode})` : ""}: -$${discountAmount.toFixed(2)}`,
+          `Subtotal: ${formatDzd(subtotal ?? total + discountAmount)}`,
+          `Discount${couponCode ? ` (${couponCode})` : ""}: -${formatDzd(discountAmount)}`,
         ]
       : []),
-    `Total: $${total.toFixed(2)}`,
+    `Total: ${formatDzd(total)}`,
     `Shipping to: ${shippingAddress}`,
     ``,
     `View your order: ${orderLink}`,

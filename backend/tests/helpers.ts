@@ -64,6 +64,22 @@ export async function createCoupon(overrides: Partial<Coupon> & { type: CouponTy
   return coupon;
 }
 
+// Places a guest order through the real checkout endpoint.
+export function placeGuestOrder(
+  productId: string,
+  quantity: number,
+  extra: { couponCode?: string; guestEmail?: string } = {},
+) {
+  return request(app)
+    .post("/api/orders")
+    .send({
+      shippingAddress: "12 Rue Larbi Ben M'hidi, Alger",
+      guestEmail: extra.guestEmail ?? `guest-${Math.random().toString(36).slice(2)}@example.com`,
+      couponCode: extra.couponCode,
+      items: [{ productId, quantity }],
+    });
+}
+
 // Logs an agent in via the REAL /api/auth/login endpoint, so its cookie jar
 // (access + refresh tokens) matches exactly what a real browser session would
 // have. Returns the agent so callers can chain further authenticated requests.

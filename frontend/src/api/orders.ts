@@ -1,5 +1,5 @@
 import { api } from "./client";
-import { Order, OrderStatus } from "./types";
+import { Order, OrderStatus, Paginated } from "./types";
 
 export interface CreateOrderInput {
   shippingAddress: string;
@@ -9,8 +9,23 @@ export interface CreateOrderInput {
   items: { productId: string; quantity: number }[];
 }
 
+export interface OrderListQuery {
+  page?: number;
+  limit?: number;
+  status?: OrderStatus;
+}
+
+export interface OrderSummary {
+  totalOrders: number;
+  pendingOrders: number;
+  revenue: number; // paid, non-cancelled orders only
+}
+
 export const ordersApi = {
-  list: () => api.get<Order[]>("/orders").then((r) => r.data),
+  // Scoped by role on the server: own orders / shop's orders / everything.
+  list: (query: OrderListQuery = {}) =>
+    api.get<Paginated<Order>>("/orders", { params: query }).then((r) => r.data),
+  summary: () => api.get<OrderSummary>("/orders/summary").then((r) => r.data),
   get: (id: string) => api.get<Order>(`/orders/${id}`).then((r) => r.data),
   // idempotencyKey: pass the SAME key when retrying an identical checkout attempt
   // (network timeout, etc.) so the server returns the existing order instead of

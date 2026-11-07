@@ -1,7 +1,13 @@
 import { EntityManager } from "typeorm";
 import { Coupon } from "../entities/Coupon";
+import { HttpError } from "../utils/httpError";
+import { formatDzd } from "../utils/money";
 
-export class CouponError extends Error {}
+export class CouponError extends HttpError {
+  constructor(message: string) {
+    super(400, message);
+  }
+}
 
 export interface CouponResult {
   coupon: Coupon;
@@ -26,7 +32,7 @@ function computeDiscount(
     subtotal < Number(coupon.minOrderAmount)
   ) {
     throw new CouponError(
-      `This coupon requires a minimum order of $${Number(coupon.minOrderAmount).toFixed(2)}`,
+      `This coupon requires a minimum order of ${formatDzd(coupon.minOrderAmount)}`,
     );
   }
   if (coupon.shopId) {

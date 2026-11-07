@@ -1,4 +1,5 @@
 import { resend, MAIL_FROM } from "../config/mailer";
+import { logger } from "../config/logger";
 import {
   renderOrderConfirmationEmail,
   OrderConfirmationEmailData,
@@ -8,65 +9,44 @@ import {
   PasswordResetEmailData,
 } from "../emails/passwordReset";
 
-export async function sendOrderConfirmationEmail(
-  to: string,
-  data: OrderConfirmationEmailData,
-) {
-  if (!resend) {
-    console.warn(
-      `Resend not configured — skipping order confirmation email to ${to}`,
-    );
-    return;
-  }
-
-  const { subject, html, text } = renderOrderConfirmationEmail(data);
-
-  try {
-    const { error } = await resend.emails.send({
-      from: MAIL_FROM,
-      to,
-      subject,
-      html,
-      text,
-    });
-    if (error)
-      console.error(
-        `Resend rejected order confirmation email to ${to}:`,
-        error,
-      );
-  } catch (err) {
-    console.error(`Failed to send order confirmation email to ${to}:`, err);
-  }
+interface RenderedEmail {
+  subject: string;
+  html: string;
+  text: string;
 }
 
-export async function sendPasswordResetEmail(
+// Never throws: a failed or skipped email must not break the request that
+// triggered it. Resolves to whether the email was accepted for delivery.
+// Recipient addresses are deliberately kept out of the logs.
+async function send(
+  template: string,
   to: string,
-  data: PasswordResetEmailData,
+  email: RenderedEmail,
 ): Promise<boolean> {
   if (!resend) {
-    console.warn(
-      `Resend not configured — skipping password reset email to ${to}`,
-    );
+    logger.warn({ template }, "Resend not configured — email skipped");
     return false;
   }
-
-  const { subject, html, text } = renderPasswordResetEmail(data);
-
   try {
-    const { error } = await resend.emails.send({
-      from: MAIL_FROM,
-      to,
-      subject,
-      html,
-      text,
-    });
+    const { error } = await resend.emails.send({ from: MAIL_FROM, to, ...email });
     if (error) {
-      console.error(`Resend rejected password reset email to ${to}:`, error);
+      logger.error({ template, error }, "Resend rejected email");
       return false;
     }
     return true;
   } catch (err) {
-    console.error(`Failed to send password reset email to ${to}:`, err);
+    logger.error({ template, err }, "Failed to send email");
     return false;
   }
+}
+
+export function sendOrderConfirmationEmail(
+  to: string,
+  data: OrderConfirmationEmailData,
+) {
+  return send("order-confirmation", to, renderOrderConfirmationEmail(data));
+}
+
+export function sendPasswordResetEmail(to: string, data: PasswordResetEmailData) {
+  return send("password-reset", to, renderPasswordResetEmail(data));
 }

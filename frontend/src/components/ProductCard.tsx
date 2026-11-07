@@ -4,6 +4,7 @@ import { Product } from "../api/types";
 import { useCart } from "../hooks/useCart";
 import { formatPrice } from "../lib/status";
 import toast from "react-hot-toast";
+import { optimizedImage } from "../lib/images";
 
 export function ProductCard({ product }: { product: Product }) {
   const { addItem } = useCart();
@@ -18,7 +19,7 @@ export function ProductCard({ product }: { product: Product }) {
       >
         {product.imageUrl ? (
           <img
-            src={product.imageUrl}
+            src={optimizedImage(product.imageUrl, 600)}
             alt={product.name}
             loading="lazy"
             className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"

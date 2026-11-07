@@ -16,6 +16,7 @@ import { TableSkeleton } from "../../components/ui/Skeleton";
 import { formatPrice } from "../../lib/status";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
+import { optimizedImage } from "../../lib/images";
 
 const emptyForm: ProductInput = {
   name: "",
@@ -36,7 +37,7 @@ export default function ProductsAdmin() {
   const [form, setForm] = useState<ProductInput>(emptyForm);
 
   // A shop-admin only ever sees/creates products for their own shop.
-  const { data: myShop } = useQuery({
+  const { data: myShop, isLoading: shopLoading } = useQuery({
     queryKey: ["myShop"],
     queryFn: shopsApi.mine,
     retry: false,
@@ -122,13 +123,18 @@ export default function ProductsAdmin() {
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const payload = { ...form, categoryId: form.categoryId || undefined };
     if (editing) {
-      updateMutation.mutate({ id: editing.id, data: payload });
+      // null (not undefined) so clearing the category actually removes it.
+      updateMutation.mutate({
+        id: editing.id,
+        data: { ...form, categoryId: form.categoryId || null },
+      });
     } else {
-      createMutation.mutate(payload);
+      createMutation.mutate({ ...form, categoryId: form.categoryId || undefined });
     }
   }
+
+  if (!isSuperAdmin && shopLoading) return null;
 
   // Shop-admin without a shop yet — block product management until they create one.
   if (!isSuperAdmin && !myShop) {
@@ -189,7 +195,7 @@ export default function ProductsAdmin() {
                           <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-secondary">
                             {p.imageUrl ? (
                               <img
-                                src={p.imageUrl}
+                                src={optimizedImage(p.imageUrl, 96)}
                                 alt=""
                                 className="h-full w-full object-cover"
                               />
@@ -363,7 +369,7 @@ export default function ProductsAdmin() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="price" className="label">
-                Price ($)
+                Price (DA)
               </label>
               <input
                 id="price"
@@ -409,7 +415,7 @@ export default function ProductsAdmin() {
             </label>
             <select
               id="categoryId"
-              value={form.categoryId}
+              value={form.categoryId ?? ""}
               onChange={(e) =>
                 setForm({ ...form, categoryId: e.target.value })
               }

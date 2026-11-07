@@ -7,6 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   JoinColumn,
+  Index,
 } from "typeorm";
 import { User } from "./User";
 import { OrderItem } from "./OrderItem";
@@ -20,6 +21,9 @@ export type OrderStatus =
 export type PaymentStatus = "unpaid" | "paid" | "failed";
 
 @Entity("orders")
+// Partial index for the reservation-expiry job (see migration AddIndexes).
+// synchronize:false — TypeORM can't diff partial-index predicates reliably.
+@Index("IDX_orders_reservation", { synchronize: false })
 export class Order {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -31,6 +35,7 @@ export class Order {
   @JoinColumn({ name: "userId" })
   user?: User;
 
+  @Index("IDX_orders_userId")
   @Column({ nullable: true })
   userId?: string;
 
@@ -73,6 +78,13 @@ export class Order {
   @Column({ nullable: true, unique: true })
   idempotencyKey?: string;
 
+  // An unpaid order holds its stock only until this moment; after that the
+  // expiry job (services/orderLifecycle.ts) cancels it and releases the stock.
+  // null = no deadline (paid, cancelled, or placed before this existed).
+  @Column({ type: "timestamptz", nullable: true })
+  reservedUntil?: Date | null;
+
+  @Index("IDX_orders_createdAt")
   @CreateDateColumn()
   createdAt!: Date;
 

@@ -16,8 +16,8 @@ export class Shop {
   @Column({ type: "text", nullable: true })
   description?: string;
 
-  @Column({ nullable: true })
-  logoUrl?: string;
+  @Column({ type: "varchar", nullable: true })
+  logoUrl?: string | null;
 
   @OneToOne(() => User, (user) => user.shop, { onDelete: "CASCADE" })
   @JoinColumn({ name: "ownerId" })

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Search, Users, ShieldAlert, X } from "lucide-react";
 import { usersApi } from "../../api/users";
 import { UserRole } from "../../api/types";
@@ -8,6 +8,8 @@ import { roleBadge, formatDate } from "../../lib/status";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { TableSkeleton } from "../../components/ui/Skeleton";
+import { Pagination } from "../../components/Pagination";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 
@@ -16,13 +18,17 @@ const roles: UserRole[] = ["customer", "admin", "super_admin"];
 export default function UsersAdmin() {
   const { user: currentUser, isSuperAdmin } = useAuth();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const debouncedSearch = useDebouncedValue(search.trim());
   const qc = useQueryClient();
 
-  const { data: users, isLoading } = useQuery({
-    queryKey: ["users", search],
-    queryFn: () => usersApi.list(search || undefined),
+  const { data, isLoading } = useQuery({
+    queryKey: ["users", debouncedSearch, page],
+    queryFn: () => usersApi.list(debouncedSearch || undefined, page),
     enabled: isSuperAdmin,
+    placeholderData: keepPreviousData,
   });
+  const users = data?.items;
 
   const updateRoleMutation = useMutation({
     mutationFn: ({ id, role }: { id: string; role: UserRole }) =>
@@ -56,14 +62,20 @@ export default function UsersAdmin() {
         <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
           placeholder="Search by name or email…"
           aria-label="Search users"
           className="input pl-10 pr-10"
         />
         {search && (
           <button
-            onClick={() => setSearch("")}
+            onClick={() => {
+              setSearch("");
+              setPage(1);
+            }}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1
                        text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             aria-label="Clear search"
@@ -169,6 +181,16 @@ export default function UsersAdmin() {
           </table>
         </div>
       </div>
+
+      {data && (
+        <Pagination
+          page={data.page}
+          totalPages={data.totalPages}
+          total={data.total}
+          limit={data.limit}
+          onPageChange={setPage}
+        />
+      )}
     </div>
   );
 }

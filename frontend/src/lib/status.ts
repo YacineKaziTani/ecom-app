@@ -31,8 +31,28 @@ export const roleBadge: Record<UserRole, string> = {
   customer: "badge-neutral",
 };
 
+// Chargily charges in Algerian dinars, so every price is shown in DZD.
+const dzd = new Intl.NumberFormat("fr-DZ", { style: "currency", currency: "DZD" });
+const dzdCompact = new Intl.NumberFormat("fr-DZ", {
+  style: "currency",
+  currency: "DZD",
+  notation: "compact",
+});
+
 export function formatPrice(value: number | string): string {
-  return `$${Number(value).toFixed(2)}`;
+  return dzd.format(Number(value));
+}
+
+// Short form for chart axes, e.g. "12 k DA".
+export function formatPriceCompact(value: number | string): string {
+  return dzdCompact.format(Number(value));
+}
+
+export function formatTime(value: string | Date): string {
+  return new Date(value).toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export function formatDate(value: string | Date): string {

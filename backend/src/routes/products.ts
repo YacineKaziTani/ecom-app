@@ -4,12 +4,8 @@ import { AppDataSource } from "../config/data-source";
 import { Product } from "../entities/Product";
 import { requireAuth, requireAnyAdmin, attachShop } from "../middleware/auth";
 import { validateUuidParam } from "../middleware/validateUuid";
-import {
-  imageUrlSchema,
-  nameSchema,
-  shortTextSchema,
-  clampInt,
-} from "../utils/validators";
+import { imageUrlSchema, nameSchema, shortTextSchema } from "../utils/validators";
+import { paginated, parsePagination } from "../utils/pagination";
 
 const router = Router();
 const repo = () => AppDataSource.getRepository(Product);
@@ -35,9 +31,7 @@ router.get("/", async (req, res) => {
     string,
     string
   >;
-  const take = clampInt(req.query.limit, 12, 1, 100);
-  const page = clampInt(req.query.page, 1, 1, 100_000);
-  const skip = (page - 1) * take;
+  const pageParams = parsePagination(req.query, 12);
 
   const qb = repo()
     .createQueryBuilder("product")
@@ -79,17 +73,10 @@ router.get("/", async (req, res) => {
       break;
   }
 
-  qb.take(take).skip(skip);
+  qb.take(pageParams.limit).skip(pageParams.skip);
 
   const [items, total] = await qb.getManyAndCount();
-
-  res.json({
-    items,
-    total,
-    page,
-    limit: take,
-    totalPages: Math.ceil(total / take),
-  });
+  res.json(paginated(items, total, pageParams));
 });
 
 router.get("/:id", validateUuidParam(), async (req, res) => {
@@ -107,26 +94,24 @@ const productSchema = z.object({
   price: z.number().positive().max(1_000_000),
   stock: z.number().int().min(0).max(1_000_000),
   imageUrl: imageUrlSchema,
-  categoryId: z.string().uuid().optional(),
+  categoryId: z.string().uuid().nullable().optional(), // null clears it
 });
 
 router.post("/", requireAuth, requireAnyAdmin, attachShop, async (req, res) => {
-  const schema =
-    req.user!.role === "super_admin"
-      ? productSchema.extend({ shopId: z.string().uuid() })
-      : productSchema;
-  const parsed = schema.safeParse(req.body);
+  // A super_admin picks the shop; a shop admin always creates in their own.
+  const isSuperAdmin = req.user!.role === "super_admin";
+  const parsed = productSchema
+    .extend({ shopId: isSuperAdmin ? z.string().uuid() : z.any() })
+    .safeParse(req.body);
   if (!parsed.success)
     return res
       .status(400)
       .json({ message: "Invalid input", errors: parsed.error.flatten() });
 
-  const shopId =
-    req.user!.role === "super_admin"
-      ? (parsed.data as any).shopId
-      : req.shopId!;
+  const { shopId: requestedShopId, ...data } = parsed.data;
+  const shopId: string = isSuperAdmin ? requestedShopId : req.shopId!;
 
-  const product = repo().create({ ...parsed.data, shopId });
+  const product = repo().create({ ...data, shopId });
   await repo().save(product);
   res.status(201).json(product);
 });

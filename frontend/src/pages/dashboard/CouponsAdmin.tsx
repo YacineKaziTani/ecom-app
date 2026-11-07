@@ -4,7 +4,7 @@ import { Plus, Trash2, Tag, Info } from "lucide-react";
 import { couponsApi, CouponInput } from "../../api/coupons";
 import { Coupon } from "../../api/types";
 import { useAuth } from "../../store/AuthContext";
-import { formatDate } from "../../lib/status";
+import { formatDate, formatPrice } from "../../lib/status";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Modal } from "../../components/ui/Modal";
@@ -67,8 +67,9 @@ export default function CouponsAdmin() {
       code: form.code.trim().toUpperCase(),
       minOrderAmount: form.minOrderAmount || undefined,
       maxUses: form.maxUses || undefined,
+      // The picker gives a date; the code stays valid through the end of that day.
       expiresAt: form.expiresAt
-        ? new Date(form.expiresAt).toISOString()
+        ? new Date(`${form.expiresAt}T23:59:59`).toISOString()
         : undefined,
     };
     createMutation.mutate(payload);
@@ -138,11 +139,11 @@ export default function CouponsAdmin() {
                           <span className="font-medium">
                             {c.type === "percentage"
                               ? `${Number(c.value)}% off`
-                              : `$${Number(c.value).toFixed(2)} off`}
+                              : `${formatPrice(c.value)} off`}
                           </span>
                           {c.minOrderAmount ? (
                             <span className="block text-xs text-muted-foreground">
-                              min ${Number(c.minOrderAmount).toFixed(2)}
+                              min {formatPrice(c.minOrderAmount)}
                             </span>
                           ) : null}
                         </td>
@@ -258,7 +259,7 @@ export default function CouponsAdmin() {
             </div>
             <div>
               <label htmlFor="value" className="label">
-                Value {form.type === "percentage" ? "(%)" : "($)"}
+                Value {form.type === "percentage" ? "(%)" : "(DA)"}
               </label>
               <input
                 id="value"
@@ -279,7 +280,7 @@ export default function CouponsAdmin() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="minOrderAmount" className="label">
-                Min order ($)
+                Min order (DA)
               </label>
               <input
                 id="minOrderAmount"

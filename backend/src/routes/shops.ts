@@ -50,7 +50,7 @@ router.get("/slug/:slug", async (req, res) => {
   res.json(shop);
 });
 
-// Admin: get MY shop (or super_admin can pass ?ownerId=)
+// Admin: get MY shop
 router.get("/me/mine", requireAuth, requireAnyAdmin, async (req, res) => {
   const shop = await repo().findOne({ where: { ownerId: req.user!.id } });
   if (!shop)
@@ -65,20 +65,17 @@ const shopSchema = z.object({
 });
 
 router.post("/", requireAuth, requireAnyAdmin, async (req, res) => {
-  const schema =
-    req.user!.role === "super_admin"
-      ? shopSchema.extend({ ownerId: z.string().uuid() })
-      : shopSchema;
-  const parsed = schema.safeParse(req.body);
+  // A super_admin creates a shop on behalf of an owner; an admin creates their own.
+  const isSuperAdmin = req.user!.role === "super_admin";
+  const parsed = shopSchema
+    .extend({ ownerId: isSuperAdmin ? z.string().uuid() : z.any() })
+    .safeParse(req.body);
   if (!parsed.success)
     return res
       .status(400)
       .json({ message: "Invalid input", errors: parsed.error.flatten() });
 
-  const ownerId =
-    req.user!.role === "super_admin"
-      ? (parsed.data as any).ownerId
-      : req.user!.id;
+  const ownerId: string = isSuperAdmin ? parsed.data.ownerId : req.user!.id;
 
   const existing = await repo().findOne({ where: { ownerId } });
   if (existing)

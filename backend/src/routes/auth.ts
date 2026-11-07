@@ -24,11 +24,19 @@ import {
   createPasswordResetToken,
   findValidPasswordResetToken,
   deletePasswordResetToken,
+  RESET_TOKEN_TTL_MINUTES,
 } from "../services/passwordReset";
 import { sendPasswordResetEmail } from "../services/email";
+import { paginated, parsePagination } from "../utils/pagination";
 
 const router = Router();
 const userRepo = () => AppDataSource.getRepository(User);
+
+// `password` is select:false, but a user we just created/hashed in memory (or
+// explicitly selected for login) still carries it — strip it before responding.
+function toPublicUser({ password: _pw, ...user }: User) {
+  return user;
+}
 
 const nameSchema = z
   .string()
@@ -84,9 +92,7 @@ router.post("/register", registerLimiter, async (req, res) => {
   await repo.save(user);
 
   await issueSession(res, user);
-
-  const { password: _pw, ...safeUser } = user;
-  res.status(201).json({ user: safeUser });
+  res.status(201).json({ user: toPublicUser(user) });
 });
 
 router.post("/login", loginLimiter, async (req, res) => {
@@ -95,22 +101,26 @@ router.post("/login", loginLimiter, async (req, res) => {
     return res.status(400).json({ message: "Invalid input" });
 
   const { email, password } = parsed.data;
-  const user = await userRepo().findOne({ where: { email } });
+  const user = await userRepo()
+    .createQueryBuilder("user")
+    .addSelect("user.password")
+    .where("user.email = :email", { email })
+    .getOne();
   if (!user) return res.status(401).json({ message: "Invalid credentials" });
 
   const match = await bcrypt.compare(password, user.password);
   if (!match) return res.status(401).json({ message: "Invalid credentials" });
 
   await issueSession(res, user);
-
-  const { password: _pw, ...safeUser } = user;
-  res.json({ user: safeUser });
+  res.json({ user: toPublicUser(user) });
 });
 
 router.post("/refresh", refreshLimiter, async (req, res) => {
   const rawRefreshToken = req.cookies?.refreshToken;
-  if (!rawRefreshToken)
+  if (!rawRefreshToken) {
+    clearAuthCookies(res); // drop any stale access-token cookie too
     return res.status(401).json({ message: "Not authenticated" });
+  }
 
   const record = await findValidRefreshToken(rawRefreshToken);
   if (!record) {
@@ -170,7 +180,7 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
   sendPasswordResetEmail(user.email, {
     name: user.firstName,
     resetLink,
-    expiresInMinutes: 90,
+    expiresInMinutes: RESET_TOKEN_TTL_MINUTES,
   });
 
   res.json(GENERIC_RESPONSE);
@@ -222,8 +232,7 @@ router.post("/reset-password", resetPasswordLimiter, async (req, res) => {
 router.get("/me", requireAuth, async (req, res) => {
   const user = await userRepo().findOne({ where: { id: req.user!.id } });
   if (!user) return res.status(404).json({ message: "User not found" });
-  const { password: _pw, ...safeUser } = user;
-  res.json({ user: safeUser });
+  res.json({ user });
 });
 
 const updateProfileSchema = z.object({
@@ -251,19 +260,21 @@ router.patch("/me", requireAuth, async (req, res) => {
 
   Object.assign(user, parsed.data);
   await repo.save(user);
-
-  const { password: _pw, ...safeUser } = user;
-  res.json({ user: safeUser });
+  res.json({ user });
 });
 
-// Super admin only: list all users (for the user-management dashboard screen).
+// Super admin only: paginated user list (for the user-management dashboard screen).
 router.get("/users", requireAuth, requireSuperAdmin, async (req, res) => {
+  const pageParams = parsePagination(req.query);
   const searchRaw =
     typeof req.query.search === "string" ? req.query.search : undefined;
   const search = searchRaw?.slice(0, 100); // cap length defensively before it goes into a LIKE pattern
-  const repo = userRepo();
 
-  const qb = repo.createQueryBuilder("user").orderBy("user.createdAt", "DESC");
+  const qb = userRepo()
+    .createQueryBuilder("user")
+    .orderBy("user.createdAt", "DESC")
+    .skip(pageParams.skip)
+    .take(pageParams.limit);
   if (search) {
     qb.where(
       "user.email ILIKE :s OR user.firstName ILIKE :s OR user.lastName ILIKE :s",
@@ -271,8 +282,8 @@ router.get("/users", requireAuth, requireSuperAdmin, async (req, res) => {
     );
   }
 
-  const users = await qb.getMany();
-  res.json(users.map(({ password: _pw, ...safeUser }) => safeUser));
+  const [items, total] = await qb.getManyAndCount();
+  res.json(paginated(items, total, pageParams));
 });
 
 router.patch(
@@ -302,9 +313,7 @@ router.patch(
     await repo.save(user);
 
     await revokeAllRefreshTokensForUser(user.id);
-
-    const { password: _pw, ...safeUser } = user;
-    res.json({ user: safeUser });
+    res.json({ user });
   },
 );
 

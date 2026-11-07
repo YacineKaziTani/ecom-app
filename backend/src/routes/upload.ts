@@ -1,6 +1,7 @@
-import { Router } from "express";
+import { ErrorRequestHandler, Router } from "express";
 import multer from "multer";
 import cloudinary from "../config/cloudinary";
+import { logger } from "../config/logger";
 import { requireAuth, requireAnyAdmin } from "../middleware/auth";
 
 const router = Router();
@@ -54,13 +55,13 @@ router.post(
       const result = await uploadBuffer(req.file.buffer, safeFolder);
       res.status(201).json(result);
     } catch (err) {
-      console.error("Cloudinary upload error:", err);
+      logger.error({ err }, "Cloudinary upload failed");
       res.status(500).json({ message: "Image upload failed" });
     }
   },
 );
 
-router.use((err: any, _req: any, res: any, next: any) => {
+const uploadErrorHandler: ErrorRequestHandler = (err, _req, res, next) => {
   if (
     err instanceof multer.MulterError ||
     err?.message === "Only image files are allowed"
@@ -68,6 +69,7 @@ router.use((err: any, _req: any, res: any, next: any) => {
     return res.status(400).json({ message: err.message });
   }
   next(err);
-});
+};
+router.use(uploadErrorHandler);
 
 export default router;

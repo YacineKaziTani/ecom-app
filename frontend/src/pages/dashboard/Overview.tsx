@@ -4,7 +4,7 @@ import {
   Package,
   Tags,
   ClipboardList,
-  DollarSign,
+  Banknote,
   Store,
   ArrowRight,
 } from "lucide-react";
@@ -21,7 +21,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 export default function Overview() {
   const { isSuperAdmin } = useAuth();
 
-  const { data: myShop } = useQuery({
+  const { data: myShop, isLoading: shopLoading } = useQuery({
     queryKey: ["myShop"],
     queryFn: shopsApi.mine,
     retry: false,
@@ -44,23 +44,21 @@ export default function Overview() {
     queryFn: categoriesApi.list,
   });
 
-  // The backend already scopes /orders to "my shop's items only" for the admin role.
-  const { data: orders } = useQuery({
-    queryKey: ["orders"],
-    queryFn: ordersApi.list,
+  // Totals are computed server-side (and scoped to "my shop's items" for a
+  // shop admin), so the overview never downloads the full order history.
+  const { data: summary } = useQuery({
+    queryKey: ["orders", "summary"],
+    queryFn: ordersApi.summary,
+    enabled: isSuperAdmin || !!myShop,
   });
+  const { data: recent } = useQuery({
+    queryKey: ["orders", "recent"],
+    queryFn: () => ordersApi.list({ page: 1, limit: 5 }),
+    enabled: isSuperAdmin || !!myShop,
+  });
+  const orders = recent?.items;
 
-  const revenue =
-    orders?.reduce((sum, o) => {
-      if (isSuperAdmin) return sum + Number(o.total);
-      const myItemsTotal = o.items.reduce(
-        (s, i) => s + Number(i.price) * i.quantity,
-        0,
-      );
-      return sum + myItemsTotal;
-    }, 0) ?? 0;
-
-  const pendingOrders = orders?.filter((o) => o.status === "pending").length ?? 0;
+  if (!isSuperAdmin && shopLoading) return null;
 
   if (!isSuperAdmin && !myShop) {
     return (
@@ -107,16 +105,17 @@ export default function Overview() {
         />
         <StatCard
           label={isSuperAdmin ? "Total orders" : "Orders with my items"}
-          value={orders?.length ?? 0}
+          value={summary?.totalOrders ?? 0}
           icon={ClipboardList}
           accent="amber"
-          hint={`${pendingOrders} pending`}
+          hint={`${summary?.pendingOrders ?? 0} pending`}
         />
         <StatCard
           label="Revenue"
-          value={formatPrice(revenue)}
-          icon={DollarSign}
+          value={formatPrice(summary?.revenue ?? 0)}
+          icon={Banknote}
           accent="green"
+          hint="Paid orders"
         />
       </div>
 
@@ -149,7 +148,7 @@ export default function Overview() {
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.slice(0, 5).map((o) => (
+                  {orders.map((o) => (
                     <tr key={o.id}>
                       <td className="font-mono text-xs font-semibold text-accent">
                         #{o.id.slice(0, 8)}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { NavLink, Outlet, Link, useLocation } from "react-router";
 import {
   LayoutGrid,
@@ -20,6 +20,8 @@ import {
 import { useAuth } from "../store/AuthContext";
 import { useTheme } from "../store/ThemeContext";
 import { cn } from "@/lib/utils";
+import { ErrorBoundary } from "./ErrorBoundary";
+import { PageLoader } from "./ui/PageLoader";
 
 export function DashboardLayout() {
   const { isSuperAdmin, user } = useAuth();
@@ -178,7 +180,11 @@ export function DashboardLayout() {
 
         <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-10">
           <div className="mx-auto max-w-6xl animate-fade-in">
-            <Outlet />
+            <ErrorBoundary resetKey={pathname}>
+              <Suspense fallback={<PageLoader />}>
+                <Outlet />
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
       </div>

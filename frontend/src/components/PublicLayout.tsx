@@ -1,7 +1,9 @@
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { Outlet, useLocation } from "react-router";
 import { Navbar } from "./Navbar";
 import { Footer } from "./Footer";
+import { ErrorBoundary } from "./ErrorBoundary";
+import { PageLoader } from "./ui/PageLoader";
 
 export function PublicLayout() {
   const { pathname } = useLocation();
@@ -15,7 +17,12 @@ export function PublicLayout() {
     <div className="flex min-h-screen flex-col bg-background">
       <Navbar />
       <main className="flex-1">
-        <Outlet />
+        {/* A crashing page keeps the navbar usable; navigating clears the error. */}
+        <ErrorBoundary resetKey={pathname}>
+          <Suspense fallback={<PageLoader />}>
+            <Outlet />
+          </Suspense>
+        </ErrorBoundary>
       </main>
       <Footer />
     </div>

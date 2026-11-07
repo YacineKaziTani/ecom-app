@@ -2,7 +2,8 @@ import crypto from "crypto";
 import { AppDataSource } from "../config/data-source";
 import { PasswordResetToken } from "../entities/PasswordResetToken";
 
-const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+export const RESET_TOKEN_TTL_MINUTES = 60;
+const RESET_TOKEN_TTL_MS = RESET_TOKEN_TTL_MINUTES * 60 * 1000;
 
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");

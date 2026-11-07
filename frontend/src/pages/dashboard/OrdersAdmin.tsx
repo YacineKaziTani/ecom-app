@@ -1,4 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { ClipboardList, Info } from "lucide-react";
 import { ordersApi } from "../../api/orders";
 import { OrderStatus } from "../../api/types";
@@ -12,6 +13,7 @@ import {
 import { PageHeader } from "../../components/ui/PageHeader";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { TableSkeleton } from "../../components/ui/Skeleton";
+import { Pagination } from "../../components/Pagination";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 
@@ -27,10 +29,16 @@ export default function OrdersAdmin() {
   const { isSuperAdmin } = useAuth();
   const qc = useQueryClient();
 
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ["orders"],
-    queryFn: ordersApi.list,
+  const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | "">("");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["orders", "admin", { page, status: statusFilter }],
+    queryFn: () =>
+      ordersApi.list({ page, limit: 20, status: statusFilter || undefined }),
+    placeholderData: keepPreviousData,
   });
+  const orders = data?.items;
 
   const updateMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: OrderStatus }) =>
@@ -88,6 +96,24 @@ export default function OrdersAdmin() {
         eyebrow="Fulfilment"
         title="Orders"
         description="Track incoming orders and move them through fulfilment."
+        actions={
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as OrderStatus | "");
+              setPage(1);
+            }}
+            aria-label="Filter by status"
+            className="select capitalize"
+          >
+            <option value="">All statuses</option>
+            {statuses.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        }
       />
 
       {!isSuperAdmin && (
@@ -202,6 +228,16 @@ export default function OrdersAdmin() {
           </table>
         </div>
       </div>
+
+      {data && (
+        <Pagination
+          page={data.page}
+          totalPages={data.totalPages}
+          total={data.total}
+          limit={data.limit}
+          onPageChange={setPage}
+        />
+      )}
     </div>
   );
 }

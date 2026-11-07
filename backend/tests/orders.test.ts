@@ -207,10 +207,10 @@ describe("order visibility scoping", () => {
 
     const resB = await customerB.get("/api/orders");
     expect(resB.status).toBe(200);
-    expect(resB.body).toHaveLength(0);
+    expect(resB.body.items).toHaveLength(0);
 
     const resA = await customerA.get("/api/orders");
-    expect(resA.body).toHaveLength(1);
+    expect(resA.body.items).toHaveLength(1);
   });
 
   it("scopes an admin's order view to only their shop's line items", async () => {
@@ -231,7 +231,7 @@ describe("order visibility scoping", () => {
     const res = await adminAgent.get("/api/orders");
     expect(res.status).toBe(200);
     // The admin's shop had no orders — the other shop's order shouldn't appear.
-    expect(res.body).toHaveLength(0);
+    expect(res.body.items).toHaveLength(0);
   });
 });
 

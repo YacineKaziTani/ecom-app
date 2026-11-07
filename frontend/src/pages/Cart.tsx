@@ -22,6 +22,7 @@ import { formatPrice } from "../lib/status";
 import { EmptyState } from "../components/ui/EmptyState";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
+import { optimizedImage } from "../lib/images";
 
 interface StockIssue {
   productId: string;
@@ -75,7 +76,10 @@ export default function Cart() {
       qc.invalidateQueries({ queryKey: ["orders"] });
 
       try {
-        const { checkoutUrl } = await paymentsApi.createCheckout(order.id);
+        const { checkoutUrl } = await paymentsApi.createCheckout(
+          order.id,
+          order.guestEmail,
+        );
         window.location.href = checkoutUrl;
       } catch (err) {
         toast.error(
@@ -189,7 +193,7 @@ export default function Cart() {
                 >
                   {product.imageUrl && (
                     <img
-                      src={product.imageUrl}
+                      src={optimizedImage(product.imageUrl, 160)}
                       alt={product.name}
                       className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
                     />
@@ -316,13 +320,6 @@ export default function Cart() {
                 </button>
               </div>
             )}
-
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Shipping</span>
-              <span className="font-medium text-muted-foreground">
-                Calculated at payment
-              </span>
-            </div>
 
             <div className="divider" />
 

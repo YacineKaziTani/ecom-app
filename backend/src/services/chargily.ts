@@ -3,10 +3,11 @@ import crypto from "crypto";
 // Reference: https://dev.chargily.com/pay-v2/the-full-guide/create-a-checkout
 // and https://dev.chargily.com/pay-v2/webhooks
 const CHARGILY_MODE = process.env.CHARGILY_MODE === "live" ? "live" : "test";
-const CHARGILY_BASE_URL = process.env.CHARGILY_BASE_URL;
-CHARGILY_MODE === "live"
-  ? "https://pay.chargily.net/api/v2"
-  : "https://pay.chargily.net/test/api/v2";
+const CHARGILY_BASE_URL =
+  process.env.CHARGILY_BASE_URL ||
+  (CHARGILY_MODE === "live"
+    ? "https://pay.chargily.net/api/v2"
+    : "https://pay.chargily.net/test/api/v2");
 const CHARGILY_API_KEY = process.env.CHARGILY_API_KEY;
 const CHARGILY_LOCALE = process.env.CHARGILY_LOCALE || "ar"; // 'ar' | 'en' | 'fr'
 

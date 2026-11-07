@@ -9,6 +9,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { Modal } from "../../components/ui/Modal";
 import { Skeleton } from "../../components/ui/Skeleton";
 import toast from "react-hot-toast";
+import { optimizedImage } from "../../lib/images";
 
 const emptyForm: CategoryInput = { name: "", description: "", imageUrl: "" };
 
@@ -113,7 +114,7 @@ export default function CategoriesAdmin() {
               <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-secondary">
                 {c.imageUrl ? (
                   <img
-                    src={c.imageUrl}
+                    src={optimizedImage(c.imageUrl, 400)}
                     alt=""
                     className="h-full w-full object-cover"
                   />

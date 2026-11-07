@@ -7,6 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Unique,
+  Index,
 } from "typeorm";
 import { User } from "./User";
 import { Product } from "./Product";
@@ -28,6 +29,7 @@ export class CartItem {
   @JoinColumn({ name: "productId" })
   product!: Product;
 
+  @Index("IDX_cart_items_productId")
   @Column()
   productId!: string;
 

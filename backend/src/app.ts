@@ -1,10 +1,15 @@
 import "reflect-metadata";
+import { randomUUID } from "crypto";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
+import pinoHttp from "pino-http";
+import { AppDataSource } from "./config/data-source";
+import { logger } from "./config/logger";
 import { sanitizeBody } from "./middleware/sanitize";
 import { apiLimiter } from "./middleware/rateLimit";
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 
 import authRoutes from "./routes/auth";
 import shopRoutes from "./routes/shops";
@@ -20,6 +25,42 @@ import cartRoutes from "./routes/cart";
 
 export const app = express();
 
+// Behind Render (and the Vercel /api rewrite) the TCP peer is a proxy, so
+// without this req.ip — which every rate limiter keys on — is the proxy's
+// address and all visitors share one limit. TRUST_PROXY = number of proxy hops
+// in front of the app (Render alone: 1; Vercel rewrite → Render: 2).
+const trustProxy =
+  process.env.TRUST_PROXY ??
+  (process.env.NODE_ENV === "production" ? "1" : undefined);
+if (trustProxy) {
+  app.set("trust proxy", /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
+}
+
+app.use(
+  pinoHttp({
+    logger,
+    // Reuse an incoming X-Request-Id (from a proxy) or mint one; it's echoed
+    // back so a user-reported error can be matched to its log lines.
+    genReqId: (req, res) => {
+      const incoming = req.headers["x-request-id"];
+      const id =
+        typeof incoming === "string" && /^[\w-]{1,100}$/.test(incoming)
+          ? incoming
+          : randomUUID();
+      res.setHeader("X-Request-Id", id);
+      return id;
+    },
+    autoLogging: { ignore: (req) => req.url === "/api/health" },
+    customLogLevel: (_req, res, err) =>
+      err || res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info",
+    serializers: {
+      // Path only: query strings can carry emails (e.g. /orders/track?email=).
+      req: (req) => ({ id: req.id, method: req.method, path: req.url?.split("?")[0] }),
+      res: (res) => ({ statusCode: res.statusCode }),
+    },
+  }),
+);
+
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -32,6 +73,18 @@ app.use(
     credentials: true,
   }),
 );
+
+// For uptime monitors and the platform's health check: 503 when the database
+// is unreachable. `ip` shows the client address as the app sees it — open this
+// through the production URL to confirm TRUST_PROXY is right.
+app.get("/api/health", async (req, res) => {
+  try {
+    await AppDataSource.query("SELECT 1");
+    res.json({ status: "ok", db: "up", ip: req.ip });
+  } catch {
+    res.status(503).json({ status: "degraded", db: "down" });
+  }
+});
 
 app.use(
   "/api/payments/webhook",
@@ -55,4 +108,5 @@ app.use("/api/coupons", couponRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/cart", cartRoutes);
 
-app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
+app.use("/api", notFoundHandler);
+app.use(errorHandler);

@@ -4,6 +4,7 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
+  Index,
 } from "typeorm";
 import { Order } from "./Order";
 import { Product } from "./Product";
@@ -17,6 +18,7 @@ export class OrderItem {
   @JoinColumn({ name: "orderId" })
   order!: Order;
 
+  @Index("IDX_order_items_orderId")
   @Column()
   orderId!: string;
 
@@ -30,6 +32,7 @@ export class OrderItem {
   @Column({ nullable: true })
   productId?: string;
 
+  @Index("IDX_order_items_shopId")
   @Column({ nullable: true })
   shopId?: string;
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  DollarSign,
+  Banknote,
   ShoppingBag,
   TrendingUp,
   Package,
@@ -19,7 +19,7 @@ import {
 import { analyticsApi } from "../../api/analytics";
 import { StatCard } from "../../components/StatCard";
 import { useAuth } from "../../store/AuthContext";
-import { formatPrice } from "../../lib/status";
+import { formatPrice, formatPriceCompact } from "../../lib/status";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { cn } from "@/lib/utils";
@@ -82,7 +82,7 @@ export default function Analytics() {
         <StatCard
           label="Revenue"
           value={formatPrice(data?.totalRevenue ?? 0)}
-          icon={DollarSign}
+          icon={Banknote}
           accent="green"
         />
         <StatCard
@@ -160,7 +160,7 @@ export default function Analytics() {
                     tickLine={false}
                     axisLine={false}
                     width={56}
-                    tickFormatter={(v) => `$${v}`}
+                    tickFormatter={(v) => formatPriceCompact(v)}
                   />
                   <Tooltip
                     cursor={{ stroke: "var(--accent)", strokeOpacity: 0.35 }}

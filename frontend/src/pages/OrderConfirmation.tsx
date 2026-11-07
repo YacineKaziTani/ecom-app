@@ -18,6 +18,7 @@ import {
   paymentStatusBadge,
   paymentStatusLabel,
   formatPrice,
+  formatTime,
 } from "../lib/status";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
@@ -49,7 +50,7 @@ export default function OrderConfirmation() {
   const guestEmail = order?.guestEmail || emailFromUrl || undefined;
 
   const payMutation = useMutation({
-    mutationFn: () => paymentsApi.createCheckout(order!.id),
+    mutationFn: () => paymentsApi.createCheckout(order!.id, guestEmail),
     onSuccess: ({ checkoutUrl }) => {
       window.location.href = checkoutUrl;
     },
@@ -106,6 +107,7 @@ export default function OrderConfirmation() {
   }
 
   const isPaid = order.paymentStatus === "paid";
+  const canPay = !isPaid && order.status !== "cancelled";
 
   return (
     <div className="container-narrow py-12 sm:py-16">
@@ -144,7 +146,7 @@ export default function OrderConfirmation() {
         </div>
       </div>
 
-      {!isPaid && (
+      {canPay && (
         <div className="mt-8 rounded-xl border border-warning/40 bg-warning-soft p-5">
           <p className="flex items-center gap-2 text-sm font-semibold text-warning">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
@@ -153,8 +155,9 @@ export default function OrderConfirmation() {
               : "Payment hasn't been completed yet."}
           </p>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Your items are reserved, but the order won't ship until payment
-            clears.
+            {order.reservedUntil
+              ? `We're holding your items until ${formatTime(order.reservedUntil)}. If payment isn't completed by then, the order is cancelled automatically and the items are released.`
+              : "Your items are reserved, but the order won't ship until payment clears."}
           </p>
           <button
             onClick={() => payMutation.mutate()}

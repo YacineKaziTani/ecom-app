@@ -77,7 +77,11 @@ export function setAuthCookies(res: Response, accessToken: string, refreshToken:
     httpOnly: true,
     secure: isProd,
     sameSite: "lax",
-    maxAge: 15 * 60 * 1000, // cookie itself can outlive a 15m access token; the JWT's own exp is what's enforced
+    // The cookie deliberately lives as long as the session; the JWT's own
+    // 15-minute exp is what's enforced. That way an expired token still reaches
+    // the server, which answers 401 so the client refreshes — even on
+    // optionalAuth routes (checkout), where a missing cookie means "guest".
+    maxAge: REFRESH_TOKEN_TTL_MS,
   });
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,

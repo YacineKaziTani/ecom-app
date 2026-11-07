@@ -47,13 +47,16 @@ export interface Product {
   updatedAt: string;
 }
 
-export interface ProductListResponse {
-  items: Product[];
+// The shape every paginated list endpoint returns.
+export interface Paginated<T> {
+  items: T[];
   total: number;
   page: number;
   limit: number;
   totalPages: number;
 }
+
+export type ProductListResponse = Paginated<Product>;
 
 export type OrderStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled";
 export type PaymentStatus = "unpaid" | "paid" | "failed";
@@ -98,6 +101,8 @@ export interface Order {
   shippingAddress: string;
   items: OrderItem[];
   user?: User;
+  // Unpaid orders hold their stock until this moment, then get cancelled.
+  reservedUntil?: string | null;
   createdAt: string;
   updatedAt: string;
 }

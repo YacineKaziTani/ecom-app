@@ -12,7 +12,9 @@ export class User {
   @Column({ unique: true })
   email!: string;
 
-  @Column()
+  // Never loaded unless explicitly selected (see the login route), so the hash
+  // can't leak through relations like order.user.
+  @Column({ select: false })
   password!: string;
 
   @Column()

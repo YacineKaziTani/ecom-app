@@ -3,6 +3,7 @@ import { Upload, X, Loader2, ImagePlus } from "lucide-react";
 import { uploadApi } from "../api/upload";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
+import { optimizedImage } from "../lib/images";
 
 interface ImageUploadProps {
   value?: string;
@@ -58,7 +59,7 @@ export function ImageUpload({
       {value ? (
         <div className="flex items-start gap-3">
           <div className="group relative h-28 w-28 overflow-hidden rounded-xl border border-border bg-secondary">
-            <img src={value} alt="" className="h-full w-full object-cover" />
+            <img src={optimizedImage(value, 240)} alt="" className="h-full w-full object-cover" />
             <button
               type="button"
               onClick={() => onChange("")}

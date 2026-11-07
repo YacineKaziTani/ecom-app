@@ -21,6 +21,13 @@ interface RetryableConfig extends AxiosRequestConfig {
   _retry?: boolean;
 }
 
+// Lets the auth layer react when a refresh fails (session revoked or expired),
+// so the UI stops treating the visitor as signed in.
+let onSessionExpired: (() => void) | null = null;
+export function setSessionExpiredHandler(handler: (() => void) | null) {
+  onSessionExpired = handler;
+}
+
 let refreshPromise: Promise<void> | null = null;
 
 function refreshAccessToken(): Promise<void> {
@@ -53,8 +60,13 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       try {
         await refreshAccessToken();
-        return api(originalRequest);
-      } catch {}
+      } catch {
+        onSessionExpired?.();
+        return Promise.reject(
+          new ApiError("Your session has expired — please sign in again"),
+        );
+      }
+      return api(originalRequest);
     }
 
     const message =

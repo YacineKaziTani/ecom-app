@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Loader2, Check } from "lucide-react";
 import { authApi } from "../api/auth";
-import { useInvalidateAuth } from "../store/AuthContext";
+import { useSignedIn } from "../store/AuthContext";
 import { mergeGuestCartIntoAccount } from "../hooks/useCart";
 import { AuthLayout } from "../components/AuthLayout";
 import { cn } from "@/lib/utils";
@@ -19,13 +19,12 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const invalidateAuth = useInvalidateAuth();
+  const signedIn = useSignedIn();
 
   const mutation = useMutation({
     mutationFn: authApi.register,
-    onSuccess: async () => {
-      invalidateAuth();
-      qc.clear();
+    onSuccess: async (data) => {
+      signedIn(data);
       await mergeGuestCartIntoAccount(qc);
       toast.success("Account created!");
       navigate("/");

@@ -4,7 +4,7 @@ A complete e-commerce app with customer storefront + admin dashboard.
 
 **Stack**
 - Frontend: React 18, React Router v7, TanStack Query v5, Zustand, Tailwind CSS, TypeScript, Vite
-- Backend: Express.js, TypeORM, PostgreSQL, JWT (httpOnly cookies), Zod, TypeScript
+- Backend: Express 5, TypeORM, PostgreSQL, JWT (httpOnly cookies), Zod, TypeScript
 
 ## Features
 - Auth: register/login/logout, httpOnly JWT cookie, `/me`, profile update
@@ -25,9 +25,9 @@ createdb ecom
 ### 2. Backend
 ```bash
 cd backend
-cp .env.example .env    # edit DB credentials / JWT secret
+cp .env.example .env    # set DATABASE_URL (or the DB_* vars) and JWT_SECRET
 npm install
-npm run migration:run   # creates all tables — synchronize is only enabled for the test env, so this is required even locally
+npm run migration:run   # creates all tables — synchronize is off everywhere, so this is required
 npm run dev             # http://localhost:4000
 ```
 
@@ -45,8 +45,34 @@ npm run dev              # http://localhost:5173
 ```
 Vite proxies `/api` to `http://localhost:4000`, and the axios client sends cookies (`withCredentials: true`), so no CORS/cookie configuration is needed beyond what's already set up.
 
-### Deploying to separate origins
-The axios client defaults to a relative `/api` base URL, which only resolves correctly when the frontend is served from the same origin as the backend (directly, or via a reverse proxy that rewrites `/api` to it). If you deploy the frontend and backend to different hosts (e.g. a static host for the frontend + a separate host for the API), set `VITE_API_URL` at build time to the backend's full URL — see `frontend/.env.example`. Also make sure `CLIENT_URL` on the backend matches the frontend's deployed origin exactly, since CORS is locked to it.
+### Deploying (Render + Vercel + Neon)
+The axios client always calls a relative `/api`, so the frontend must be served from the same origin as the API: `frontend/vercel.json` rewrites `/api/*` to the backend, which also keeps the auth cookies first-party. Point that rewrite at your backend URL.
+
+**Backend (Render web service, root directory `backend`)**
+- Build command: `npm ci --include=dev && npm run build` — `--include=dev` matters: with `NODE_ENV=production` set, a plain `npm install` skips devDependencies, so TypeScript wouldn't be there to build.
+- Start command: `npm start`. Pending migrations run automatically on boot in production (`RUN_MIGRATIONS=false` to opt out).
+- Health check path: `/api/health` (returns `503` when the database is unreachable).
+- Environment — the server **refuses to start** in production if a required value is missing or unsafe, and logs warnings for the rest:
+
+  | Variable | Notes |
+  |---|---|
+  | `NODE_ENV=production` | Secure cookies, migrations on boot, strict config checks |
+  | `DATABASE_URL` | Neon connection string |
+  | `JWT_SECRET` | ≥ 32 characters: `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`. Rotating it is painless — sessions are restored from refresh tokens. |
+  | `CLIENT_URL` | The Vercel origin, e.g. `https://your-shop.vercel.app` (CORS + links in emails/payments) |
+  | `API_PUBLIC_URL` | This backend's public https URL (Chargily webhooks) |
+  | `TRUST_PROXY=2` | Proxy hops in front of the app (Vercel rewrite → Render). Without it every visitor shares one rate limit. Verify: open `https://<frontend>/api/health` — `ip` should be your own address. |
+  | `CHARGILY_API_KEY`, `CHARGILY_MODE` | `live` key + `CHARGILY_MODE=live` for real payments |
+  | `RESEND_API_KEY`, `MAIL_FROM` | Sender must be on a domain verified in Resend |
+  | `CLOUDINARY_*` | Image uploads |
+  | `SENTRY_DSN` (optional) | Error tracking |
+  | `ORDER_RESERVATION_MINUTES` (optional) | Default 30 |
+
+- If you're on Render's free tier, the service sleeps when idle and takes ~50s to wake — the first visitor (or a Chargily webhook) waits for that. Use a paid instance for a real store.
+
+**Frontend (Vercel, root directory `frontend`)** — default Vite settings. Optional: `VITE_SENTRY_DSN` for browser error reports.
+
+**Database (Neon)** — check your plan's point-in-time-restore window, and do a test restore into a branch once so you know the procedure before you need it.
 
 ## Project structure
 ```
@@ -141,28 +167,24 @@ Customers no longer need an account to buy something:
 - **`PATCH /api/auth/:id/role`** (already existed, now guarded against a super_admin accidentally demoting their own account and locking themselves out).
 - **Dashboard → Users** — a table for super_admin to search users and change roles (`customer` / `admin` / `super_admin`) via a dropdown, with a confirmation prompt before applying. A user's own row has its role selector disabled (can't self-demote from the UI either).
 
-## Order confirmation emails (Nodemailer)
+## Order confirmation emails (Resend)
 Every order (guest or registered) triggers a real transactional email — order ID, itemized summary, total, shipping address, and a "View your order" button linking straight to `/order-confirmation/:id`.
 
 ### Setup
-1. Add SMTP credentials to `backend/.env`. For local dev, [Ethereal](https://ethereal.email) gives you a free throwaway inbox with no signup — click "Create Ethereal Account" and copy the generated host/user/pass:
+1. Add your [Resend](https://resend.com) API key and sender to `backend/.env`:
    ```
-   SMTP_HOST=smtp.ethereal.email
-   SMTP_PORT=587
-   SMTP_SECURE=false
-   SMTP_USER=your_generated_user
-   SMTP_PASS=your_generated_password
-   MAIL_FROM="Artisan Shop <no-reply@artisanshop.example>"
+   RESEND_API_KEY=re_...
+   MAIL_FROM="Artisan Shop <orders@your-verified-domain.com>"
    ```
-   For real delivery, swap in your provider's SMTP details (Gmail, SendGrid, Mailgun, Postmark, SES, etc.) — the same env vars work for any of them.
-2. Restart the backend. On startup it runs `transporter.verify()` and logs whether SMTP is working — check your console for `SMTP connection verified` or an error.
-3. Leave `SMTP_HOST` unset to disable emails entirely — checkout still works exactly the same, sending is just skipped (logged as a warning), so this never blocks development if you don't want to configure email yet.
+   (`EMAIL_FROM` is accepted as an alias for `MAIL_FROM`.) Until you verify a domain in Resend, the default `onboarding@resend.dev` sender can only deliver to your own Resend account's address.
+2. Restart the backend — it logs whether Resend is configured.
+3. Leave `RESEND_API_KEY` unset to disable emails entirely — checkout still works exactly the same, sending is just skipped (logged as a warning).
 
 ### How it works
-- `config/mailer.ts` — the Nodemailer transporter, built from `SMTP_*` env vars
+- `config/mailer.ts` — the Resend client, built from `RESEND_API_KEY` / `MAIL_FROM`
 - `emails/orderConfirmation.ts` — the actual HTML template (inline styles, table-based layout for email-client compatibility) plus a plain-text fallback; escapes all interpolated values (name, product names, address) since they come from request bodies
 - `services/email.ts` — wraps send + error handling so a failed/slow email can never break or delay the checkout response
-- In `routes/orders.ts`, the email is sent **after** `res.status(201).json(order)` — the customer gets their confirmation instantly regardless of SMTP latency, and any send failure is just logged
+- In `routes/orders.ts`, the email is sent **after** `res.status(201).json(order)` — the customer gets their confirmation instantly regardless of email-provider latency, and any send failure is just logged
 - Recipient name: the registered user's first name, or the guest's `guestName` (new optional field, collected on the guest checkout form in `Cart.tsx`) — falls back to "there" if a guest skipped it
 - The email's "View your order" link points to `/order-confirmation/:id`, with `?email=` appended for guest orders so the link keeps working even without a login (see the guest-checkout section above)
 
@@ -177,7 +199,7 @@ Every order (guest or registered) triggers a real transactional email — order 
 
 ## Refresh tokens
 Sessions now use a short-lived access token + long-lived, rotating refresh token instead of one long-lived JWT:
-- **Access token** (`token` cookie): a 15-minute JWT, sent on every request, same as before — just much shorter-lived, so a stolen one is far less useful.
+- **Access token** (`token` cookie): a 15-minute JWT, sent on every request. The cookie itself lives as long as the session so an *expired* JWT still reaches the server, which answers `401` and the client refreshes — this matters on guest-or-user routes like checkout, where a missing cookie would otherwise mean "guest".
 - **Refresh token** (`refreshToken` cookie): a 30-day opaque random token, scoped to the `/api/auth` path only (never sent to other endpoints), stored **hashed** (SHA-256) in a new `refresh_tokens` table — the raw token is never persisted, so a database leak alone can't be used to forge sessions.
 - **`POST /api/auth/refresh`** — exchanges a valid refresh token for a new access+refresh pair, *rotating* the refresh token each time (the old one is deleted, a new one issued). This means a leaked-and-reused refresh token gets invalidated for its rightful owner on their next legitimate refresh — a signal worth building alerting on if you take this further.
 - The frontend's axios client (`api/client.ts`) handles this transparently: on any `401`, it calls `/auth/refresh` once and retries the original request. Concurrent requests that all 401 at once share a single in-flight refresh call rather than triggering a stampede of refresh attempts.
@@ -194,11 +216,13 @@ REFRESH_TOKEN_EXPIRES_IN=30d
 ## Rate limiting
 `express-rate-limit`, applied in layers:
 - A broad limiter on all of `/api` (300 requests / 15 min per IP) — a safety net against scraping/DoS that's generous enough to never bother normal browsing.
-- `POST /api/auth/login` — 10 attempts / 15 min per IP. Keyed by IP rather than by email, since keying by email alone would let an attacker still brute-force many different accounts from a single IP without ever tripping a per-account limit.
-- `POST /api/auth/register` — 10 accounts / hour per IP, against spam signups.
+- `POST /api/auth/login` — 50 attempts / 15 min per IP. Keyed by IP rather than by email, since keying by email alone would let an attacker still brute-force many different accounts from a single IP without ever tripping a per-account limit.
+- `POST /api/auth/register` — 50 accounts / hour per IP, against spam signups.
 - `POST /api/auth/refresh` — 60 / 15 min per IP, as a backstop against a buggy or compromised client hammering it (it's not a credential-guessing target, since it requires already holding a valid refresh token cookie).
 
 Each returns a `429` with a clear message once the limit is hit.
+
+Limits are keyed by client IP, which only works if Express knows how many proxies sit in front of it — set `TRUST_PROXY` (see Deploying). Otherwise every visitor appears to come from the proxy's address and they all share one limit.
 
 ## Idempotency key on checkout
 `POST /api/orders` accepts an optional `Idempotency-Key` header. If a request with the same key arrives again — e.g. the response was lost to a network timeout and the client retries, or a double-click slipped past the disabled submit button — the server returns the **original** order instead of creating a duplicate (and skips re-sending the confirmation email).
@@ -233,17 +257,27 @@ Checkout now has a real payment step, using [Chargily Pay](https://dev.chargily.
 4. After the customer pays (or cancels), Chargily redirects them back to `/payment/success` or `/payment/failure` on this site.
 5. **Separately**, Chargily sends a webhook (`POST /api/payments/webhook`) directly to your backend confirming the actual payment result — this, not the browser redirect, is the authoritative source of truth (a customer closing the tab before the redirect completes shouldn't be trusted either way). The webhook handler verifies Chargily's HMAC signature, then sets `Order.paymentStatus` to `"paid"` or `"failed"` and — on success — advances the fulfillment `status` from `"pending"` to `"processing"`.
 6. Since the redirect can arrive slightly before the webhook does, `/payment/success` briefly polls the order (a few times, a couple seconds apart) before settling on a final "paid" / "still processing" message rather than trusting the redirect alone.
-7. If payment fails, is abandoned, or `create-checkout` couldn't even be reached, the order itself is untouched and unpaid — both `/orders` (registered customers) and `/order-confirmation/:id` (guests, via their emailed link) show a **Pay now** button that re-starts a fresh checkout for the same order at any time.
+7. If payment fails, is abandoned, or `create-checkout` couldn't even be reached, the order stays unpaid and its items stay reserved for `ORDER_RESERVATION_MINUTES` — both `/orders` (registered customers) and `/order-confirmation/:id` (guests, via their emailed link) show a **Pay now** button that starts a fresh checkout and restarts that window. After it runs out the order is cancelled automatically (see *Stock reservation* below).
 
 ### Key implementation details
 - `Order` gained `paymentStatus` (`unpaid`/`paid`/`failed`), `paymentProvider`, and `paymentCheckoutId` — fulfillment status and payment status are deliberately separate state machines.
 - `services/chargily.ts` — thin wrapper around Chargily's REST API (checkout creation) and webhook signature verification (`HMAC-SHA256` over the raw request body, using your API secret key — see `dev.chargily.com/pay-v2/webhooks`).
 - The webhook route (`routes/paymentWebhook.ts`) is mounted with its own `express.raw()` parser and registered **before** the app's global `express.json()` in `index.ts` — signature verification needs the exact raw bytes Chargily sent, and a JSON-parsed-then-re-serialized body would very often produce a different signature and fail verification for no real reason.
+- `create-checkout` follows the same access rules as viewing the order: an account order needs its owner signed in, a guest order needs the checkout email (sent by the frontend). Cancelled or already-paid orders are rejected.
 - A repeated "Pay now" click creates a brand-new Chargily checkout each time and overwrites `paymentCheckoutId` — this app treats each Chargily checkout as a single-attempt, expiring link (consistent with how Chargily's own hosted checkout pages behave), rather than trying to track multiple simultaneous checkout attempts per order.
 - Amounts are sent to Chargily as whole DZD units (no cents/centimes) — see `createChargilyCheckout`.
 
-### Currency note
-This app's UI still displays prices with a `$` sign throughout (product cards, cart, admin, emails) — that's cosmetic only and separate from the actual payment currency, which is fixed to `"dzd"` by Chargily. If you're running a DZD storefront, you'll want to swap the `$` symbols for `DA`/`دج` across the frontend (`ProductCard`, `Cart`, `OrderConfirmation`, the dashboard, and the email template) — happy to do that pass if you'd like, it's a separate, more cosmetic change from the payment integration itself.
+### Currency
+Chargily only charges in Algerian dinars, so every price in the UI and the emails is shown in DZD (`1 234,50 DA`, via `Intl.NumberFormat("fr-DZ")`) — what customers see is what they pay. Amounts are sent to Chargily rounded to whole dinars.
+
+## Stock reservation for unpaid orders
+Checkout takes items out of stock immediately, so an order that's never paid would otherwise hold them forever (and anyone could "buy out" the inventory with guest orders they never pay for).
+
+- Every new order gets `reservedUntil` = now + `ORDER_RESERVATION_MINUTES` (default 30). Each "Pay now" restarts the window.
+- A background job (`services/orderLifecycle.ts`, every minute) cancels unpaid `pending` orders past that deadline — stock goes back and the coupon use is released. Each order is re-checked under a row lock first, so it's safe with several server instances and can't race the payment webhook.
+- If a payment lands after the order expired, the webhook re-reserves the stock and moves the order to `processing`. If the stock is gone by then, the order stays `cancelled` but `paid` (shown as such in the dashboard) and a warning is logged — that's a refund.
+- Orders placed before this existed have no deadline; cancel stale unpaid ones from the dashboard to release their stock.
+- Cancelling an order (by an admin or the job) also gives back its coupon use; reactivating consumes it again.
 
 ## Discount codes / coupons
 Admins can create coupons (percentage or fixed-amount) that customers apply at checkout.
@@ -275,8 +309,8 @@ Real integration tests using Jest + Supertest against an actual Postgres databas
    ```bash
    createdb ecom_test
    ```
-2. `backend/.env.test` is already included with working local defaults (`ecom_test` database, `postgres`/`postgres` credentials) — since it holds no real secrets, it's safe to commit and use as-is. Adjust it only if your local Postgres credentials differ.
-3. Create the schema in the test database the same way as your dev DB — generate and run a migration against it, or point your usual migration command at `DB_NAME=ecom_test` for one run. (Tests **truncate** tables between runs but never create/alter the schema themselves — the tables need to already exist.)
+2. `backend/.env.test` is already included with working local defaults (`ecom_test` database, `postgres`/`postgres` credentials) — since it holds no real secrets, it's safe to commit and use as-is. Adjust it only if your local Postgres credentials differ. Tests always connect via these `DB_*` vars: `DATABASE_URL` and the rest of `.env` are never loaded under `NODE_ENV=test`, so the suite (which truncates every table) can't reach your real database.
+3. Create the schema in the test database: `NODE_ENV=test npm run migration:run` (with `NODE_ENV=test` the migration command uses the `DB_*` settings from your shell / `.env.test`-style values, never `.env`). Tests **truncate** tables between runs but never create/alter the schema themselves.
 4. Run the suite:
    ```bash
    npm test
@@ -294,8 +328,15 @@ Real integration tests using Jest + Supertest against an actual Postgres databas
 - **`tests/products.test.ts`** — shop-scoped creation (an admin can't edit another shop's product), super_admin creating for any shop, image URL validation, search-across-description, and the malformed-UUID-returns-400 fix.
 - **`tests/orders.test.ts`** — the checkout transaction's atomicity (proving a stock failure on one item doesn't partially decrement another), idempotency key replay, coupon application (percentage, fixed-amount capped at subtotal, max-uses exhaustion, shop-scope rejection on a mixed-shop cart), order visibility scoping between customers and shop-admins, and stock reconciliation on cancel/reactivate (below).
 
+- **`tests/orderLifecycle.test.ts`** — reservation deadlines, the expiry job (stock + coupon use restored, paid orders never expired, no double-restock), coupon use on cancel/reactivate, duplicate cart lines, pagination/status filters, and the dashboard summary.
+- **`tests/payments.test.ts`** — who may start a payment (guest email / account owner / cancelled / already paid) and the webhook: signature check, paid → processing, no downgrade of a paid order, and payments that arrive after the reservation expired.
+- **`tests/platform.test.ts`** — the production configuration checks, `/api/health`, request ids and JSON 404s.
+
+### CI
+`.github/workflows/ci.yml` runs on every push and pull request: backend type-check, build, migrations against a real Postgres 17, a **schema drift check** (fails if an entity changed without a migration), the full test suite, and the frontend type-check + build.
+
 ### What isn't covered yet
-Payment webhook signature verification, the Chargily checkout flow itself (would need mocking Chargily's API), and frontend component tests — all reasonable next additions if you want to keep extending coverage.
+The success path of starting a Chargily checkout (would need mocking Chargily's API), and frontend/browser tests (e.g. Playwright for the checkout flow).
 
 ## Stock reconciliation on order cancellation
 A real gap that existed until now: cancelling an order (`PATCH /api/orders/:id/status` → `"cancelled"`) never gave the reserved stock back. Every cancellation permanently shrank the product's available inventory for no reason — a real store would drift further and further from accurate stock levels over time as cancellations happened.
@@ -319,7 +360,15 @@ Until now there was no way for a user who forgot their password to get back in �
 - **Single-use** — a token is deleted the moment it's successfully used; replaying the same link a second time fails.
 - **1-hour expiry.**
 - **Ends other sessions on reset** — a successful password reset revokes *all* of that user's refresh tokens, not just issues a new password. If the reset was prompted by a compromised account, this signs out whoever else might currently be logged in.
-- Rate limited separately: 5 forgot-password requests/hour per IP (spam + enumeration-timing defense), 10 reset-password attempts/15min per IP.
+- Rate limited separately: 15 forgot-password requests/hour per IP (spam + enumeration-timing defense), 15 reset-password attempts/15min per IP.
 - New password requirements match registration: 8+ characters, at least one letter and one number.
 
 - Add role selection guard on register if you want to allow admin self-signup (currently all new users are `customer`; promote via SQL).
+
+## Operations
+- **Logging** — `pino` + `pino-http`: one JSON line per request in production (readable output in dev), with a request id that's echoed in the `X-Request-Id` header and included in `500` responses, so a user-reported error can be matched to its log lines. Cookies, auth headers and query strings are kept out of the logs.
+- **Error tracking** — optional Sentry on both sides (`SENTRY_DSN` / `VITE_SENTRY_DSN`). Only unexpected errors are sent, with cookies, headers and request bodies excluded. Without a DSN, nothing is loaded.
+- **Frontend resilience** — pages are code-split (the main bundle is ~120 kB gzipped; the charting library loads only on Analytics), an error boundary shows a recovery screen instead of a blank page, and a tab left open across a deploy reloads itself once instead of failing to load the new build's chunks.
+- **Images** — Cloudinary URLs are requested at the size they're displayed, in WebP/AVIF where supported (`lib/images.ts`).
+- **Database** — indexes on every foreign key plus trigram indexes for product search (migration `AddIndexes`).
+- **Shutdown** — on `SIGTERM` (every deploy) the server stops accepting connections, lets in-flight requests finish, then closes the DB pool.

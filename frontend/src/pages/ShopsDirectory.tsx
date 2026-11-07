@@ -5,6 +5,7 @@ import { shopsApi } from "../api/shops";
 import { PageHeader } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
+import { optimizedImage } from "../lib/images";
 
 export default function ShopsDirectory() {
   const { data: shops, isLoading } = useQuery({
@@ -46,7 +47,7 @@ export default function ShopsDirectory() {
                 <div className="relative aspect-[16/10] w-full overflow-hidden bg-gradient-to-br from-secondary to-muted">
                   {shop.logoUrl ? (
                     <img
-                      src={shop.logoUrl}
+                      src={optimizedImage(shop.logoUrl, 256)}
                       alt={shop.name}
                       loading="lazy"
                       className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"

@@ -1,17 +1,11 @@
+import { escapeHtml } from "../utils/escapeHtml";
+
 export interface PasswordResetEmailData {
   name: string;
   resetLink: string;
   expiresInMinutes: number;
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export function renderPasswordResetEmail(data: PasswordResetEmailData): {
   subject: string;
@@ -19,6 +13,7 @@ export function renderPasswordResetEmail(data: PasswordResetEmailData): {
   text: string;
 } {
   const { name, resetLink, expiresInMinutes } = data;
+  const safeLink = escapeHtml(resetLink);
 
   const html = `
 <!DOCTYPE html>
@@ -53,7 +48,7 @@ export function renderPasswordResetEmail(data: PasswordResetEmailData): {
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                   <tr>
                     <td align="center">
-                      <a href="${resetLink}" style="display: inline-block; background-color: #35604b; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 28px; border-radius: 10px;">
+                      <a href="${safeLink}" style="display: inline-block; background-color: #35604b; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 28px; border-radius: 10px;">
                         Reset your password
                       </a>
                     </td>
@@ -70,7 +65,7 @@ export function renderPasswordResetEmail(data: PasswordResetEmailData): {
               <td style="padding: 20px 32px; background-color: #f4f7f5; text-align: center;">
                 <p style="margin: 0; font-size: 12px; color: #9ca3af;">
                   If the button doesn't work, copy this link: <br />
-                  <a href="${resetLink}" style="color: #477a60;">${resetLink}</a>
+                  <a href="${safeLink}" style="color: #477a60;">${safeLink}</a>
                 </p>
               </td>
             </tr>

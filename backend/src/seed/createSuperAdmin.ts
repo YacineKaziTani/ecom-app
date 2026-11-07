@@ -8,7 +8,9 @@ import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 
 async function main() {
-  const [, , email, password, firstName = "Super", lastName = "Admin"] = process.argv;
+  const [, , rawEmail, password, firstName = "Super", lastName = "Admin"] = process.argv;
+  // Login lowercases the email, so store it the same way or the account can't sign in.
+  const email = rawEmail?.trim().toLowerCase();
 
   if (!email || !password) {
     console.error("Usage: npx ts-node src/seed/createSuperAdmin.ts <email> <password> [firstName] [lastName]");

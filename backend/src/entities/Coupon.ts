@@ -6,6 +6,7 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from "typeorm";
 import { Shop } from "./Shop";
 
@@ -29,10 +30,11 @@ export class Coupon {
   @JoinColumn({ name: "shopId" })
   shop?: Shop;
 
+  @Index("IDX_coupons_shopId")
   @Column({ nullable: true })
   shopId?: string;
 
-  @Column({ nullable: true })
+  @Column({ type: "decimal", precision: 10, scale: 2, nullable: true })
   minOrderAmount?: number;
 
   @Column({ nullable: true })
@@ -41,7 +43,7 @@ export class Coupon {
   @Column({ default: 0 })
   usedCount!: number;
 
-  @Column({ nullable: true })
+  @Column({ type: "timestamptz", nullable: true })
   expiresAt?: Date;
 
   @Column({ default: true })

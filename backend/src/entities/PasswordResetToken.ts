@@ -5,6 +5,7 @@ import {
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
+  Index,
 } from "typeorm";
 import { User } from "./User";
 
@@ -17,6 +18,7 @@ export class PasswordResetToken {
   @JoinColumn({ name: "userId" })
   user!: User;
 
+  @Index("IDX_password_reset_tokens_userId")
   @Column()
   userId!: string;
 

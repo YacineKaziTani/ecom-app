@@ -7,9 +7,8 @@ import {
   Plus,
   ShoppingBag,
   Store,
-  Truck,
   ShieldCheck,
-  RotateCcw,
+  PackageSearch,
   ImageOff,
 } from "lucide-react";
 import { productsApi } from "../api/products";
@@ -19,11 +18,13 @@ import { Skeleton } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
+import { optimizedImage } from "../lib/images";
 
+// Only promises the platform actually keeps.
 const guarantees = [
-  { icon: Truck, label: "Free shipping", hint: "On orders over $75" },
-  { icon: RotateCcw, label: "30-day returns", hint: "No questions asked" },
-  { icon: ShieldCheck, label: "Secure checkout", hint: "Encrypted payment" },
+  { icon: Store, label: "Independent makers", hint: "Shipped by the shop" },
+  { icon: ShieldCheck, label: "Secure payment", hint: "EDAHABIA & CIB" },
+  { icon: PackageSearch, label: "Order tracking", hint: "Check status anytime" },
 ];
 
 export default function ProductDetail() {
@@ -90,7 +91,7 @@ export default function ProductDetail() {
           <div className="relative aspect-square overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-secondary to-muted p-8 shadow-sm">
             {product.imageUrl ? (
               <img
-                src={product.imageUrl}
+                src={optimizedImage(product.imageUrl, 1200)}
                 alt={product.name}
                 className="h-full w-full object-contain drop-shadow-lg transition-transform duration-700 hover:scale-105"
               />
@@ -147,7 +148,7 @@ export default function ProductDetail() {
               <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-accent-soft">
                 {product.shop.logoUrl ? (
                   <img
-                    src={product.shop.logoUrl}
+                    src={optimizedImage(product.shop.logoUrl, 64)}
                     alt=""
                     className="h-full w-full object-cover"
                   />

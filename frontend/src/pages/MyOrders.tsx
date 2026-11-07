@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Link } from "react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, keepPreviousData } from "@tanstack/react-query";
 import { CreditCard, PackageOpen, ChevronRight } from "lucide-react";
 import { ordersApi } from "../api/orders";
 import { paymentsApi } from "../api/payments";
@@ -8,17 +9,22 @@ import {
   paymentStatusBadge,
   formatPrice,
   formatDate,
+  formatTime,
 } from "../lib/status";
 import { PageHeader } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
 import { CardListSkeleton } from "../components/ui/Skeleton";
+import { Pagination } from "../components/Pagination";
 import toast from "react-hot-toast";
 
 export default function MyOrders() {
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ["orders"],
-    queryFn: ordersApi.list,
+  const [page, setPage] = useState(1);
+  const { data, isLoading } = useQuery({
+    queryKey: ["orders", "mine", page],
+    queryFn: () => ordersApi.list({ page, limit: 10 }),
+    placeholderData: keepPreviousData,
   });
+  const orders = data?.items;
 
   const payMutation = useMutation({
     mutationFn: (orderId: string) => paymentsApi.createCheckout(orderId),
@@ -112,7 +118,7 @@ export default function MyOrders() {
                   </div>
                 </div>
 
-                {order.paymentStatus !== "paid" && (
+                {order.paymentStatus !== "paid" && order.status !== "cancelled" && (
                   <div className="border-t border-border bg-secondary/30 px-5 py-4">
                     <button
                       onClick={() => payMutation.mutate(order.id)}
@@ -122,10 +128,25 @@ export default function MyOrders() {
                       <CreditCard className="h-4 w-4" />
                       {payMutation.isPending ? "Redirecting…" : "Pay now"}
                     </button>
+                    {order.reservedUntil && (
+                      <p className="mt-2 text-center text-xs text-muted-foreground">
+                        Items held until {formatTime(order.reservedUntil)} — unpaid
+                        orders are cancelled after that.
+                      </p>
+                    )}
                   </div>
                 )}
               </article>
             ))}
+            {data && (
+              <Pagination
+                page={data.page}
+                totalPages={data.totalPages}
+                total={data.total}
+                limit={data.limit}
+                onPageChange={setPage}
+              />
+            )}
           </div>
         ) : (
           <EmptyState

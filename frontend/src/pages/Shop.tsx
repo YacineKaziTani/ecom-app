@@ -8,6 +8,7 @@ import { ProductCard } from "../components/ProductCard";
 import { Pagination } from "../components/Pagination";
 import { ProductGridSkeleton } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { cn } from "@/lib/utils";
 
 const SORT_OPTIONS: { value: ProductSort; label: string }[] = [
@@ -28,10 +29,19 @@ export default function Shop() {
     queryFn: categoriesApi.list,
   });
 
+  // Don't fire a request (and burn rate limit) on every keystroke.
+  const debouncedSearch = useDebouncedValue(search.trim());
+
   const { data, isLoading } = useQuery({
-    queryKey: ["products", { search, categoryId, sort, page }],
+    queryKey: ["products", { search: debouncedSearch, categoryId, sort, page }],
     queryFn: () =>
-      productsApi.list({ search, categoryId, sort, page, limit: 12 }),
+      productsApi.list({
+        search: debouncedSearch,
+        categoryId,
+        sort,
+        page,
+        limit: 12,
+      }),
   });
 
   const activeCategory = categories?.find((c) => c.id === categoryId);

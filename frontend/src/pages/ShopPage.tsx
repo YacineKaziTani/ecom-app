@@ -8,6 +8,7 @@ import { ProductCard } from "../components/ProductCard";
 import { Pagination } from "../components/Pagination";
 import { ProductGridSkeleton, Skeleton } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
+import { optimizedImage } from "../lib/images";
 
 const SORT_OPTIONS: { value: ProductSort; label: string }[] = [
   { value: "newest", label: "Newest" },
@@ -75,7 +76,7 @@ export default function ShopPage() {
           <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
             {shop.logoUrl ? (
               <img
-                src={shop.logoUrl}
+                src={optimizedImage(shop.logoUrl, 256)}
                 alt={shop.name}
                 className="h-full w-full object-cover"
               />

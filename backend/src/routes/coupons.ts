@@ -1,21 +1,28 @@
 import { Router } from "express";
 import { z } from "zod";
-import { In } from "typeorm";
+import { FindOptionsWhere, In, IsNull } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Coupon } from "../entities/Coupon";
 import { Product } from "../entities/Product";
 import { requireAuth, requireAnyAdmin, attachShop } from "../middleware/auth";
 import { validateUuidParam } from "../middleware/validateUuid";
-import { previewCoupon, CouponError } from "../services/coupons";
+import { previewCoupon } from "../services/coupons";
 
 const router = Router();
 const repo = () => AppDataSource.getRepository(Coupon);
 
 router.get("/", requireAuth, requireAnyAdmin, attachShop, async (req, res) => {
-  const where: any = {};
+  const where: FindOptionsWhere<Coupon> = {};
   if (req.user!.role === "super_admin") {
-    if (req.query.shopId) where.shopId = req.query.shopId as string;
-    else if (req.query.global === "true") where.shopId = null as any;
+    const { shopId, global } = req.query;
+    if (typeof shopId === "string") {
+      if (!z.string().uuid().safeParse(shopId).success)
+        return res.status(400).json({ message: "Invalid shopId" });
+      where.shopId = shopId;
+    } else if (global === "true") {
+      // A plain `null` is silently ignored by TypeORM's find — IsNull() is required.
+      where.shopId = IsNull();
+    }
   } else {
     where.shopId = req.shopId;
   }
@@ -41,38 +48,45 @@ const couponSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+function percentageTooHigh(type: Coupon["type"], value: number) {
+  return type === "percentage" && value > 100;
+}
+
+async function codeTaken(code: string) {
+  return (await repo().count({ where: { code } })) > 0;
+}
+
 router.post("/", requireAuth, requireAnyAdmin, attachShop, async (req, res) => {
-  const parsed = couponSchema.safeParse(req.body);
+  // Only a super_admin may pick the shop (or leave it empty for a platform-wide
+  // coupon); a shop admin's coupons are always locked to their own shop.
+  const isSuperAdmin = req.user!.role === "super_admin";
+  const schema = couponSchema.extend({
+    shopId: z.string().uuid().optional(),
+  });
+  const parsed = schema.safeParse(req.body);
   if (!parsed.success)
     return res
       .status(400)
       .json({ message: "Invalid input", errors: parsed.error.flatten() });
 
-  if (parsed.data.type === "percentage" && parsed.data.value > 100) {
+  const { shopId: requestedShopId, expiresAt, ...data } = parsed.data;
+  if (percentageTooHigh(data.type, data.value)) {
     return res
       .status(400)
       .json({ message: "Percentage discounts can't exceed 100" });
   }
 
-  const code = parsed.data.code.toUpperCase();
-  const existing = await repo().findOne({ where: { code } });
-  if (existing)
+  const code = data.code.toUpperCase();
+  if (await codeTaken(code))
     return res
       .status(409)
       .json({ message: "A coupon with this code already exists" });
 
-  const shopId =
-    req.user!.role === "super_admin"
-      ? (req.body.shopId as string | undefined)
-      : req.shopId;
-
   const coupon = repo().create({
-    ...parsed.data,
+    ...data,
     code,
-    shopId,
-    expiresAt: parsed.data.expiresAt
-      ? new Date(parsed.data.expiresAt)
-      : undefined,
+    shopId: isSuperAdmin ? requestedShopId : req.shopId,
+    expiresAt: expiresAt ? new Date(expiresAt) : undefined,
   });
   await repo().save(coupon);
   res.status(201).json(coupon);
@@ -100,25 +114,27 @@ router.put(
         .json({ message: "You can only edit your own shop's coupons" });
     }
 
-    if (parsed.data.code) {
-      const newCode = parsed.data.code.toUpperCase();
+    const { code, expiresAt, ...rest } = parsed.data;
+
+    if (code) {
+      const newCode = code.toUpperCase();
       if (newCode !== coupon.code) {
-        const existing = await repo().findOne({ where: { code: newCode } });
-        if (existing)
+        if (await codeTaken(newCode))
           return res
             .status(409)
             .json({ message: "A coupon with this code already exists" });
         coupon.code = newCode;
       }
     }
+    if (expiresAt) coupon.expiresAt = new Date(expiresAt);
+    Object.assign(coupon, rest);
 
-    Object.assign(coupon, {
-      ...parsed.data,
-      code: undefined, // already handled above
-      expiresAt: parsed.data.expiresAt
-        ? new Date(parsed.data.expiresAt)
-        : coupon.expiresAt,
-    });
+    if (percentageTooHigh(coupon.type, Number(coupon.value))) {
+      return res
+        .status(400)
+        .json({ message: "Percentage discounts can't exceed 100" });
+    }
+
     await repo().save(coupon);
     res.json(coupon);
   },
@@ -151,19 +167,21 @@ const previewSchema = z.object({
     .array(
       z.object({
         productId: z.string().uuid(),
-        quantity: z.number().int().positive(),
+        quantity: z.number().int().positive().max(1000),
       }),
     )
-    .min(1),
+    .min(1)
+    .max(50),
 });
 
+// Public: preview a coupon against the current cart before checkout. The
+// subtotal is recomputed from live prices, never trusted from the client.
 router.post("/validate", async (req, res) => {
   const parsed = previewSchema.safeParse(req.body);
   if (!parsed.success)
     return res.status(400).json({ message: "Invalid input" });
 
-  const productRepo = AppDataSource.getRepository(Product);
-  const products = await productRepo.findBy({
+  const products = await AppDataSource.getRepository(Product).findBy({
     id: In(parsed.data.items.map((i) => i.productId)),
   });
   const productMap = new Map(products.map((p) => [p.id, p]));
@@ -180,27 +198,21 @@ router.post("/validate", async (req, res) => {
     shopIds.push(product.shopId);
   }
 
-  try {
-    const { coupon, discountAmount } = await previewCoupon(
-      AppDataSource.manager,
-      parsed.data.code,
-      subtotal,
-      shopIds,
-    );
-    res.json({
-      code: coupon.code,
-      type: coupon.type,
-      value: Number(coupon.value),
-      subtotal,
-      discountAmount,
-      newTotal: subtotal - discountAmount,
-    });
-  } catch (err) {
-    if (err instanceof CouponError)
-      return res.status(400).json({ message: err.message });
-    console.error("Coupon validation failed:", err);
-    res.status(500).json({ message: "Could not validate coupon" });
-  }
+  // A CouponError (invalid / expired / used up) becomes a 400 via the global error handler.
+  const { coupon, discountAmount } = await previewCoupon(
+    AppDataSource.manager,
+    parsed.data.code,
+    subtotal,
+    shopIds,
+  );
+  res.json({
+    code: coupon.code,
+    type: coupon.type,
+    value: Number(coupon.value),
+    subtotal,
+    discountAmount,
+    newTotal: subtotal - discountAmount,
+  });
 });
 
 export default router;

@@ -1,13 +1,17 @@
 import { Router } from "express";
 import { z } from "zod";
+import { In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { CartItem } from "../entities/CartItem";
 import { Product } from "../entities/Product";
 import { requireAuth } from "../middleware/auth";
+import { validateUuidParam } from "../middleware/validateUuid";
 
 const router = Router();
 const cartRepo = () => AppDataSource.getRepository(CartItem);
 const productRepo = () => AppDataSource.getRepository(Product);
+
+const MAX_QUANTITY = 999;
 
 router.use(requireAuth);
 
@@ -24,14 +28,28 @@ async function serializeCart(userId: string) {
   }));
 }
 
+// Adds `quantity` to the user's line for a product, creating it if needed.
+async function addToCart(userId: string, productId: string, quantity: number) {
+  const repo = cartRepo();
+  const existing = await repo.findOne({ where: { userId, productId } });
+  if (existing) {
+    existing.quantity = Math.min(existing.quantity + quantity, MAX_QUANTITY);
+    await repo.save(existing);
+  } else {
+    await repo.save(repo.create({ userId, productId, quantity }));
+  }
+}
+
 router.get("/", async (req, res) => {
   const lines = await serializeCart(req.user!.id);
   res.json({ lines });
 });
 
+const quantityField = z.coerce.number().int().min(1).max(MAX_QUANTITY);
+
 const addItemSchema = z.object({
   productId: z.string().uuid(),
-  quantity: z.coerce.number().int().min(1).max(999).default(1),
+  quantity: quantityField.default(1),
 });
 
 router.post("/", async (req, res) => {
@@ -45,17 +63,7 @@ router.post("/", async (req, res) => {
   const product = await productRepo().findOne({ where: { id: productId } });
   if (!product) return res.status(404).json({ message: "Product not found" });
 
-  const repo = cartRepo();
-  const existing = await repo.findOne({
-    where: { userId: req.user!.id, productId },
-  });
-
-  if (existing) {
-    existing.quantity += quantity;
-    await repo.save(existing);
-  } else {
-    await repo.save(repo.create({ userId: req.user!.id, productId, quantity }));
-  }
+  await addToCart(req.user!.id, productId, quantity);
 
   const lines = await serializeCart(req.user!.id);
   res.status(201).json({ lines });
@@ -63,12 +71,7 @@ router.post("/", async (req, res) => {
 
 const mergeSchema = z.object({
   items: z
-    .array(
-      z.object({
-        productId: z.string().uuid(),
-        quantity: z.coerce.number().int().min(1).max(999),
-      }),
-    )
+    .array(z.object({ productId: z.string().uuid(), quantity: quantityField }))
     .max(200),
 });
 
@@ -81,31 +84,27 @@ router.post("/merge", async (req, res) => {
       .status(400)
       .json({ message: "Invalid input", errors: parsed.error.flatten() });
 
-  const repo = cartRepo();
   const userId = req.user!.id;
+  const { items } = parsed.data;
 
-  for (const { productId, quantity } of parsed.data.items) {
-    const product = await productRepo().findOne({ where: { id: productId } });
-    if (!product) continue; // silently skip products that no longer exist
+  // Silently skip products that no longer exist.
+  const existingProducts = await productRepo().find({
+    where: { id: In(items.map((i) => i.productId)) },
+    select: { id: true },
+  });
+  const existingIds = new Set(existingProducts.map((p) => p.id));
 
-    const existing = await repo.findOne({ where: { userId, productId } });
-    if (existing) {
-      existing.quantity += quantity;
-      await repo.save(existing);
-    } else {
-      await repo.save(repo.create({ userId, productId, quantity }));
-    }
+  for (const { productId, quantity } of items) {
+    if (existingIds.has(productId)) await addToCart(userId, productId, quantity);
   }
 
   const lines = await serializeCart(userId);
   res.json({ lines });
 });
 
-const quantitySchema = z.object({
-  quantity: z.coerce.number().int().min(1).max(999),
-});
+const quantitySchema = z.object({ quantity: quantityField });
 
-router.patch("/:productId", async (req, res) => {
+router.patch("/:productId", validateUuidParam("productId"), async (req, res) => {
   const parsed = quantitySchema.safeParse(req.body);
   if (!parsed.success)
     return res
@@ -125,7 +124,7 @@ router.patch("/:productId", async (req, res) => {
   res.json({ lines });
 });
 
-router.delete("/:productId", async (req, res) => {
+router.delete("/:productId", validateUuidParam("productId"), async (req, res) => {
   await cartRepo().delete({
     userId: req.user!.id,
     productId: req.params.productId,

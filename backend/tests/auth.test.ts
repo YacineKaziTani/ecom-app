@@ -165,7 +165,8 @@ describe("role-gated routes", () => {
     const { agent } = await loginAs("super_admin");
     const res = await agent.get("/api/auth/users");
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
+    expect(Array.isArray(res.body.items)).toBe(true);
+    expect(res.body.total).toBeGreaterThanOrEqual(1);
   });
 
   it("prevents a super_admin from demoting their own role", async () => {

@@ -21,7 +21,7 @@ export function useCart() {
     staleTime: 30 * 1000,
   });
 
-  const invalidate = (data: { lines: CartLine[] }) =>
+  const setCart = (data: { lines: CartLine[] }) =>
     qc.setQueryData(["cart"], data);
 
   const addMutation = useMutation({
@@ -32,7 +32,7 @@ export function useCart() {
       productId: string;
       quantity?: number;
     }) => cartApi.addItem(productId, quantity),
-    onSuccess: invalidate,
+    onSuccess: setCart,
   });
 
   const setQuantityMutation = useMutation({
@@ -43,17 +43,17 @@ export function useCart() {
       productId: string;
       quantity: number;
     }) => cartApi.setQuantity(productId, quantity),
-    onSuccess: invalidate,
+    onSuccess: setCart,
   });
 
   const removeMutation = useMutation({
     mutationFn: (productId: string) => cartApi.removeItem(productId),
-    onSuccess: invalidate,
+    onSuccess: setCart,
   });
 
   const clearMutation = useMutation({
     mutationFn: () => cartApi.clear(),
-    onSuccess: invalidate,
+    onSuccess: setCart,
   });
 
   if (user) {
@@ -94,12 +94,17 @@ export async function mergeGuestCartIntoAccount(
 ) {
   const guestLines = useCartStore.getState().lines;
   if (guestLines.length > 0) {
-    await cartApi.merge(
-      guestLines.map((l) => ({
-        productId: l.product.id,
-        quantity: l.quantity,
-      })),
-    );
+    try {
+      await cartApi.merge(
+        guestLines.map((l) => ({
+          productId: l.product.id,
+          quantity: l.quantity,
+        })),
+      );
+    } catch (err) {
+      // Best effort: a failed merge must not turn a successful sign-in into an error.
+      console.error("Could not merge guest cart into account", err);
+    }
   }
   useCartStore.getState().clear();
   await qc.invalidateQueries({ queryKey: ["cart"] });
