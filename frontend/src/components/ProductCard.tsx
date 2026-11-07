@@ -1,13 +1,17 @@
 import { Link } from "react-router";
+import { useI18n } from "../i18n/I18nProvider";
 import { Plus, ImageOff } from "lucide-react";
 import { Product } from "../api/types";
 import { useCart } from "../hooks/useCart";
 import { formatPrice } from "../lib/status";
 import toast from "react-hot-toast";
 import { optimizedImage } from "../lib/images";
+import { WishlistButton } from "./WishlistButton";
+import { StarRating } from "./StarRating";
 
 export function ProductCard({ product }: { product: Product }) {
   const { addItem } = useCart();
+  const { t } = useI18n();
   const soldOut = product.stock === 0;
   const lowStock = product.stock > 0 && product.stock <= 5;
 
@@ -27,7 +31,7 @@ export function ProductCard({ product }: { product: Product }) {
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
             <ImageOff className="h-7 w-7" />
-            <span className="text-xs">No image</span>
+            <span className="text-xs">{t("product.noImage")}</span>
           </div>
         )}
 
@@ -37,14 +41,16 @@ export function ProductCard({ product }: { product: Product }) {
         {soldOut && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-[2px]">
             <span className="rounded-full bg-foreground px-3.5 py-1.5 text-xs font-semibold text-background">
-              Sold out
+              {t("product.soldOut")}
             </span>
           </div>
         )}
 
+        <WishlistButton productId={product.id} className="absolute end-3 top-3" />
+
         {lowStock && (
-          <span className="badge-warning absolute left-3 top-3 shadow-sm">
-            Only {product.stock} left
+          <span className="badge-warning absolute start-3 top-3 shadow-sm">
+            {t("product.onlyLeft", { count: product.stock })}
           </span>
         )}
       </Link>
@@ -63,12 +69,18 @@ export function ProductCard({ product }: { product: Product }) {
           </Link>
         </h3>
 
+        {(product.ratingCount ?? 0) > 0 && (
+          <div className="mt-1">
+            <StarRating value={Number(product.ratingAverage)} count={product.ratingCount} />
+          </div>
+        )}
+
         {product.shop && (
           <Link
             to={`/shops/${product.shop.slug}`}
             className="mt-1 block truncate text-xs text-muted-foreground transition-colors hover:text-accent"
           >
-            by {product.shop.name}
+            {t("product.by", { shop: product.shop.name })}
           </Link>
         )}
 
@@ -80,15 +92,15 @@ export function ProductCard({ product }: { product: Product }) {
           <button
             onClick={() => {
               addItem(product, 1);
-              toast.success(`${product.name} added to cart`);
+              toast.success(t("product.added", { name: product.name }));
             }}
             disabled={soldOut}
             className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary
                        text-primary-foreground shadow-xs transition-all duration-200
                        hover:scale-110 hover:shadow-md active:scale-95
                        disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
-            aria-label={`Add ${product.name} to cart`}
-            title="Add to cart"
+            aria-label={t("product.addNamed", { name: product.name })}
+            title={t("product.addToCart")}
           >
             <Plus className="h-4 w-4" strokeWidth={2.5} />
           </button>

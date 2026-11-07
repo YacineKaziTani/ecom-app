@@ -9,6 +9,7 @@ import { Product } from "../../api/types";
 import { useAuth } from "../../store/AuthContext";
 import { Pagination } from "../../components/Pagination";
 import { ImageUpload } from "../../components/ImageUpload";
+import { GalleryUpload } from "../../components/GalleryUpload";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Modal } from "../../components/ui/Modal";
@@ -24,6 +25,7 @@ const emptyForm: ProductInput = {
   price: 0,
   stock: 0,
   imageUrl: "",
+  galleryUrls: [],
   categoryId: "",
   shopId: "",
 };
@@ -110,6 +112,7 @@ export default function ProductsAdmin() {
       price: Number(product.price),
       stock: product.stock,
       imageUrl: product.imageUrl || "",
+      galleryUrls: product.galleryUrls ?? [],
       categoryId: product.categoryId || "",
       shopId: product.shopId,
     });
@@ -407,6 +410,11 @@ export default function ProductsAdmin() {
             onChange={(url) => setForm({ ...form, imageUrl: url })}
             folder="products"
             label="Product image"
+          />
+
+          <GalleryUpload
+            value={form.galleryUrls ?? []}
+            onChange={(urls) => setForm({ ...form, galleryUrls: urls })}
           />
 
           <div>

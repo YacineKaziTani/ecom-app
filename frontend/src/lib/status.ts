@@ -1,4 +1,5 @@
-import { OrderStatus, PaymentStatus, UserRole } from "../api/types";
+import { Order, OrderStatus, PaymentStatus, UserRole } from "../api/types";
+import type { MessageKey } from "../i18n/messages";
 
 /**
  * One place that maps a domain status to a badge class, so the same status
@@ -24,6 +25,38 @@ export const paymentStatusLabel: Record<PaymentStatus, string> = {
   paid: "Paid",
   failed: "Payment failed",
 };
+
+// Payment state as the customer/admin should read it: an unpaid
+// pay-on-delivery order isn't "pending payment", it's paid at the door.
+export function paymentLabel(order: Pick<Order, "paymentMethod" | "paymentStatus">): string {
+  if (order.paymentMethod === "cod") {
+    return order.paymentStatus === "paid" ? "Paid on delivery" : "Pay on delivery";
+  }
+  return paymentStatusLabel[order.paymentStatus];
+}
+
+// Translation key for the storefront (the dashboard uses paymentLabel).
+export function paymentLabelKey(order: Pick<Order, "paymentMethod" | "paymentStatus">): MessageKey {
+  if (order.paymentMethod === "cod") {
+    return order.paymentStatus === "paid" ? "payment.codPaid" : "payment.codUnpaid";
+  }
+  return `payment.${order.paymentStatus}`;
+}
+
+export function paymentBadge(order: Pick<Order, "paymentMethod" | "paymentStatus">): string {
+  if (order.paymentMethod === "cod" && order.paymentStatus === "unpaid") return "badge-info";
+  return paymentStatusBadge[order.paymentStatus];
+}
+
+// "Alger · Bab Ezzouar · stop desk"
+export function deliveryLine(
+  order: Pick<Order, "wilayaName" | "commune" | "deliveryType">,
+): string | null {
+  if (!order.wilayaName) return null;
+  return [order.wilayaName, order.commune, order.deliveryType === "desk" ? "stop desk" : null]
+    .filter(Boolean)
+    .join(" · ");
+}
 
 export const roleBadge: Record<UserRole, string> = {
   super_admin: "badge-accent",

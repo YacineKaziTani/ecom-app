@@ -5,7 +5,6 @@ import { AppDataSource } from "../config/data-source";
 import { logger } from "../config/logger";
 import { Order, OrderStatus } from "../entities/Order";
 import { OrderItem } from "../entities/OrderItem";
-import { User } from "../entities/User";
 import {
   requireAuth,
   requireAnyAdmin,
@@ -13,10 +12,14 @@ import {
   optionalAuth,
 } from "../middleware/auth";
 import { validateUuidParam } from "../middleware/validateUuid";
-import { addressSchema } from "../utils/validators";
+import { addressSchema, algerianPhoneSchema } from "../utils/validators";
+import { availablePaymentMethods, quoteShipping } from "../services/shipping";
 import { HttpError, StockIssue, stockConflict } from "../utils/httpError";
 import { paginated, parsePagination } from "../utils/pagination";
-import { sendOrderConfirmationEmail } from "../services/email";
+import * as notifications from "../services/notifications";
+import { audit } from "../services/audit";
+import { createShipments, rollUpStatus, shipmentsOf } from "../services/fulfilment";
+import { commissionPercent } from "../services/payouts";
 import { applyCouponWithLock } from "../services/coupons";
 import {
   loadOrderForUpdate,
@@ -28,7 +31,6 @@ import {
 const router = Router();
 const orderRepo = () => AppDataSource.getRepository(Order);
 
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
 const ORDER_STATUSES = [
   "pending",
@@ -60,6 +62,10 @@ router.get("/", requireAuth, attachShop, async (req, res) => {
         shopId: req.shopId,
       })
       .leftJoinAndSelect("order.user", "user")
+      // Separate parameter: order_items.shopId is text, shipments.shopId is uuid.
+      .leftJoinAndSelect("order.shipments", "shipment", "shipment.shopId = :shipmentShopId", {
+        shipmentShopId: req.shopId,
+      })
       .orderBy("order.createdAt", "DESC")
       .skip(pageParams.skip)
       .take(pageParams.limit);
@@ -74,7 +80,7 @@ router.get("/", requireAuth, attachShop, async (req, res) => {
 
   const [items, total] = await orderRepo().findAndCount({
     where,
-    relations: ["items", "user"],
+    relations: ["items", "user", "shipments", "shipments.shop"],
     order: { createdAt: "DESC" },
     skip: pageParams.skip,
     take: pageParams.limit,
@@ -126,7 +132,7 @@ router.get(
   async (req, res) => {
     const order = await orderRepo().findOne({
       where: { id: req.params.id },
-      relations: ["items", "user"],
+      relations: ["items", "user", "shipments", "shipments.shop"],
     });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -138,7 +144,11 @@ router.get(
       const myItems = order.items.filter((i) => i.shopId === req.shopId);
       if (myItems.length === 0)
         return res.status(403).json({ message: "Forbidden" });
-      return res.json({ ...order, items: myItems });
+      return res.json({
+        ...order,
+        items: myItems,
+        shipments: order.shipments?.filter((s) => s.shopId === req.shopId),
+      });
     }
 
     res.json(order);
@@ -146,6 +156,12 @@ router.get(
 );
 
 const createOrderSchema = z.object({
+  paymentMethod: z.enum(["card", "cod"]).default("card"),
+  // Delivery details — couriers need a reachable mobile number for every order.
+  phone: algerianPhoneSchema,
+  wilayaCode: z.number().int().min(1).max(99),
+  commune: z.string().trim().min(1).max(100),
+  deliveryType: z.enum(["home", "desk"]).default("home"),
   shippingAddress: addressSchema,
   guestEmail: z.string().trim().toLowerCase().email().max(254).optional(), // required if not logged in
   guestName: z.string().trim().min(1).max(80).optional(), // used to personalize the confirmation email
@@ -161,48 +177,6 @@ const createOrderSchema = z.object({
     .max(50),
 });
 
-async function sendConfirmation(
-  order: Order,
-  userId: string | undefined,
-  guestEmail: string | undefined,
-  guestName: string | undefined,
-) {
-  let recipientEmail = guestEmail;
-  let recipientName = guestName || "there";
-  if (userId) {
-    const user = await AppDataSource.getRepository(User).findOne({
-      where: { id: userId },
-    });
-    if (user) {
-      recipientEmail = user.email;
-      recipientName = user.firstName;
-    }
-  }
-  if (!recipientEmail) return;
-
-  // Guests have no account, so their link carries the email to unlock the
-  // public /orders/track lookup on the confirmation page.
-  const orderLink = userId
-    ? `${CLIENT_URL}/order-confirmation/${order.id}`
-    : `${CLIENT_URL}/order-confirmation/${order.id}?email=${encodeURIComponent(recipientEmail)}`;
-
-  await sendOrderConfirmationEmail(recipientEmail, {
-    name: recipientName,
-    orderId: order.id,
-    orderLink,
-    items: order.items.map((i) => ({
-      productName: i.productName,
-      price: Number(i.price),
-      quantity: i.quantity,
-    })),
-    subtotal: Number(order.subtotal),
-    discountAmount: Number(order.discountAmount),
-    couponCode: order.couponCode,
-    total: Number(order.total),
-    shippingAddress: order.shippingAddress,
-  });
-}
-
 router.post("/", optionalAuth, async (req, res) => {
   const parsed = createOrderSchema.safeParse(req.body);
   if (!parsed.success)
@@ -210,8 +184,24 @@ router.post("/", optionalAuth, async (req, res) => {
       .status(400)
       .json({ message: "Invalid input", errors: parsed.error.flatten() });
 
-  const { shippingAddress, guestEmail, guestName, couponCode } = parsed.data;
+  const {
+    shippingAddress,
+    guestEmail,
+    guestName,
+    couponCode,
+    paymentMethod,
+    phone,
+    wilayaCode,
+    commune,
+    deliveryType,
+  } = parsed.data;
   const userId = req.user?.id;
+
+  if (!availablePaymentMethods().includes(paymentMethod)) {
+    return res
+      .status(400)
+      .json({ message: "Online payment isn't available — choose pay on delivery" });
+  }
 
   if (!userId && !guestEmail) {
     return res
@@ -242,6 +232,7 @@ router.post("/", optionalAuth, async (req, res) => {
   let order: Order;
   try {
     order = await AppDataSource.transaction(async (manager) => {
+      const shipping = await quoteShipping(manager, wilayaCode, deliveryType);
       const products = await lockProducts(manager, [...quantities.keys()]);
 
       // Validate every line before touching anything.
@@ -274,6 +265,7 @@ router.post("/", optionalAuth, async (req, res) => {
         orderItem.productName = product.name;
         orderItem.price = product.price;
         orderItem.quantity = quantity;
+        orderItem.commissionRate = commissionPercent();
         orderItems.push(orderItem);
         subtotal += Number(product.price) * quantity;
 
@@ -283,6 +275,7 @@ router.post("/", optionalAuth, async (req, res) => {
 
       let discountAmount = 0;
       let appliedCouponCode: string | undefined;
+      let couponShopId: string | null = null;
       if (couponCode) {
         const result = await applyCouponWithLock(
           manager,
@@ -292,6 +285,7 @@ router.post("/", optionalAuth, async (req, res) => {
         );
         discountAmount = result.discountAmount;
         appliedCouponCode = result.coupon.code;
+        couponShopId = result.coupon.shopId ?? null;
       }
 
       const newOrder = manager.getRepository(Order).create({
@@ -299,17 +293,29 @@ router.post("/", optionalAuth, async (req, res) => {
         guestEmail: userId ? undefined : guestEmail,
         guestName: userId ? undefined : guestName,
         shippingAddress,
+        phone,
+        wilayaCode,
+        wilayaName: shipping.zone.name,
+        commune,
+        deliveryType,
+        paymentMethod,
         subtotal,
         discountAmount,
         couponCode: appliedCouponCode,
-        total: subtotal - discountAmount,
+        couponShopId,
+        shippingFee: shipping.fee,
+        total: subtotal - discountAmount + shipping.fee,
         status: "pending",
-        // Stock is held only until this deadline unless the order gets paid.
-        reservedUntil: reservationDeadline(),
+        // Card orders hold stock only until this deadline unless paid; pay-on-
+        // delivery orders hold it until an admin confirms or cancels them.
+        reservedUntil: paymentMethod === "card" ? reservationDeadline() : null,
         items: orderItems,
         idempotencyKey,
       });
-      return manager.getRepository(Order).save(newOrder);
+      const saved = await manager.getRepository(Order).save(newOrder);
+      // Each shop fulfils (and tracks) its own part of the order.
+      await createShipments(manager, saved.id, orderItems.map((i) => i.shopId!));
+      return saved;
     });
   } catch (err: any) {
     // Two requests with the same key raced past the lookup above; the unique
@@ -328,9 +334,9 @@ router.post("/", optionalAuth, async (req, res) => {
   res.status(201).json(order);
 
   // After responding, so email latency or failure never affects checkout.
-  sendConfirmation(order, userId, guestEmail, guestName).catch((err) =>
-    logger.error({ err, orderId: order.id }, "Failed to send order confirmation"),
-  );
+  notifications.inBackground(notifications.notifyOrderPlaced(order.id), {
+    orderId: order.id,
+  });
 });
 
 // Public guest lookup: order id + the email used at checkout. Registered
@@ -344,7 +350,7 @@ router.get("/track/:id", validateUuidParam(), async (req, res) => {
 
   const order = await orderRepo().findOne({
     where: { id: req.params.id },
-    relations: ["items"],
+    relations: ["items", "shipments", "shipments.shop"],
   });
   if (
     !order ||
@@ -371,6 +377,7 @@ router.patch(
       return res.status(400).json({ message: "Invalid status" });
     const newStatus: OrderStatus = parsed.data.status;
 
+    let previousStatus: OrderStatus | undefined;
     const updated = await AppDataSource.transaction(async (manager) => {
       const order = await loadOrderForUpdate(manager, req.params.id);
       if (!order) throw new HttpError(404, "Order not found");
@@ -385,10 +392,86 @@ router.patch(
         );
       }
 
+      previousStatus = order.status;
       return setOrderStatus(manager, order, newStatus);
     });
 
     res.json(updated);
+    if (previousStatus !== newStatus) {
+      void audit(req, "order.status_change", "order", updated.id, { from: previousStatus, to: newStatus });
+      notifications.inBackground(
+        notifications.notifyStatusChange(updated.id, newStatus),
+        { orderId: updated.id, status: newStatus },
+      );
+    }
+  },
+);
+
+const shipmentUpdateSchema = z.object({
+  status: z.enum(["pending", "processing", "shipped", "delivered"]).optional(),
+  carrier: z.string().trim().max(60).nullable().optional(),
+  trackingNumber: z.string().trim().max(80).nullable().optional(),
+});
+
+// A shop updates its own part of an order (status, carrier, tracking number);
+// a super admin can update any shop's part. The order's status follows the
+// slowest shipment. Cancelling stays an order-level action (it restocks).
+router.patch(
+  "/:id/shipments/:shopId",
+  validateUuidParam(),
+  validateUuidParam("shopId"),
+  requireAuth,
+  requireAnyAdmin,
+  attachShop,
+  async (req, res) => {
+    const parsed = shipmentUpdateSchema.safeParse(req.body);
+    if (!parsed.success)
+      return res.status(400).json({ message: "Invalid input", errors: parsed.error.flatten() });
+    if (req.user!.role === "admin" && req.params.shopId !== req.shopId) {
+      return res.status(403).json({ message: "You can only update your own shop's shipment" });
+    }
+
+    let previousStatus: OrderStatus | undefined;
+    const { order, shipment } = await AppDataSource.transaction(async (manager) => {
+      const order = await loadOrderForUpdate(manager, req.params.id);
+      if (!order) throw new HttpError(404, "Order not found");
+      if (order.status === "cancelled") throw new HttpError(400, "This order was cancelled");
+      if (
+        parsed.data.status &&
+        order.paymentMethod === "card" &&
+        order.paymentStatus !== "paid"
+      ) {
+        throw new HttpError(400, "Wait until the order is paid before fulfilling it");
+      }
+
+      const shipments = await shipmentsOf(manager, order);
+      const shipment = shipments.find((s) => s.shopId === req.params.shopId);
+      if (!shipment) throw new HttpError(404, "This order has nothing from that shop");
+      Object.assign(shipment, parsed.data);
+      await manager.save(shipment);
+
+      previousStatus = order.status;
+      const rolledUp = rollUpStatus(shipments.map((s) => s.status));
+      if (rolledUp !== order.status) {
+        await setOrderStatus(manager, order, rolledUp, { syncShipments: false });
+      }
+      return { order, shipment };
+    });
+
+    void audit(req, "order.shipment_update", "order", order.id, {
+      shopId: req.params.shopId,
+      ...parsed.data,
+    });
+    res.json({
+      shipment,
+      order: { id: order.id, status: order.status, paymentStatus: order.paymentStatus },
+    });
+    if (previousStatus !== order.status) {
+      notifications.inBackground(
+        notifications.notifyStatusChange(order.id, order.status),
+        { orderId: order.id, status: order.status },
+      );
+    }
   },
 );
 

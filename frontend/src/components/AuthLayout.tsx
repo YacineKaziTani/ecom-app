@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Link } from "react-router";
 import { ArrowLeft, ShoppingBag, Quote } from "lucide-react";
+import { useI18n } from "../i18n/I18nProvider";
 
 interface AuthLayoutProps {
   title: string;
@@ -11,42 +12,36 @@ interface AuthLayoutProps {
 
 /**
  * Split-screen shell shared by every auth screen: a warm editorial panel on
- * the left (desktop only) and the form on the right.
+ * the start side (desktop only) and the form on the other.
  */
-export function AuthLayout({
-  title,
-  subtitle,
-  children,
-  footer,
-}: AuthLayoutProps) {
+export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
+  const { t } = useI18n();
+  const brand = (
+    <span className="font-serif text-xl font-bold tracking-tight text-foreground" dir="ltr">
+      Artisan<span className="text-accent">Shop</span>
+    </span>
+  );
+
   return (
     <div className="flex min-h-screen bg-background">
       {/* Brand panel — hidden on small screens where it would just be noise. */}
-      <aside className="hero-wash relative hidden w-1/2 flex-col justify-between border-r border-border p-12 lg:flex xl:w-[55%]">
+      <aside className="hero-wash relative hidden w-1/2 flex-col justify-between border-e border-border p-12 lg:flex xl:w-[55%]">
         <Link to="/" className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
             <ShoppingBag className="h-4.5 w-4.5" strokeWidth={2.2} />
           </span>
-          <span className="font-serif text-xl font-bold tracking-tight text-foreground">
-            Artisan<span className="text-accent">Shop</span>
-          </span>
+          {brand}
         </Link>
 
         <div className="max-w-md animate-fade-up">
-          <Quote className="h-8 w-8 text-accent/50" />
+          <Quote className="h-8 w-8 text-accent/50 rtl:-scale-x-100" />
           <p className="mt-5 font-serif text-2xl font-medium leading-snug text-foreground xl:text-3xl">
-            Buy fewer things, but buy things made by someone who cared how they
-            turned out.
+            {t("auth.quote")}
           </p>
-          <p className="mt-5 text-sm text-muted-foreground">
-            Curated goods from independent makers, shipped straight from their
-            workshops.
-          </p>
+          <p className="mt-5 text-sm text-muted-foreground">{t("auth.quoteSub")}</p>
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          © {new Date().getFullYear()} ArtisanShop
-        </p>
+        <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} ArtisanShop</p>
       </aside>
 
       {/* Form side */}
@@ -56,8 +51,8 @@ export function AuthLayout({
             to="/"
             className="mb-8 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-accent"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Back to shop
+            <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
+            {t("common.backToShop")}
           </Link>
 
           {/* Compact brand mark for mobile, where the panel is hidden. */}
@@ -65,22 +60,16 @@ export function AuthLayout({
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <ShoppingBag className="h-4.5 w-4.5" strokeWidth={2.2} />
             </span>
-            <span className="font-serif text-xl font-bold tracking-tight text-foreground">
-              Artisan<span className="text-accent">Shop</span>
-            </span>
+            {brand}
           </Link>
 
           <div className="animate-fade-up">
             <h1 className="text-3xl font-bold text-foreground">{title}</h1>
-            {subtitle && (
-              <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
-            )}
+            {subtitle && <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>}
 
             <div className="mt-8">{children}</div>
 
-            {footer && (
-              <div className="mt-8 border-t border-border pt-6">{footer}</div>
-            )}
+            {footer && <div className="mt-8 border-t border-border pt-6">{footer}</div>}
           </div>
         </div>
       </main>

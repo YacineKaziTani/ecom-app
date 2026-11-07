@@ -7,6 +7,7 @@ import { Product } from "../entities/Product";
 import { requireAuth, requireAnyAdmin, attachShop } from "../middleware/auth";
 import { validateUuidParam } from "../middleware/validateUuid";
 import { previewCoupon } from "../services/coupons";
+import { audit } from "../services/audit";
 
 const router = Router();
 const repo = () => AppDataSource.getRepository(Coupon);
@@ -89,6 +90,7 @@ router.post("/", requireAuth, requireAnyAdmin, attachShop, async (req, res) => {
     expiresAt: expiresAt ? new Date(expiresAt) : undefined,
   });
   await repo().save(coupon);
+  void audit(req, "coupon.create", "coupon", coupon.id, { code: coupon.code, type: coupon.type, value: coupon.value });
   res.status(201).json(coupon);
 });
 
@@ -136,6 +138,7 @@ router.put(
     }
 
     await repo().save(coupon);
+    void audit(req, "coupon.update", "coupon", coupon.id, { code: coupon.code, changes: parsed.data });
     res.json(coupon);
   },
 );
@@ -157,6 +160,7 @@ router.delete(
     }
 
     await repo().delete(coupon.id);
+    void audit(req, "coupon.delete", "coupon", coupon.id, { code: coupon.code });
     res.status(204).send();
   },
 );

@@ -10,6 +10,7 @@ import { checkEnvironment } from "./config/env";
 import { logger } from "./config/logger";
 import { verifyMailer } from "./config/mailer";
 import { startReservationExpiryJob } from "./services/orderLifecycle";
+import { settleBackgroundTasks } from "./utils/background";
 
 const PORT = Number(process.env.PORT) || 4000;
 const isProd = process.env.NODE_ENV === "production";
@@ -58,6 +59,7 @@ async function main() {
       process.exit(1);
     }, 10_000).unref();
     server.close(async () => {
+      await settleBackgroundTasks(); // pending emails / audit writes
       await AppDataSource.destroy().catch(() => {});
       process.exit(0);
     });

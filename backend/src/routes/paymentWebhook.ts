@@ -5,6 +5,7 @@ import { Order } from "../entities/Order";
 import { verifyChargilySignature } from "../services/chargily";
 import { loadOrderForUpdate, setOrderStatus } from "../services/orderLifecycle";
 import { HttpError } from "../utils/httpError";
+import * as notifications from "../services/notifications";
 
 const router = Router();
 
@@ -33,12 +34,14 @@ router.post("/", async (req, res) => {
   });
   if (!match) return res.status(200).json({ received: true });
 
+  let newlyPaid = false;
   await AppDataSource.transaction(async (manager) => {
     // Locked, so a webhook can't race the reservation-expiry job or an admin.
     const order = await loadOrderForUpdate(manager, match.id);
     if (!order) return;
 
     if (type === "checkout.paid") {
+      newlyPaid = order.paymentStatus !== "paid";
       await manager.getRepository(Order).update(order.id, {
         paymentStatus: "paid",
         reservedUntil: null,
@@ -73,6 +76,11 @@ router.post("/", async (req, res) => {
   });
 
   res.status(200).json({ received: true });
+  if (newlyPaid) {
+    notifications.inBackground(notifications.notifyOrderPaid(match.id), {
+      orderId: match.id,
+    });
+  }
 });
 
 export default router;

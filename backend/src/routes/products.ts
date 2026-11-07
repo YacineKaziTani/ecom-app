@@ -6,6 +6,7 @@ import { requireAuth, requireAnyAdmin, attachShop } from "../middleware/auth";
 import { validateUuidParam } from "../middleware/validateUuid";
 import { imageUrlSchema, nameSchema, shortTextSchema } from "../utils/validators";
 import { paginated, parsePagination } from "../utils/pagination";
+import { audit } from "../services/audit";
 
 const router = Router();
 const repo = () => AppDataSource.getRepository(Product);
@@ -94,6 +95,11 @@ const productSchema = z.object({
   price: z.number().positive().max(1_000_000),
   stock: z.number().int().min(0).max(1_000_000),
   imageUrl: imageUrlSchema,
+  // Extra gallery photos (in display order).
+  galleryUrls: z
+    .array(z.string().trim().max(2048).regex(/^https?:\/\/.+/i, "Must be a valid http(s) URL"))
+    .max(8)
+    .optional(),
   categoryId: z.string().uuid().nullable().optional(), // null clears it
 });
 
@@ -161,6 +167,7 @@ router.delete(
     }
 
     await repo().delete(product.id);
+    void audit(req, "product.delete", "product", product.id, { name: product.name, shopId: product.shopId });
     res.status(204).send();
   },
 );

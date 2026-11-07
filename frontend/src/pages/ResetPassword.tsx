@@ -97,13 +97,13 @@ export default function ResetPassword() {
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="input pr-11"
+              className="input pe-11"
               placeholder="••••••••"
             />
             <button
               type="button"
               onClick={() => setShowPassword((s) => !s)}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5
+              className="absolute end-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5
                          text-muted-foreground transition-colors hover:text-foreground"
               aria-label={showPassword ? "Hide password" : "Show password"}
             >

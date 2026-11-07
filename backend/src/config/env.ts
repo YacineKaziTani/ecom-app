@@ -32,6 +32,11 @@ export function checkEnvironment(env: NodeJS.ProcessEnv = process.env) {
         "API_PUBLIC_URL must be the public https URL of this backend, or Chargily can't deliver payment webhooks.",
       );
     }
+    if (!env.TOTP_ENCRYPTION_KEY) {
+      warnings.push(
+        "TOTP_ENCRYPTION_KEY is not set — 2FA secrets are encrypted with a key derived from JWT_SECRET, so rotating JWT_SECRET would reset everyone's 2FA. Set a long random value once and never change it.",
+      );
+    }
     if (!env.TRUST_PROXY) {
       warnings.push(
         "TRUST_PROXY is not set — assuming 1 proxy hop (Render). If requests also pass through the Vercel /api rewrite, set TRUST_PROXY=2 so rate limits see real client IPs.",
@@ -41,6 +46,13 @@ export function checkEnvironment(env: NodeJS.ProcessEnv = process.env) {
     warnings.push(
       "CLIENT_URL is https but NODE_ENV isn't 'production' — auth cookies won't be marked Secure. Set NODE_ENV=production on the server.",
     );
+  }
+
+  if (env.PLATFORM_COMMISSION_PERCENT !== undefined) {
+    const pct = Number(env.PLATFORM_COMMISSION_PERCENT);
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+      errors.push("PLATFORM_COMMISSION_PERCENT must be a number between 0 and 100.");
+    }
   }
 
   const chargilyKey = env.CHARGILY_API_KEY;

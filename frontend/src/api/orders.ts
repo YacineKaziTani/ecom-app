@@ -1,7 +1,12 @@
 import { api } from "./client";
-import { Order, OrderStatus, Paginated } from "./types";
+import { DeliveryType, Order, OrderStatus, Paginated, PaymentMethod, Shipment } from "./types";
 
 export interface CreateOrderInput {
+  paymentMethod: PaymentMethod;
+  phone: string;
+  wilayaCode: number;
+  commune: string;
+  deliveryType: DeliveryType;
   shippingAddress: string;
   guestEmail?: string; // required if the caller isn't logged in
   guestName?: string; // used to personalize the confirmation email
@@ -32,6 +37,18 @@ export const ordersApi = {
   // creating a duplicate. A fresh key should be used for a genuinely new order.
   create: (data: CreateOrderInput, idempotencyKey: string) =>
     api.post<Order>("/orders", data, { headers: { "Idempotency-Key": idempotencyKey } }).then((r) => r.data),
+  // A shop's own part of the order (a super admin may update any shop's).
+  updateShipment: (
+    orderId: string,
+    shopId: string,
+    data: { status?: OrderStatus; carrier?: string | null; trackingNumber?: string | null },
+  ) =>
+    api
+      .patch<{ shipment: Shipment; order: Pick<Order, "id" | "status" | "paymentStatus"> }>(
+        `/orders/${orderId}/shipments/${shopId}`,
+        data,
+      )
+      .then((r) => r.data),
   updateStatus: (id: string, status: OrderStatus) =>
     api.patch<Order>(`/orders/${id}/status`, { status }).then((r) => r.data),
   // Guest order lookup — no auth required, just the order id + the email used at checkout.

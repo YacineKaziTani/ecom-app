@@ -17,6 +17,18 @@ export const nameSchema = z.string().trim().min(1).max(150);
 export const shortTextSchema = z.string().trim().max(2000).optional();
 export const addressSchema = z.string().trim().min(1).max(500);
 
+// Algerian mobile number (05 / 06 / 07 …). Accepts +213 / 00213 prefixes,
+// spaces, dots and dashes; normalised to "0XXXXXXXXX" so couriers can call it.
+const PHONE_PREFIX = /^(?:\+213|00213|0)/;
+export const algerianPhoneSchema = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/[\s.-]/g, ""))
+  .refine((v) => /^(?:\+213|00213|0)[567]\d{8}$/.test(v), {
+    message: "Enter a valid Algerian mobile number, e.g. 0550 12 34 56",
+  })
+  .transform((v) => "0" + v.replace(PHONE_PREFIX, ""));
+
 // Clamps a query-string pagination value to a sane range, defaulting on anything malformed.
 export function clampInt(raw: unknown, fallback: number, min: number, max: number): number {
   const n = Number(raw);

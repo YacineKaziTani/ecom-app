@@ -11,8 +11,17 @@ export interface RegisterInput extends LoginInput {
   lastName: string;
 }
 
+// Accounts with two-factor sign-in get a challenge instead of a session.
+export type LoginResult = { user: User } | { twoFactorRequired: true; challenge: string };
+
 export const authApi = {
-  login: (data: LoginInput) => api.post<{ user: User }>("/auth/login", data).then((r) => r.data),
+  login: (data: LoginInput) => api.post<LoginResult>("/auth/login", data).then((r) => r.data),
+  loginSecondStep: (challenge: string, code: string) =>
+    api.post<{ user: User }>("/auth/login/2fa", { challenge, code }).then((r) => r.data),
+  verifyEmail: (token: string) =>
+    api.post<{ message: string }>("/auth/verify-email", { token }).then((r) => r.data),
+  resendVerification: () =>
+    api.post<{ message: string }>("/auth/resend-verification").then((r) => r.data),
   register: (data: RegisterInput) => api.post<{ user: User }>("/auth/register", data).then((r) => r.data),
   logout: () => api.post("/auth/logout").then((r) => r.data),
   me: () => api.get<{ user: User }>("/auth/me").then((r) => r.data),

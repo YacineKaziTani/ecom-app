@@ -7,6 +7,7 @@ import {
   createProduct,
   createCoupon,
   placeGuestOrder,
+  DELIVERY,
 } from "./helpers";
 import { AppDataSource } from "../src/config/data-source";
 import { Coupon } from "../src/entities/Coupon";
@@ -108,7 +109,7 @@ describe("checkout edge cases", () => {
     const res = await request(app)
       .post("/api/orders")
       .send({
-        shippingAddress: "1 Rue Didouche Mourad, Alger",
+        ...DELIVERY, shippingAddress: "1 Rue Didouche Mourad, Alger",
         guestEmail: "dupe@example.com",
         items: [
           { productId: product.id, quantity: 3 },
@@ -167,7 +168,7 @@ describe("GET /api/orders/summary", () => {
     const mixed = await request(app)
       .post("/api/orders")
       .send({
-        shippingAddress: "Oran",
+        ...DELIVERY, shippingAddress: "Oran",
         guestEmail: "mixed@example.com",
         items: [
           { productId: mine.product.id, quantity: 1 },

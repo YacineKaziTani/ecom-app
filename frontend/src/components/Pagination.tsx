@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useI18n } from "../i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 interface PaginationProps {
@@ -32,6 +33,7 @@ export function Pagination({
   limit,
   onPageChange,
 }: PaginationProps) {
+  const { t } = useI18n();
   if (totalPages <= 1) return null;
 
   const start = (page - 1) * limit + 1;
@@ -44,9 +46,7 @@ export function Pagination({
       className="mt-10 flex flex-col items-center gap-4 border-t border-border pt-6 sm:flex-row sm:justify-between"
     >
       <p className="text-sm text-muted-foreground">
-        Showing <span className="font-semibold text-foreground">{start}</span>–
-        <span className="font-semibold text-foreground">{end}</span> of{" "}
-        <span className="font-semibold text-foreground">{total}</span>
+        {t("pagination.showing", { start, end, total })}
       </p>
 
       <div className="flex items-center gap-1.5">
@@ -56,9 +56,9 @@ export function Pagination({
           className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card
                      text-muted-foreground transition-colors hover:border-accent/50 hover:text-foreground
                      disabled:pointer-events-none disabled:opacity-40"
-          aria-label="Previous page"
+          aria-label={t("pagination.previous")}
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-4 w-4 rtl:-scale-x-100" />
         </button>
 
         {pages.map((p, i) =>
@@ -92,9 +92,9 @@ export function Pagination({
           className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card
                      text-muted-foreground transition-colors hover:border-accent/50 hover:text-foreground
                      disabled:pointer-events-none disabled:opacity-40"
-          aria-label="Next page"
+          aria-label={t("pagination.next")}
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
         </button>
       </div>
     </nav>

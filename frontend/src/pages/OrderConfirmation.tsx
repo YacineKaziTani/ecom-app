@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useI18n } from "../i18n/I18nProvider";
 import { useLocation, useParams, useSearchParams, Link } from "react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -8,20 +9,21 @@ import {
   CreditCard,
   AlertCircle,
   PackageSearch,
-  MapPin,
+  Banknote,
 } from "lucide-react";
 import { ordersApi } from "../api/orders";
 import { paymentsApi } from "../api/payments";
 import { useAuth } from "../store/AuthContext";
 import { Order } from "../api/types";
 import {
-  paymentStatusBadge,
-  paymentStatusLabel,
+  paymentBadge,
+  paymentLabelKey,
   formatPrice,
   formatTime,
 } from "../lib/status";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
+import { OrderTotals, DeliveryDetails, ShipmentList } from "../components/OrderTotals";
 import toast from "react-hot-toast";
 
 export default function OrderConfirmation() {
@@ -30,6 +32,7 @@ export default function OrderConfirmation() {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
+  const { t } = useI18n();
 
   // Prefer the order handed off via navigation state (right after checkout) so we
   // don't need an extra request. On a page reload, `state` is gone — fall back to
@@ -83,21 +86,21 @@ export default function OrderConfirmation() {
       <div className="container-narrow py-16">
         <EmptyState
           icon={PackageSearch}
-          title="We couldn't find that order"
+          title={t("order.notFoundTitle")}
           description={
             user
-              ? "The order may have been removed, or the link is out of date."
-              : "If you checked out as a guest, look it up with your order ID and email instead."
+              ? t("order.notFoundUser")
+              : t("order.notFoundGuest")
           }
           action={
             <div className="flex flex-wrap justify-center gap-3">
               {!user && (
                 <Link to="/track-order" className="btn-primary">
-                  Open order tracker
+                  {t("order.openTracker")}
                 </Link>
               )}
               <Link to="/" className="btn-outline">
-                Back to shop
+                {t("common.backToShop")}
               </Link>
             </div>
           }
@@ -107,7 +110,8 @@ export default function OrderConfirmation() {
   }
 
   const isPaid = order.paymentStatus === "paid";
-  const canPay = !isPaid && order.status !== "cancelled";
+  const isCod = order.paymentMethod === "cod";
+  const canPay = !isPaid && !isCod && order.status !== "cancelled";
 
   return (
     <div className="container-narrow py-12 sm:py-16">
@@ -117,14 +121,14 @@ export default function OrderConfirmation() {
         </span>
 
         <h1 className="mt-6 text-3xl font-bold text-foreground sm:text-4xl">
-          Order placed
+          {t("order.placedTitle")}
         </h1>
         <p className="mt-2 text-muted-foreground">
-          Thanks — we've recorded your order and the makers have been notified.
+          {t("order.placedBody")}
         </p>
 
-        <span className={`${paymentStatusBadge[order.paymentStatus]} mt-5`}>
-          {paymentStatusLabel[order.paymentStatus]}
+        <span className={`${paymentBadge(order)} mt-5`}>
+          {t(paymentLabelKey(order))}
         </span>
 
         <div className="mt-5 inline-flex max-w-full items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-xs">
@@ -134,8 +138,8 @@ export default function OrderConfirmation() {
           <button
             onClick={handleCopy}
             className="icon-btn flex-shrink-0 p-1.5"
-            title="Copy order ID"
-            aria-label="Copy order ID"
+            title={t("order.copyId")}
+            aria-label={t("order.copyId")}
           >
             {copied ? (
               <Check className="h-4 w-4 text-success" />
@@ -146,18 +150,32 @@ export default function OrderConfirmation() {
         </div>
       </div>
 
+      {isCod && !isPaid && order.status !== "cancelled" && (
+        <div className="mt-8 rounded-xl border border-info/30 bg-info-soft p-5">
+          <p className="flex items-center gap-2 text-sm font-semibold text-info">
+            <Banknote className="h-4 w-4 flex-shrink-0" />
+            {t("order.codTitle", { amount: formatPrice(order.total) })}
+          </p>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {order.phone
+              ? t("order.codCall", { phone: order.phone })
+              : t("order.codCallNoPhone")}
+          </p>
+        </div>
+      )}
+
       {canPay && (
         <div className="mt-8 rounded-xl border border-warning/40 bg-warning-soft p-5">
           <p className="flex items-center gap-2 text-sm font-semibold text-warning">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             {order.paymentStatus === "failed"
-              ? "Your last payment attempt failed."
-              : "Payment hasn't been completed yet."}
+              ? t("order.lastPaymentFailed")
+              : t("order.paymentNotDone")}
           </p>
           <p className="mt-1.5 text-sm text-muted-foreground">
             {order.reservedUntil
-              ? `We're holding your items until ${formatTime(order.reservedUntil)}. If payment isn't completed by then, the order is cancelled automatically and the items are released.`
-              : "Your items are reserved, but the order won't ship until payment clears."}
+              ? t("order.holdingUntil", { time: formatTime(order.reservedUntil) })
+              : t("order.reserved")}
           </p>
           <button
             onClick={() => payMutation.mutate()}
@@ -165,15 +183,15 @@ export default function OrderConfirmation() {
             className="btn-primary mt-4 w-full"
           >
             <CreditCard className="h-4 w-4" />
-            {payMutation.isPending ? "Redirecting…" : "Pay now"}
+            {payMutation.isPending ? t("order.redirecting") : t("order.payNow")}
           </button>
         </div>
       )}
 
-      <div className="card mt-8 overflow-hidden text-left">
+      <div className="card mt-8 overflow-hidden text-start">
         <div className="border-b border-border bg-secondary/40 px-5 py-4">
           <h2 className="font-serif text-lg font-bold text-foreground">
-            Order summary
+            {t("cart.summary")}
           </h2>
         </div>
 
@@ -194,76 +212,33 @@ export default function OrderConfirmation() {
           ))}
         </div>
 
-        <div className="space-y-1.5 border-t border-border px-5 py-4">
-          {order.discountAmount > 0 && (
-            <>
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Subtotal</span>
-                <span className="tabular-nums">
-                  {formatPrice(order.subtotal)}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm text-success">
-                <span>
-                  Discount{order.couponCode ? ` (${order.couponCode})` : ""}
-                </span>
-                <span className="tabular-nums">
-                  −{formatPrice(order.discountAmount)}
-                </span>
-              </div>
-            </>
-          )}
-          <div className="flex items-baseline justify-between pt-1">
-            <span className="font-semibold text-foreground">Total</span>
-            <span className="font-serif text-xl font-bold tabular-nums text-foreground">
-              {formatPrice(order.total)}
-            </span>
-          </div>
-        </div>
+        <OrderTotals order={order} />
+        <ShipmentList order={order} />
 
-        <div className="flex items-start gap-2.5 border-t border-border bg-secondary/30 px-5 py-4">
-          <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Shipping to
-            </p>
-            <p className="mt-1 text-sm leading-relaxed text-foreground">
-              {order.shippingAddress}
-            </p>
-          </div>
-        </div>
+        <DeliveryDetails order={order} />
       </div>
 
       {user ? (
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link to="/orders" className="btn-primary">
-            View all my orders
+            {t("order.viewAll")}
           </Link>
           <Link to="/" className="btn-outline">
-            Keep shopping
+            {t("common.keepShopping")}
           </Link>
         </div>
       ) : (
         <div className="mt-8 rounded-xl border border-border bg-card p-5 text-center">
           <p className="text-sm leading-relaxed text-muted-foreground">
-            {guestEmail && (
-              <>
-                We sent a confirmation to{" "}
-                <span className="font-semibold text-foreground">
-                  {guestEmail}
-                </span>
-                .{" "}
-              </>
-            )}
-            Save the order ID above — you'll need it, along with your email, to
-            check the status later.
+            {guestEmail && <>{t("order.guestSent", { email: guestEmail })} </>}
+            {t("order.saveId")}
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-3">
             <Link to="/track-order" className="btn-outline">
-              Track this order
+              {t("order.trackThis")}
             </Link>
             <Link to="/register" className="btn-ghost">
-              Create an account
+              {t("order.createAccount")}
             </Link>
           </div>
         </div>

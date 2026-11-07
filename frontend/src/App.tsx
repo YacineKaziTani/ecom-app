@@ -23,6 +23,9 @@ const Register = lazy(() => import("./pages/Register"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
+const Sell = lazy(() => import("./pages/Sell"));
+const Wishlist = lazy(() => import("./pages/Wishlist"));
 
 const Overview = lazy(() => import("./pages/dashboard/Overview"));
 const ProductsAdmin = lazy(() => import("./pages/dashboard/ProductsAdmin"));
@@ -32,6 +35,10 @@ const MyShop = lazy(() => import("./pages/dashboard/MyShop"));
 const UsersAdmin = lazy(() => import("./pages/dashboard/UsersAdmin"));
 const CouponsAdmin = lazy(() => import("./pages/dashboard/CouponsAdmin"));
 const Analytics = lazy(() => import("./pages/dashboard/Analytics"));
+const ShippingAdmin = lazy(() => import("./pages/dashboard/ShippingAdmin"));
+const PayoutsAdmin = lazy(() => import("./pages/dashboard/PayoutsAdmin"));
+const ApplicationsAdmin = lazy(() => import("./pages/dashboard/ApplicationsAdmin"));
+const ActivityAdmin = lazy(() => import("./pages/dashboard/ActivityAdmin"));
 
 export default function App() {
   return (
@@ -43,6 +50,7 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
 
         <Route element={<PublicLayout />}>
           <Route path="/" element={<Shop />} />
@@ -54,10 +62,12 @@ export default function App() {
           <Route path="/payment/success" element={<PaymentSuccess />} />
           <Route path="/payment/failure" element={<PaymentFailure />} />
           <Route path="/track-order" element={<TrackOrder />} />
+          <Route path="/sell" element={<Sell />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="/orders" element={<MyOrders />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/wishlist" element={<Wishlist />} />
           </Route>
         </Route>
 
@@ -71,6 +81,10 @@ export default function App() {
             <Route path="coupons" element={<CouponsAdmin />} />
             <Route path="my-shop" element={<MyShop />} />
             <Route path="users" element={<UsersAdmin />} />
+            <Route path="shipping" element={<ShippingAdmin />} />
+            <Route path="payouts" element={<PayoutsAdmin />} />
+            <Route path="applications" element={<ApplicationsAdmin />} />
+            <Route path="activity" element={<ActivityAdmin />} />
             <Route path="profile" element={<Profile />} />
           </Route>
         </Route>

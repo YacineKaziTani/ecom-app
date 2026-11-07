@@ -44,4 +44,9 @@ export class OrderItem {
 
   @Column()
   quantity!: number;
+
+  // Platform commission (%) at the time of purchase, so changing the rate
+  // later never rewrites what a shop already earned.
+  @Column({ type: "decimal", precision: 5, scale: 2, default: 0 })
+  commissionRate!: number;
 }

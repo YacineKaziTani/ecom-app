@@ -22,7 +22,15 @@ declare global {
 // erase the param types Express infers from the route path (e.g. "/:id").
 
 function verifyToken(token: string): AuthPayload {
-  return jwt.verify(token, process.env.JWT_SECRET as string) as AuthPayload;
+  const payload = jwt.verify(token, process.env.JWT_SECRET as string) as AuthPayload & {
+    purpose?: string;
+  };
+  // Other short-lived tokens (e.g. the 2FA login challenge) share the signing
+  // key — they must never be accepted as a session.
+  if (payload.purpose || !payload.id || !payload.role) {
+    throw new Error("Not an access token");
+  }
+  return { id: payload.id, role: payload.role };
 }
 
 export function requireAuth<P>(

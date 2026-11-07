@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import type { Lang } from "../i18n/messages";
+import { useI18n, LANGUAGES } from "../i18n/I18nProvider";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import {
   ShoppingBag,
@@ -10,6 +12,7 @@ import {
   Sun,
   Moon,
   Package,
+  Heart,
   ChevronDown,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,6 +25,7 @@ import { cn } from "@/lib/utils";
 export function Navbar() {
   const { user, isAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { t, tp, lang, setLang } = useI18n();
   const qc = useQueryClient();
   const { count } = useCart();
   const cartCount = count();
@@ -81,18 +85,18 @@ export function Navbar() {
   }
 
   const links = [
-    { to: "/", label: "Products", end: true },
-    { to: "/shops", label: "Shops" },
+    { to: "/", label: t("nav.products"), end: true },
+    { to: "/shops", label: t("nav.shops") },
     user
-      ? { to: "/orders", label: "My Orders" }
-      : { to: "/track-order", label: "Track Order" },
-    ...(isAdmin ? [{ to: "/dashboard", label: "Dashboard" }] : []),
+      ? { to: "/orders", label: t("nav.myOrders") }
+      : { to: "/track-order", label: t("nav.trackOrder") },
+    ...(isAdmin ? [{ to: "/dashboard", label: t("nav.dashboard") }] : []),
   ];
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     cn(
       "relative text-sm font-medium transition-colors",
-      "after:absolute after:-bottom-1.5 after:left-0 after:h-0.5 after:rounded-full after:bg-accent after:transition-all after:duration-300",
+      "after:absolute after:-bottom-1.5 after:start-0 after:h-0.5 after:rounded-full after:bg-accent after:transition-all after:duration-300",
       isActive
         ? "text-foreground after:w-full"
         : "text-muted-foreground hover:text-foreground after:w-0 hover:after:w-full",
@@ -135,14 +139,27 @@ export function Navbar() {
 
           {/* Actions */}
           <div className="flex items-center gap-1.5">
+            <select
+              value={lang}
+              onChange={(e) => setLang(e.target.value as Lang)}
+              aria-label={t("nav.language")}
+              className="h-9 cursor-pointer rounded-lg border border-border bg-card px-1.5 text-xs font-semibold text-foreground"
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.short}
+                </option>
+              ))}
+            </select>
+
             <button
               onClick={toggleTheme}
               className="icon-btn"
               aria-label={
-                theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+                theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")
               }
               title={
-                theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+                theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")
               }
             >
               {theme === "dark" ? (
@@ -155,13 +172,13 @@ export function Navbar() {
             <Link
               to="/cart"
               className="icon-btn relative"
-              aria-label={`Cart, ${cartCount} item${cartCount === 1 ? "" : "s"}`}
+              aria-label={tp("nav.cart", cartCount)}
             >
               <ShoppingBag className="h-5 w-5" />
               {cartCount > 0 && (
                 <span
                   key={cartCount}
-                  className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 animate-pop items-center justify-center
+                  className="absolute -end-0.5 -top-0.5 flex h-5 min-w-5 animate-pop items-center justify-center
                              rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground shadow-sm"
                 >
                   {cartCount > 99 ? "99+" : cartCount}
@@ -173,7 +190,7 @@ export function Navbar() {
               <div className="relative hidden md:block" ref={menuRef}>
                 <button
                   onClick={() => setMenuOpen((o) => !o)}
-                  className="flex items-center gap-2 rounded-lg py-1.5 pl-1.5 pr-2 transition-colors hover:bg-secondary"
+                  className="flex items-center gap-2 rounded-lg py-1.5 ps-1.5 pe-2 transition-colors hover:bg-secondary"
                   aria-expanded={menuOpen}
                   aria-haspopup="menu"
                 >
@@ -192,7 +209,7 @@ export function Navbar() {
                 {menuOpen && (
                   <div
                     role="menu"
-                    className="absolute right-0 top-full z-50 mt-2 w-56 origin-top-right animate-fade-up
+                    className="absolute end-0 top-full z-50 mt-2 w-56 origin-top-right rtl:origin-top-left animate-fade-up
                                overflow-hidden rounded-xl border border-border bg-popover p-1.5 shadow-lg"
                   >
                     <div className="border-b border-border px-3 pb-2.5 pt-2">
@@ -205,14 +222,17 @@ export function Navbar() {
                     </div>
 
                     <MenuLink to="/profile" icon={UserIcon}>
-                      Profile
+                      {t("nav.profile")}
+                    </MenuLink>
+                    <MenuLink to="/wishlist" icon={Heart}>
+                      {t("nav.wishlist")}
                     </MenuLink>
                     <MenuLink to="/orders" icon={Package}>
-                      My orders
+                      {t("nav.myOrders")}
                     </MenuLink>
                     {isAdmin && (
                       <MenuLink to="/dashboard" icon={LayoutDashboard}>
-                        Dashboard
+                        {t("nav.dashboard")}
                       </MenuLink>
                     )}
 
@@ -225,14 +245,14 @@ export function Navbar() {
                       role="menuitem"
                     >
                       <LogOut className="h-4 w-4" />
-                      Sign out
+                      {t("nav.signOut")}
                     </button>
                   </div>
                 )}
               </div>
             ) : (
-              <Link to="/login" className="btn-primary btn-sm ml-1 hidden md:inline-flex">
-                Sign in
+              <Link to="/login" className="btn-primary btn-sm ms-1 hidden md:inline-flex">
+                {t("nav.signIn")}
               </Link>
             )}
 
@@ -290,19 +310,25 @@ export function Navbar() {
                   to="/profile"
                   className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
                 >
-                  Profile
+                  {t("nav.profile")}
+                </NavLink>
+                <NavLink
+                  to="/wishlist"
+                  className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
+                >
+                  {t("nav.wishlist")}
                 </NavLink>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-destructive hover:bg-destructive-soft"
+                  className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-start text-sm font-medium text-destructive hover:bg-destructive-soft"
                 >
                   <LogOut className="h-4 w-4" />
-                  Sign out
+                  {t("nav.signOut")}
                 </button>
               </>
             ) : (
               <Link to="/login" className="btn-primary mx-3 my-1">
-                Sign in
+                {t("nav.signIn")}
               </Link>
             )}
           </nav>

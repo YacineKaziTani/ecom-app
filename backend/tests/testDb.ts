@@ -1,4 +1,5 @@
 import { AppDataSource } from "../src/config/data-source";
+import { settleBackgroundTasks } from "../src/utils/background";
 
 // AppDataSource.initialize() throws if called twice on the same instance —
 // guard so every test file can safely call this in its own beforeAll without
@@ -12,6 +13,7 @@ export async function initTestDb(): Promise<void> {
 }
 
 export async function closeTestDb(): Promise<void> {
+  await settleBackgroundTasks();
   if (AppDataSource.isInitialized) {
     await AppDataSource.destroy();
   }
@@ -21,8 +23,20 @@ export async function closeTestDb(): Promise<void> {
 // TRUNCATE ... CASCADE handles FK dependencies without needing to order the
 // table list manually; RESTART IDENTITY isn't strictly needed (everything
 // uses uuid PKs, not serial), included for good measure in case that changes.
+// Reference data seeded by migrations — reset instead of truncated.
+const REFERENCE_TABLES = new Set(["shipping_zones"]);
+
 export async function clearDatabase(): Promise<void> {
-  const tables = AppDataSource.entityMetadatas.map((m) => `"${m.tableName}"`).join(", ");
-  if (!tables) return;
-  await AppDataSource.query(`TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE`);
+  // Let post-response work (emails, audit writes) finish first — truncating
+  // underneath it can deadlock.
+  await settleBackgroundTasks();
+  const tables = AppDataSource.entityMetadatas
+    .map((m) => m.tableName)
+    .filter((t) => !REFERENCE_TABLES.has(t))
+    .map((t) => `"${t}"`)
+    .join(", ");
+  if (tables) await AppDataSource.query(`TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE`);
+  await AppDataSource.query(
+    `UPDATE "shipping_zones" SET "homePrice" = 0, "deskPrice" = NULL, "isActive" = true`,
+  );
 }

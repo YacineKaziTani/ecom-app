@@ -1,7 +1,7 @@
 import request from "supertest";
 import { app } from "../src/app";
 import { initTestDb, closeTestDb, clearDatabase } from "./testDb";
-import { loginAs, createShop, createProduct, createCoupon } from "./helpers";
+import { loginAs, createShop, createProduct, createCoupon, DELIVERY } from "./helpers";
 import { AppDataSource } from "../src/config/data-source";
 import { Product } from "../src/entities/Product";
 
@@ -31,7 +31,7 @@ describe("POST /api/orders — checkout", () => {
     const res = await request(app)
       .post("/api/orders")
       .send({
-        shippingAddress: "123 Main St",
+        ...DELIVERY, shippingAddress: "123 Main St",
         guestEmail: "guest@example.com",
         guestName: "Guest Person",
         items: [{ productId: product.id, quantity: 2 }],
@@ -48,7 +48,7 @@ describe("POST /api/orders — checkout", () => {
 
     const res = await request(app)
       .post("/api/orders")
-      .send({ shippingAddress: "123 Main St", items: [{ productId: product.id, quantity: 1 }] });
+      .send({ ...DELIVERY, shippingAddress: "123 Main St", items: [{ productId: product.id, quantity: 1 }] });
 
     expect(res.status).toBe(400);
   });
@@ -59,7 +59,7 @@ describe("POST /api/orders — checkout", () => {
     await request(app)
       .post("/api/orders")
       .send({
-        shippingAddress: "123 Main St",
+        ...DELIVERY, shippingAddress: "123 Main St",
         guestEmail: "stock@example.com",
         items: [{ productId: product.id, quantity: 3 }],
       })
@@ -76,7 +76,7 @@ describe("POST /api/orders — checkout", () => {
     const res = await request(app)
       .post("/api/orders")
       .send({
-        shippingAddress: "123 Main St",
+        ...DELIVERY, shippingAddress: "123 Main St",
         guestEmail: "stockfail@example.com",
         items: [
           { productId: inStock.id, quantity: 2 },
@@ -99,7 +99,7 @@ describe("POST /api/orders — checkout", () => {
     const idempotencyKey = "test-idempotency-key-123";
 
     const payload = {
-      shippingAddress: "123 Main St",
+      ...DELIVERY, shippingAddress: "123 Main St",
       guestEmail: "idempotent@example.com",
       items: [{ productId: product.id, quantity: 2 }],
     };
@@ -123,7 +123,7 @@ describe("POST /api/orders — checkout", () => {
     const res = await request(app)
       .post("/api/orders")
       .send({
-        shippingAddress: "123 Main St",
+        ...DELIVERY, shippingAddress: "123 Main St",
         guestEmail: "coupon@example.com",
         couponCode: "save10", // lowercase on purpose — codes are matched case-insensitively
         items: [{ productId: product.id, quantity: 1 }],
@@ -143,7 +143,7 @@ describe("POST /api/orders — checkout", () => {
     const res = await request(app)
       .post("/api/orders")
       .send({
-        shippingAddress: "123 Main St",
+        ...DELIVERY, shippingAddress: "123 Main St",
         guestEmail: "usedup@example.com",
         couponCode: "ONEUSE",
         items: [{ productId: product.id, quantity: 1 }],
@@ -162,7 +162,7 @@ describe("POST /api/orders — checkout", () => {
     const res = await request(app)
       .post("/api/orders")
       .send({
-        shippingAddress: "123 Main St",
+        ...DELIVERY, shippingAddress: "123 Main St",
         guestEmail: "mixedshop@example.com",
         couponCode: "SHOPONLY",
         items: [
@@ -182,7 +182,7 @@ describe("POST /api/orders — checkout", () => {
     const res = await request(app)
       .post("/api/orders")
       .send({
-        shippingAddress: "123 Main St",
+        ...DELIVERY, shippingAddress: "123 Main St",
         guestEmail: "capped@example.com",
         couponCode: "BIGDISCOUNT",
         items: [{ productId: product.id, quantity: 1 }],
@@ -201,7 +201,7 @@ describe("order visibility scoping", () => {
     const { agent: customerB } = await loginAs("customer");
 
     await customerA.post("/api/orders").send({
-      shippingAddress: "A's address",
+      ...DELIVERY, shippingAddress: "A's address",
       items: [{ productId: product.id, quantity: 1 }],
     });
 
@@ -223,7 +223,7 @@ describe("order visibility scoping", () => {
     await request(app)
       .post("/api/orders")
       .send({
-        shippingAddress: "Somewhere",
+        ...DELIVERY, shippingAddress: "Somewhere",
         guestEmail: "scoped@example.com",
         items: [{ productId: otherProduct.id, quantity: 1 }],
       });
@@ -244,7 +244,7 @@ describe("PATCH /api/orders/:id/status — stock reconciliation on cancellation"
     const orderRes = await request(app)
       .post("/api/orders")
       .send({
-        shippingAddress: "123 Main St",
+        ...DELIVERY, shippingAddress: "123 Main St",
         guestEmail: "cancel@example.com",
         items: [{ productId: product.id, quantity: 4 }],
       });
@@ -269,7 +269,7 @@ describe("PATCH /api/orders/:id/status — stock reconciliation on cancellation"
     const orderRes = await request(app)
       .post("/api/orders")
       .send({
-        shippingAddress: "123 Main St",
+        ...DELIVERY, shippingAddress: "123 Main St",
         guestEmail: "nodouble@example.com",
         items: [{ productId: product.id, quantity: 3 }],
       });
@@ -290,7 +290,7 @@ describe("PATCH /api/orders/:id/status — stock reconciliation on cancellation"
     const orderRes = await request(app)
       .post("/api/orders")
       .send({
-        shippingAddress: "123 Main St",
+        ...DELIVERY, shippingAddress: "123 Main St",
         guestEmail: "reactivate@example.com",
         items: [{ productId: product.id, quantity: 5 }],
       });
@@ -315,7 +315,7 @@ describe("PATCH /api/orders/:id/status — stock reconciliation on cancellation"
     const orderRes = await request(app)
       .post("/api/orders")
       .send({
-        shippingAddress: "123 Main St",
+        ...DELIVERY, shippingAddress: "123 Main St",
         guestEmail: "blocked@example.com",
         items: [{ productId: product.id, quantity: 5 }],
       });
@@ -326,7 +326,7 @@ describe("PATCH /api/orders/:id/status — stock reconciliation on cancellation"
     await request(app)
       .post("/api/orders")
       .send({
-        shippingAddress: "Elsewhere",
+        ...DELIVERY, shippingAddress: "Elsewhere",
         guestEmail: "competitor@example.com",
         items: [{ productId: product.id, quantity: 5 }],
       })

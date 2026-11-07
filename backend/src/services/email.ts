@@ -1,24 +1,15 @@
 import { resend, MAIL_FROM } from "../config/mailer";
 import { logger } from "../config/logger";
-import {
-  renderOrderConfirmationEmail,
-  OrderConfirmationEmailData,
-} from "../emails/orderConfirmation";
+import type { RenderedEmail } from "../emails/orderEmails";
 import {
   renderPasswordResetEmail,
   PasswordResetEmailData,
 } from "../emails/passwordReset";
 
-interface RenderedEmail {
-  subject: string;
-  html: string;
-  text: string;
-}
-
 // Never throws: a failed or skipped email must not break the request that
 // triggered it. Resolves to whether the email was accepted for delivery.
 // Recipient addresses are deliberately kept out of the logs.
-async function send(
+export async function sendEmail(
   template: string,
   to: string,
   email: RenderedEmail,
@@ -40,13 +31,6 @@ async function send(
   }
 }
 
-export function sendOrderConfirmationEmail(
-  to: string,
-  data: OrderConfirmationEmailData,
-) {
-  return send("order-confirmation", to, renderOrderConfirmationEmail(data));
-}
-
 export function sendPasswordResetEmail(to: string, data: PasswordResetEmailData) {
-  return send("password-reset", to, renderPasswordResetEmail(data));
+  return sendEmail("password-reset", to, renderPasswordResetEmail(data));
 }

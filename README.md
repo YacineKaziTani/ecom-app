@@ -335,8 +335,16 @@ Real integration tests using Jest + Supertest against an actual Postgres databas
 ### CI
 `.github/workflows/ci.yml` runs on every push and pull request: backend type-check, build, migrations against a real Postgres 17, a **schema drift check** (fails if an entity changed without a migration), the full test suite, and the frontend type-check + build.
 
+- **`tests/delivery.test.ts`** — wilaya prices, stop desk, phone validation, pay on delivery (no expiry, paid when delivered).
+- **`tests/notifications.test.ts`** — who receives which email, and when.
+- **`tests/fulfilment.test.ts`** — per-shop shipments, status roll-up, payouts and balances.
+- **`tests/security.test.ts`** — TOTP (RFC 6238 vectors), 2FA login / replay / recovery codes, email verification, seller applications, audit log.
+- **`tests/catalog.test.ts`** / **`tests/seo.test.ts`** — reviews, wishlist, galleries; sitemap, robots, link previews.
+
 ### What isn't covered yet
 The success path of starting a Chargily checkout (would need mocking Chargily's API), and frontend/browser tests (e.g. Playwright for the checkout flow).
+
+> Local test database: create it as UTF-8 (`createdb -E UTF8 -T template0 ecom_test`) — on Windows, Postgres often defaults to WIN1252, which can't store the Arabic wilaya names.
 
 ## Stock reconciliation on order cancellation
 A real gap that existed until now: cancelling an order (`PATCH /api/orders/:id/status` → `"cancelled"`) never gave the reserved stock back. Every cancellation permanently shrank the product's available inventory for no reason — a real store would drift further and further from accurate stock levels over time as cancellations happened.
@@ -372,3 +380,48 @@ Until now there was no way for a user who forgot their password to get back in �
 - **Images** — Cloudinary URLs are requested at the size they're displayed, in WebP/AVIF where supported (`lib/images.ts`).
 - **Database** — indexes on every foreign key plus trigram indexes for product search (migration `AddIndexes`).
 - **Shutdown** — on `SIGTERM` (every deploy) the server stops accepting connections, lets in-flight requests finish, then closes the DB pool.
+
+## Pay on delivery (cash on delivery)
+Checkout offers **Pay on delivery** next to online card payment (card appears only when `CHARGILY_API_KEY` is set — see `GET /api/config`).
+- COD orders skip Chargily and hold their stock with no time limit, until a shop/super admin confirms (`processing`) or cancels them. The shop is emailed right away with the customer's phone number to confirm by phone.
+- When the order is marked **delivered**, it becomes **paid** automatically (the courier collected the cash) — that's also when it starts counting in revenue and payouts.
+
+## Delivery: wilayas, stop desk and prices
+- Checkout asks for a mobile number (validated and normalised to `0XXXXXXXXX`), wilaya, commune and address, plus **home delivery** or **stop desk** pick-up.
+- **Dashboard → Shipping** (super admin): a price per wilaya for home and stop-desk delivery, an on/off switch per wilaya, and "apply to all". All 58 wilayas start active and free, so nothing changes until you set prices.
+- The fee is computed server-side and added to the total (coupons never discount delivery). Customers can save their wilaya/commune on their profile to pre-fill checkout.
+
+## Email notifications
+- Customer: order received (with pay-on-delivery or payment instructions), confirmed / shipped / delivered / cancelled — including "cancelled because payment wasn't completed in time".
+- Shop owners: a new order with their items — immediately for pay-on-delivery, once paid for card orders — listing only their own lines and the customer's delivery details.
+- All sent after the response, never blocking or failing the request (`services/notifications.ts`).
+
+## Multi-shop fulfilment and payouts
+- Each order has one **shipment per shop**. A shop admin updates only their own (status, carrier, tracking number — the dashboard asks for the tracking number when marking it shipped). The order status follows the slowest shipment; customers see each shop's progress and tracking number.
+- Cancelling stays an order-level action (it restocks). A super admin changing the order status moves every shipment with it.
+- **Payouts**: `PLATFORM_COMMISSION_PERCENT` (default 0) is recorded on each order line at checkout. A shop earns its paid, non-cancelled sales minus commission minus its own coupons; **Dashboard → Payouts** shows balances, and the super admin records transfers (never above the balance). Shop admins see their own balance and payout history.
+
+## Seller onboarding
+`/sell` lets a signed-in customer with a confirmed email apply to open a shop. Super admins are emailed and review it in **Dashboard → Applications**; approving creates the shop, makes the applicant its admin (they sign in again to get the new role) and emails them; rejecting sends the reason.
+
+## Reviews, wishlist and galleries
+- **Reviews**: only customers with a paid (or COD-delivered), non-cancelled order for the product, and a confirmed email. One review per person (posting again updates it); names shown as "Amina B.". Products keep `ratingAverage` / `ratingCount` in sync for fast listings. Authors or super admins can delete reviews.
+- **Wishlist**: heart button on product cards and pages, `/wishlist` page.
+- **Gallery**: up to 8 extra photos per product (Dashboard → Products), with thumbnails on the product page.
+- Not done yet: product **variants** (size/colour with their own stock) — they touch every stock path (cart, checkout, reservations, cancellations) and deserve their own change.
+
+## Account security
+- **Email verification**: new accounts get a confirmation link (24h); a banner offers to resend it. Opening a shop and writing reviews require a confirmed email. Accounts that existed before this are treated as verified.
+- **Two-factor sign-in (admins)**: Profile → *Two-factor sign-in*: scan a QR code with any authenticator app, confirm a code, save 8 one-time recovery codes. Login then asks for a code after the password. Codes can't be replayed; secrets are encrypted at rest with `TOTP_ENCRYPTION_KEY`.
+- **Audit log**: role changes, order and shipment updates, deletions, coupons, shipping prices, payouts, seller decisions and 2FA changes are recorded. **Dashboard → Activity** (super admin) lists and filters them.
+
+## Search engines and link previews
+- `/sitemap.xml` and `/robots.txt` (served by the backend through Vercel rewrites).
+- Product and shop links shared on WhatsApp, Facebook, Telegram, X… show a proper title, price and image: `vercel.json` routes those crawlers (by user agent) to `/api/seo/...`, which returns a small HTML page with Open Graph tags. Everyone else gets the normal app.
+- Every public page sets its own title and description, and product pages include schema.org `Product` data (price in DZD, stock, rating) for Google.
+
+## Languages: Français, العربية, English
+- Language switcher in the navbar (remembered per browser; first visit follows the browser language). Arabic switches the layout to right-to-left and uses the Tajawal font.
+- Translated: navbar, footer, home, product pages, cart & checkout, order confirmation, my orders, order tracking, payment pages, sign in / register, reviews, wishlist. Translations live in `frontend/src/i18n/messages.ts`; French and Arabic are type-checked against English, so a missing key fails the build.
+- Still English: the admin dashboard (kept left-to-right), and the profile, sell, shop directory/shop pages, password and verification pages — next candidates.
+- Emails are still sent in English.

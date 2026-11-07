@@ -2,11 +2,13 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { ClipboardList, Info } from "lucide-react";
 import { ordersApi } from "../../api/orders";
-import { OrderStatus } from "../../api/types";
+import { Order, OrderStatus } from "../../api/types";
 import { useAuth } from "../../store/AuthContext";
 import {
   orderStatusBadge,
-  paymentStatusBadge,
+  paymentBadge,
+  paymentLabel,
+  deliveryLine,
   formatPrice,
   formatDate,
 } from "../../lib/status";
@@ -67,10 +69,34 @@ export default function OrdersAdmin() {
     },
   });
 
-  function handleStatusChange(
-    order: { id: string; status: OrderStatus },
-    newStatus: OrderStatus,
-  ) {
+  // A shop admin moves their own shipment forward; the order's status
+  // follows the slowest shop. Cancel / reactivate stay order-level.
+  const shipmentMutation = useMutation({
+    mutationFn: (v: { orderId: string; shopId: string; status: OrderStatus; trackingNumber?: string | null }) =>
+      ordersApi.updateShipment(v.orderId, v.shopId, {
+        status: v.status,
+        ...(v.trackingNumber !== undefined ? { trackingNumber: v.trackingNumber } : {}),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["orders"] });
+      toast.success("Shipment updated");
+    },
+    onError: (err: any) => toast.error(String(err)),
+  });
+
+  function handleStatusChange(order: Order, newStatus: OrderStatus) {
+    const myShipment = !isSuperAdmin ? order.shipments?.[0] : undefined;
+    if (myShipment && newStatus !== "cancelled" && order.status !== "cancelled") {
+      let trackingNumber: string | null | undefined;
+      if (newStatus === "shipped") {
+        const entered = prompt("Tracking number (optional):", myShipment.trackingNumber ?? "");
+        if (entered === null) return; // cancelled the prompt
+        trackingNumber = entered.trim() || null;
+      }
+      shipmentMutation.mutate({ orderId: order.id, shopId: myShipment.shopId, status: newStatus, trackingNumber });
+      return;
+    }
+
     if (
       newStatus === "cancelled" &&
       !confirm(
@@ -169,6 +195,11 @@ export default function OrdersAdmin() {
                           ) : (
                             "—"
                           )}
+                          {(o.phone || deliveryLine(o)) && (
+                            <span className="mt-0.5 block text-xs text-muted-foreground">
+                              {[deliveryLine(o), o.phone].filter(Boolean).join(" · ")}
+                            </span>
+                          )}
                         </td>
                         <td className="whitespace-nowrap text-muted-foreground">
                           {formatDate(o.createdAt)}
@@ -180,13 +211,19 @@ export default function OrdersAdmin() {
                           {formatPrice(total)}
                         </td>
                         <td>
-                          <span className={paymentStatusBadge[o.paymentStatus]}>
-                            {o.paymentStatus}
+                          <span className={paymentBadge(o)}>
+                            {paymentLabel(o)}
                           </span>
                         </td>
                         <td>
+                          {(() => {
+                            const myShipment = !isSuperAdmin ? o.shipments?.[0] : undefined;
+                            const shown: OrderStatus =
+                              o.status === "cancelled" ? "cancelled" : myShipment?.status ?? o.status;
+                            return (
+                          <>
                           <select
-                            value={o.status}
+                            value={shown}
                             onChange={(e) =>
                               handleStatusChange(
                                 o,
@@ -198,7 +235,7 @@ export default function OrdersAdmin() {
                               "cursor-pointer appearance-none rounded-full border-0 py-1 pl-2.5 pr-2.5",
                               "text-xs font-semibold capitalize transition-opacity hover:opacity-80",
                               "focus:outline-none focus:ring-2 focus:ring-ring/60",
-                              orderStatusBadge[o.status],
+                              orderStatusBadge[shown],
                             )}
                           >
                             {statuses.map((s) => (
@@ -207,6 +244,14 @@ export default function OrdersAdmin() {
                               </option>
                             ))}
                           </select>
+                          {myShipment?.trackingNumber && (
+                            <span className="mt-1 block font-mono text-[11px] text-muted-foreground">
+                              {myShipment.trackingNumber}
+                            </span>
+                          )}
+                          </>
+                            );
+                          })()}
                         </td>
                       </tr>
                     );

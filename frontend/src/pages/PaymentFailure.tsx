@@ -1,4 +1,5 @@
 import { useSearchParams, Link } from "react-router";
+import { useI18n } from "../i18n/I18nProvider";
 import { XCircle } from "lucide-react";
 import { useAuth } from "../store/AuthContext";
 
@@ -7,6 +8,7 @@ export default function PaymentFailure() {
   const orderId = searchParams.get("order");
   const emailFromUrl = searchParams.get("email");
   const { user } = useAuth();
+  const { t } = useI18n();
 
   return (
     <div className="container-narrow py-16 sm:py-24">
@@ -16,11 +18,10 @@ export default function PaymentFailure() {
         </span>
 
         <h1 className="mt-6 text-3xl font-bold text-foreground">
-          Payment didn't go through
+          {t("pay.failedTitle")}
         </h1>
         <p className="mt-3 leading-relaxed text-muted-foreground">
-          Your payment was cancelled or declined, so nothing has been charged.
-          Your order is still saved — you can retry whenever you're ready.
+          {t("pay.failedBody")}
         </p>
 
         <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -33,11 +34,11 @@ export default function PaymentFailure() {
               }
               className="btn-primary"
             >
-              {user ? "View my orders" : "View order & retry payment"}
+              {user ? t("pay.viewMyOrders") : t("pay.viewAndRetry")}
             </Link>
           )}
           <Link to="/cart" className="btn-outline">
-            Back to cart
+            {t("pay.backToCart")}
           </Link>
         </div>
       </div>

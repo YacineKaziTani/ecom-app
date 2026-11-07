@@ -1,4 +1,6 @@
 import { useState } from "react";
+import type { MessageKey } from "../i18n/messages";
+import { useI18n } from "../i18n/I18nProvider";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Search, X, SlidersHorizontal, Sparkles, PackageSearch } from "lucide-react";
@@ -11,11 +13,11 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { cn } from "@/lib/utils";
 
-const SORT_OPTIONS: { value: ProductSort; label: string }[] = [
-  { value: "newest", label: "Newest" },
-  { value: "price_asc", label: "Price: Low to High" },
-  { value: "price_desc", label: "Price: High to Low" },
-  { value: "name_asc", label: "Name: A–Z" },
+const SORT_OPTIONS: { value: ProductSort; labelKey: MessageKey }[] = [
+  { value: "newest", labelKey: "sort.newest" },
+  { value: "price_asc", labelKey: "sort.priceAsc" },
+  { value: "price_desc", labelKey: "sort.priceDesc" },
+  { value: "name_asc", labelKey: "sort.nameAsc" },
 ];
 
 export default function Shop() {
@@ -23,6 +25,7 @@ export default function Shop() {
   const [categoryId, setCategoryId] = useState("");
   const [sort, setSort] = useState<ProductSort>("newest");
   const [page, setPage] = useState(1);
+  const { t, tp } = useI18n();
 
   const { data: categories } = useQuery({
     queryKey: ["categories"],
@@ -61,25 +64,24 @@ export default function Shop() {
           <div className="max-w-2xl animate-fade-up">
             <span className="badge-accent mb-5 shadow-xs">
               <Sparkles className="h-3.5 w-3.5" />
-              Curated by hand
+              {t("home.badge")}
             </span>
 
             <h1 className="text-4xl font-bold leading-[1.05] text-foreground sm:text-5xl lg:text-6xl">
-              Objects worth
-              <span className="block text-accent">keeping for years</span>
+              {t("home.titleLine1")}
+              <span className="block text-accent">{t("home.titleLine2")}</span>
             </h1>
 
             <p className="mt-5 max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg">
-              A small marketplace of premium goods, made and shipped by
-              independent artisans who still sign their work.
+              {t("home.subtitle")}
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <a href="#catalogue" className="btn-primary btn-lg">
-                Browse the catalogue
+                {t("home.browse")}
               </a>
               <Link to="/shops" className="btn-outline btn-lg">
-                Meet the makers
+                {t("home.meetMakers")}
               </Link>
             </div>
           </div>
@@ -94,16 +96,16 @@ export default function Shop() {
         <div className="container-page py-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                placeholder="Search products…"
-                aria-label="Search products"
-                className="input pl-10 pr-10"
+                placeholder={t("home.searchPlaceholder")}
+                aria-label={t("home.searchPlaceholder")}
+                className="input ps-10 pe-10"
               />
               {search && (
                 <button
@@ -111,9 +113,9 @@ export default function Shop() {
                     setSearch("");
                     setPage(1);
                   }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1
+                  className="absolute end-2.5 top-1/2 -translate-y-1/2 rounded-full p-1
                              text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                  aria-label="Clear search"
+                  aria-label={t("home.clearSearch")}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -128,12 +130,12 @@ export default function Shop() {
                   setSort(e.target.value as ProductSort);
                   setPage(1);
                 }}
-                aria-label="Sort products"
+                aria-label={t("home.sortLabel")}
                 className="select lg:w-52"
               >
                 {SORT_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
-                    {o.label}
+                    {t(o.labelKey)}
                   </option>
                 ))}
               </select>
@@ -149,7 +151,7 @@ export default function Shop() {
                 setPage(1);
               }}
             >
-              All products
+              {t("home.allProducts")}
             </CategoryPill>
 
             {categories?.map((c) => (
@@ -173,32 +175,15 @@ export default function Shop() {
         {!isLoading && data && (
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
-              <span className="font-semibold text-foreground">{data.total}</span>{" "}
-              {data.total === 1 ? "product" : "products"}
-              {activeCategory && (
-                <>
-                  {" "}
-                  in{" "}
-                  <span className="font-semibold text-foreground">
-                    {activeCategory.name}
-                  </span>
-                </>
-              )}
-              {search && (
-                <>
-                  {" "}
-                  matching{" "}
-                  <span className="font-semibold text-foreground">
-                    “{search}”
-                  </span>
-                </>
-              )}
+              <span className="font-semibold text-foreground">{tp("home.results", data.total)}</span>
+              {activeCategory && <> {t("home.inCategory", { category: activeCategory.name })}</>}
+              {search && <> {t("home.matching", { search })}</>}
             </p>
 
             {hasFilters && (
               <button onClick={resetFilters} className="btn-ghost btn-sm">
                 <X className="h-3.5 w-3.5" />
-                Clear filters
+                {t("home.clearFilters")}
               </button>
             )}
           </div>
@@ -225,16 +210,16 @@ export default function Shop() {
         ) : (
           <EmptyState
             icon={PackageSearch}
-            title="No products found"
+            title={t("home.emptyTitle")}
             description={
               hasFilters
-                ? "Nothing matches those filters yet. Try a broader search or a different category."
-                : "There are no products in the shop right now — check back soon."
+                ? t("home.emptyFiltered")
+                : t("home.emptyAll")
             }
             action={
               hasFilters ? (
                 <button onClick={resetFilters} className="btn-primary">
-                  Clear filters
+                  {t("home.clearFilters")}
                 </button>
               ) : undefined
             }

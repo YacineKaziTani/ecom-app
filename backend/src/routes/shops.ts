@@ -8,6 +8,8 @@ import {
   requireSuperAdmin,
 } from "../middleware/auth";
 import { validateUuidParam } from "../middleware/validateUuid";
+import { slugify } from "../utils/slug";
+import { audit } from "../services/audit";
 import {
   imageUrlSchema,
   nameSchema,
@@ -17,13 +19,6 @@ import {
 const router = Router();
 const repo = () => AppDataSource.getRepository(Shop);
 
-function slugify(name: string) {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
 
 router.get("/", async (_req, res) => {
   const shops = await repo().find({ order: { createdAt: "DESC" } });
@@ -167,6 +162,7 @@ router.delete(
     const result = await repo().delete(req.params.id);
     if (!result.affected)
       return res.status(404).json({ message: "Shop not found" });
+    void audit(req, "shop.delete", "shop", req.params.id);
     res.status(204).send();
   },
 );

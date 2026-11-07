@@ -5,6 +5,36 @@
       "destination": "https://ecom-app-zgvi.onrender.com/api/$1"
     },
     {
+      "source": "/sitemap.xml",
+      "destination": "https://ecom-app-zgvi.onrender.com/api/seo/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "https://ecom-app-zgvi.onrender.com/api/seo/robots.txt"
+    },
+    {
+      "source": "/products/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|facebot|twitterbot|whatsapp|telegrambot|linkedinbot|slackbot|discordbot|pinterest|skypeuripreview|redditbot|applebot).*"
+        }
+      ],
+      "destination": "https://ecom-app-zgvi.onrender.com/api/seo/products/:id"
+    },
+    {
+      "source": "/shops/:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|facebot|twitterbot|whatsapp|telegrambot|linkedinbot|slackbot|discordbot|pinterest|skypeuripreview|redditbot|applebot).*"
+        }
+      ],
+      "destination": "https://ecom-app-zgvi.onrender.com/api/seo/shops/:slug"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

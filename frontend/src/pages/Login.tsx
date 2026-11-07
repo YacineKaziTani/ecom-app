@@ -1,8 +1,10 @@
 import { useState, FormEvent } from "react";
+import { useI18n } from "../i18n/I18nProvider";
 import { Link, useNavigate } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
 import { authApi } from "../api/auth";
+import { User } from "../api/types";
 import { useSignedIn } from "../store/AuthContext";
 import { mergeGuestCartIntoAccount } from "../hooks/useCart";
 import { AuthLayout } from "../components/AuthLayout";
@@ -15,16 +17,39 @@ export default function Login() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const signedIn = useSignedIn();
+  const { t } = useI18n();
+  // Set when the account has two-factor sign-in: the password was right, now
+  // we need a code from the authenticator app (or a recovery code).
+  const [challenge, setChallenge] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+
+  async function finish(data: { user: User }) {
+    signedIn(data);
+    await mergeGuestCartIntoAccount(qc);
+    toast.success(t("auth.welcome"));
+    navigate("/");
+  }
 
   const mutation = useMutation({
     mutationFn: authApi.login,
     onSuccess: async (data) => {
-      signedIn(data);
-      await mergeGuestCartIntoAccount(qc);
-      toast.success("Welcome back!");
-      navigate("/");
+      if ("twoFactorRequired" in data) {
+        setChallenge(data.challenge);
+        return;
+      }
+      await finish(data);
     },
     onError: (err: any) => toast.error(String(err)),
+  });
+
+  const secondStep = useMutation({
+    mutationFn: () => authApi.loginSecondStep(challenge!, code),
+    onSuccess: finish,
+    onError: (err: any) => {
+      toast.error(String(err));
+      // An expired challenge means starting over with the password.
+      if (/timed out/i.test(String(err))) setChallenge(null);
+    },
   });
 
   function handleSubmit(e: FormEvent) {
@@ -32,15 +57,63 @@ export default function Login() {
     mutation.mutate({ email, password });
   }
 
+  if (challenge) {
+    return (
+      <AuthLayout
+        title={t("auth.twoStepTitle")}
+        subtitle={t("auth.twoStepSubtitle")}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            secondStep.mutate();
+          }}
+          className="space-y-5"
+        >
+          <div>
+            <label htmlFor="code" className="label">
+              {t("auth.code")}
+            </label>
+            <input
+              id="code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className="input text-center font-mono text-lg tracking-[0.3em]"
+              inputMode="text"
+              autoComplete="one-time-code"
+              autoFocus
+              required
+              placeholder="123456"
+            />
+          </div>
+          <button type="submit" disabled={secondStep.isPending} className="btn-primary btn-lg w-full">
+            {secondStep.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+            {t("auth.verify")}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setChallenge(null);
+              setCode("");
+            }}
+            className="btn-ghost w-full"
+          >
+            {t("auth.otherAccount")}
+          </button>
+        </form>
+      </AuthLayout>
+    );
+  }
+
   return (
     <AuthLayout
-      title="Welcome back"
-      subtitle="Sign in to track your orders and check out faster."
+      title={t("auth.loginTitle")}
+      subtitle={t("auth.loginSubtitle")}
       footer={
         <p className="text-center text-sm text-muted-foreground">
-          Don't have an account?{" "}
+          {t("auth.noAccount")}{" "}
           <Link to="/register" className="link-accent">
-            Create one
+            {t("auth.createOne")}
           </Link>
         </p>
       }
@@ -48,7 +121,7 @@ export default function Login() {
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label htmlFor="email" className="label">
-            Email address
+            {t("auth.email")}
           </label>
           <input
             id="email"
@@ -65,13 +138,13 @@ export default function Login() {
         <div>
           <div className="mb-1.5 flex items-baseline justify-between">
             <label htmlFor="password" className="label mb-0">
-              Password
+              {t("auth.password")}
             </label>
             <Link
               to="/forgot-password"
               className="text-xs font-medium text-muted-foreground transition-colors hover:text-accent"
             >
-              Forgot password?
+              {t("auth.forgot")}
             </Link>
           </div>
 
@@ -83,15 +156,15 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="input pr-11"
+              className="input pe-11"
               required
             />
             <button
               type="button"
               onClick={() => setShowPassword((s) => !s)}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5
+              className="absolute end-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5
                          text-muted-foreground transition-colors hover:text-foreground"
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-label={showPassword ? t("auth.hidePassword") : t("auth.showPassword")}
             >
               {showPassword ? (
                 <EyeOff className="h-4 w-4" />
@@ -108,7 +181,7 @@ export default function Login() {
           className="btn-primary btn-lg w-full"
         >
           {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-          {mutation.isPending ? "Signing in…" : "Sign in"}
+          {mutation.isPending ? t("auth.signingIn") : t("auth.signIn")}
         </button>
       </form>
     </AuthLayout>

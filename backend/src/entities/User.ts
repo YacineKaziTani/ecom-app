@@ -29,8 +29,34 @@ export class User {
   @Column({ nullable: true })
   address?: string;
 
+  // Saved delivery location, used to pre-fill checkout.
+  @Column({ type: "int", nullable: true })
+  wilayaCode?: number | null;
+
+  @Column({ type: "varchar", nullable: true })
+  commune?: string | null;
+
   @Column({ type: "varchar", default: "customer" })
   role!: UserRole;
+
+  // null until the user clicks the link in the verification email.
+  @Column({ type: "timestamptz", nullable: true })
+  emailVerifiedAt?: Date | null;
+
+  // Two-factor sign-in (TOTP, for admins). The secret is stored encrypted and,
+  // like the recovery-code hashes, never loaded unless explicitly selected.
+  @Column({ type: "varchar", nullable: true, select: false })
+  totpSecret?: string | null;
+
+  @Column({ type: "timestamptz", nullable: true })
+  totpEnabledAt?: Date | null;
+
+  @Column({ type: "text", array: true, nullable: true, select: false })
+  totpRecoveryCodes?: string[] | null;
+
+  // Last accepted 30-second step, so a code can't be replayed.
+  @Column({ type: "int", nullable: true, select: false })
+  totpLastUsedStep?: number | null;
 
   @OneToMany(() => Order, (order) => order.user)
   orders!: Order[];

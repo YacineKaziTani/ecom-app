@@ -7,6 +7,8 @@ import { Product } from "../entities/Product";
 import { StockIssue, stockConflict } from "../utils/httpError";
 import { logger } from "../config/logger";
 import { Sentry } from "../config/sentry";
+import * as notifications from "./notifications";
+import { syncShipments } from "./fulfilment";
 
 // How long an unpaid order keeps its items out of stock. Each new payment
 // attempt ("Pay now") restarts the clock.
@@ -75,10 +77,14 @@ async function adjustCouponUsage(
 //   cancelled →: stock is re-reserved (409 if it's no longer there) and the
 //                coupon use is consumed again
 // Same status twice is a no-op, so nothing is ever restocked twice.
+//
+// Every shop's shipment follows the order unless `syncShipments` is false
+// (used when the order status is itself being rolled up from shipments).
 export async function setOrderStatus(
   manager: EntityManager,
   order: Order,
   newStatus: OrderStatus,
+  { syncShipments: sync = true }: { syncShipments?: boolean } = {},
 ): Promise<Order> {
   if (order.status === newStatus) return order;
 
@@ -126,7 +132,16 @@ export async function setOrderStatus(
 
   const changes: Partial<Order> = { status: newStatus };
   if (entering) changes.reservedUntil = null;
+  // Pay on delivery: the courier collects the cash when the parcel is handed over.
+  if (
+    newStatus === "delivered" &&
+    order.paymentMethod === "cod" &&
+    order.paymentStatus !== "paid"
+  ) {
+    changes.paymentStatus = "paid";
+  }
   await manager.getRepository(Order).update(order.id, changes);
+  if (sync) await syncShipments(manager, order.id, newStatus);
   Object.assign(order, changes);
   return order;
 }
@@ -139,6 +154,7 @@ export async function expireUnpaidOrders(now = new Date()): Promise<number> {
     select: { id: true },
     where: {
       status: "pending",
+      paymentMethod: "card",
       paymentStatus: Not("paid"),
       reservedUntil: LessThan(now),
     },
@@ -153,6 +169,7 @@ export async function expireUnpaidOrders(now = new Date()): Promise<number> {
       if (
         !order ||
         order.status !== "pending" ||
+        order.paymentMethod !== "card" ||
         order.paymentStatus === "paid" ||
         !order.reservedUntil ||
         order.reservedUntil > now
@@ -162,7 +179,17 @@ export async function expireUnpaidOrders(now = new Date()): Promise<number> {
       await setOrderStatus(manager, order, "cancelled");
       return true;
     });
-    if (cancelled) expired++;
+    if (cancelled) {
+      expired++;
+      notifications.inBackground(
+        notifications.notifyStatusChange(
+          id,
+          "cancelled",
+          "We cancelled this order because the payment wasn't completed in time, and released the items. You're welcome to order again.",
+        ),
+        { orderId: id },
+      );
+    }
   }
   return expired;
 }

@@ -16,6 +16,10 @@ import {
   Sun,
   Moon,
   ShoppingBag,
+  Truck,
+  Wallet,
+  UserPlus,
+  History,
 } from "lucide-react";
 import { useAuth } from "../store/AuthContext";
 import { useTheme } from "../store/ThemeContext";
@@ -41,7 +45,11 @@ export function DashboardLayout() {
     { to: "/dashboard/categories", label: "Categories", icon: Tags, show: isSuperAdmin },
     { to: "/dashboard/orders", label: "Orders", icon: ClipboardList, show: true },
     { to: "/dashboard/coupons", label: "Coupons", icon: Tag, show: true },
+    { to: "/dashboard/payouts", label: "Payouts", icon: Wallet, show: true },
     { to: "/dashboard/users", label: "Users", icon: Users, show: isSuperAdmin },
+    { to: "/dashboard/shipping", label: "Shipping", icon: Truck, show: isSuperAdmin },
+    { to: "/dashboard/applications", label: "Applications", icon: UserPlus, show: isSuperAdmin },
+    { to: "/dashboard/activity", label: "Activity", icon: History, show: isSuperAdmin },
     { to: "/dashboard/profile", label: "Profile", icon: UserIcon, show: true },
   ].filter((item) => item.show);
 
@@ -144,7 +152,7 @@ export function DashboardLayout() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background" dir="ltr" lang="en">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-sidebar-border lg:block">
         {sidebar}

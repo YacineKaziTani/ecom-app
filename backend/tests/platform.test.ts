@@ -11,6 +11,7 @@ describe("checkEnvironment", () => {
     CLIENT_URL: "https://shop.example.com",
     API_PUBLIC_URL: "https://api.example.com",
     TRUST_PROXY: "2",
+    TOTP_ENCRYPTION_KEY: "y".repeat(48),
     CHARGILY_API_KEY: "live_sk_abc",
     CHARGILY_MODE: "live",
     RESEND_API_KEY: "re_abc",

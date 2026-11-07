@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useI18n } from "../i18n/I18nProvider";
 import { useSearchParams, Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Loader2, Clock } from "lucide-react";
@@ -21,6 +22,7 @@ export default function PaymentSuccess() {
   const emailFromUrl = searchParams.get("email"); // present for guest orders — see routes/payments.ts
   const { user } = useAuth();
   const [pollCount, setPollCount] = useState(0);
+  const { t } = useI18n();
 
   const { data: order, refetch } = useQuery({
     queryKey: ["order", orderId, user ? "auth" : emailFromUrl],
@@ -47,22 +49,22 @@ export default function PaymentSuccess() {
     ? {
         icon: CheckCircle2,
         tone: "bg-success-soft text-success",
-        title: "Payment received",
-        body: "Thank you — your order is confirmed and being prepared for shipping.",
+        title: t("pay.receivedTitle"),
+        body: t("pay.receivedBody"),
       }
     : stillWaiting
       ? {
           icon: Loader2,
           tone: "bg-info-soft text-info",
-          title: "Confirming your payment…",
-          body: "This usually takes just a few seconds. Hang tight.",
+          title: t("pay.confirmingTitle"),
+          body: t("pay.confirmingBody"),
           spin: true,
         }
       : {
           icon: Clock,
           tone: "bg-warning-soft text-warning",
-          title: "Payment is still processing",
-          body: "Your payment was submitted but we haven't had final confirmation yet. This can occasionally take longer — check your order status shortly.",
+          title: t("pay.processingTitle"),
+          body: t("pay.processingBody"),
         };
 
   const Icon = state.icon;
@@ -96,11 +98,11 @@ export default function PaymentSuccess() {
               }
               className="btn-primary"
             >
-              {user ? "View my orders" : "View order details"}
+              {user ? t("pay.viewMyOrders") : t("pay.viewDetails")}
             </Link>
           )}
           <Link to="/" className="btn-outline">
-            Keep shopping
+            {t("common.keepShopping")}
           </Link>
         </div>
       </div>

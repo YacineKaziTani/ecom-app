@@ -21,6 +21,8 @@ export async function createUser(overrides: Partial<User> & { password?: string 
     firstName: overrides.firstName || "Test",
     lastName: overrides.lastName || "User",
     role: overrides.role || "customer",
+    // Verified by default; pass emailVerifiedAt: null to test the unverified path.
+    emailVerifiedAt: overrides.emailVerifiedAt === undefined ? new Date() : overrides.emailVerifiedAt,
   });
   await repo.save(user);
   return { user, plainPassword };
@@ -64,18 +66,35 @@ export async function createCoupon(overrides: Partial<Coupon> & { type: CouponTy
   return coupon;
 }
 
+// A valid delivery block for checkout payloads (wilaya 16 = Alger, seeded
+// with free home delivery by the AddDeliveryAndCod migration).
+export const DELIVERY = {
+  phone: "0550 12 34 56",
+  wilayaCode: 16,
+  commune: "Alger Centre",
+};
+
 // Places a guest order through the real checkout endpoint.
 export function placeGuestOrder(
   productId: string,
   quantity: number,
-  extra: { couponCode?: string; guestEmail?: string } = {},
+  extra: {
+    couponCode?: string;
+    guestEmail?: string;
+    paymentMethod?: "card" | "cod";
+    wilayaCode?: number;
+    deliveryType?: "home" | "desk";
+  } = {},
 ) {
   return request(app)
     .post("/api/orders")
     .send({
-      shippingAddress: "12 Rue Larbi Ben M'hidi, Alger",
+      ...DELIVERY, shippingAddress: "12 Rue Larbi Ben M'hidi, Alger",
       guestEmail: extra.guestEmail ?? `guest-${Math.random().toString(36).slice(2)}@example.com`,
       couponCode: extra.couponCode,
+      paymentMethod: extra.paymentMethod,
+      ...(extra.wilayaCode ? { wilayaCode: extra.wilayaCode } : {}),
+      deliveryType: extra.deliveryType,
       items: [{ productId, quantity }],
     });
 }

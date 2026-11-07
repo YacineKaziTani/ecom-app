@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { useQuery } from "@tanstack/react-query";
 import { Store, ArrowRight } from "lucide-react";
 import { shopsApi } from "../api/shops";
@@ -12,6 +13,7 @@ export default function ShopsDirectory() {
     queryKey: ["shops"],
     queryFn: shopsApi.list,
   });
+  useDocumentMeta("Shops", "Meet the independent makers selling on ArtisanShop.");
 
   return (
     <div>
@@ -70,7 +72,7 @@ export default function ShopsDirectory() {
 
                   <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-accent">
                     Visit shop
-                    <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1 rtl:group-hover:-translate-x-1" />
                   </span>
                 </div>
               </Link>

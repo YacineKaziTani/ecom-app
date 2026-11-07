@@ -45,6 +45,17 @@ export class Product {
   @Column({ type: "varchar", nullable: true })
   imageUrl?: string | null;
 
+  // Extra photos shown in the product page gallery (the main one is imageUrl).
+  @Column({ type: "text", array: true, default: () => "'{}'" })
+  galleryUrls!: string[];
+
+  // Kept in sync with the reviews table so listings don't aggregate per request.
+  @Column({ type: "decimal", precision: 3, scale: 2, default: 0 })
+  ratingAverage!: number;
+
+  @Column({ type: "int", default: 0 })
+  ratingCount!: number;
+
   @ManyToOne(() => Category, (category) => category.products, {
     onDelete: "SET NULL",
     nullable: true,

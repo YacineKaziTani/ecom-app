@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { useParams, Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Store, PackageSearch } from "lucide-react";
@@ -27,6 +28,7 @@ export default function ShopPage() {
     queryFn: () => shopsApi.bySlug(slug!),
     enabled: !!slug,
   });
+  useDocumentMeta(shop?.name, shop?.description);
 
   const { data, isLoading: productsLoading } = useQuery({
     queryKey: ["products", { shopId: shop?.id, sort, page }],
@@ -67,7 +69,7 @@ export default function ShopPage() {
         to="/shops"
         className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-accent"
       >
-        <ArrowLeft className="h-4 w-4" /> All shops
+        <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" /> All shops
       </Link>
 
       {/* Shop banner ------------------------------------------- */}

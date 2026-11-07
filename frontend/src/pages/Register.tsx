@@ -1,4 +1,5 @@
 import { useState, FormEvent } from "react";
+import { useI18n } from "../i18n/I18nProvider";
 import { Link, useNavigate } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Loader2, Check } from "lucide-react";
@@ -20,13 +21,14 @@ export default function Register() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const signedIn = useSignedIn();
+  const { t } = useI18n();
 
   const mutation = useMutation({
     mutationFn: authApi.register,
     onSuccess: async (data) => {
       signedIn(data);
       await mergeGuestCartIntoAccount(qc);
-      toast.success("Account created!");
+      toast.success(t("auth.created"));
       navigate("/");
     },
     onError: (err: any) => toast.error(String(err)),
@@ -43,20 +45,20 @@ export default function Register() {
 
   // Mirrors the backend rule: at least 8 chars, with a letter and a number.
   const rules = [
-    { label: "At least 8 characters", ok: form.password.length >= 8 },
-    { label: "Contains a letter", ok: /[a-zA-Z]/.test(form.password) },
-    { label: "Contains a number", ok: /\d/.test(form.password) },
+    { label: t("auth.ruleLength"), ok: form.password.length >= 8 },
+    { label: t("auth.ruleLetter"), ok: /[a-zA-Z]/.test(form.password) },
+    { label: t("auth.ruleNumber"), ok: /\d/.test(form.password) },
   ];
 
   return (
     <AuthLayout
-      title="Create your account"
-      subtitle="Join ArtisanShop to track orders and check out faster."
+      title={t("auth.registerTitle")}
+      subtitle={t("auth.registerSubtitle")}
       footer={
         <p className="text-center text-sm text-muted-foreground">
-          Already have an account?{" "}
+          {t("auth.haveAccount")}{" "}
           <Link to="/login" className="link-accent">
-            Sign in
+            {t("auth.signIn")}
           </Link>
         </p>
       }
@@ -65,7 +67,7 @@ export default function Register() {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="firstName" className="label">
-              First name
+              {t("auth.firstName")}
             </label>
             <input
               id="firstName"
@@ -81,7 +83,7 @@ export default function Register() {
           </div>
           <div>
             <label htmlFor="lastName" className="label">
-              Last name
+              {t("auth.lastName")}
             </label>
             <input
               id="lastName"
@@ -99,7 +101,7 @@ export default function Register() {
 
         <div>
           <label htmlFor="email" className="label">
-            Email address
+            {t("auth.email")}
           </label>
           <input
             id="email"
@@ -116,7 +118,7 @@ export default function Register() {
 
         <div>
           <label htmlFor="password" className="label">
-            Password
+            {t("auth.password")}
           </label>
           <div className="relative">
             <input
@@ -127,15 +129,15 @@ export default function Register() {
               value={form.password}
               onChange={handleChange}
               placeholder="••••••••"
-              className="input pr-11"
+              className="input pe-11"
               required
             />
             <button
               type="button"
               onClick={() => setShowPassword((s) => !s)}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5
+              className="absolute end-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5
                          text-muted-foreground transition-colors hover:text-foreground"
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-label={showPassword ? t("auth.hidePassword") : t("auth.showPassword")}
             >
               {showPassword ? (
                 <EyeOff className="h-4 w-4" />
@@ -174,7 +176,7 @@ export default function Register() {
           className="btn-primary btn-lg w-full"
         >
           {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-          {mutation.isPending ? "Creating account…" : "Create account"}
+          {mutation.isPending ? t("auth.creating") : t("auth.create")}
         </button>
       </form>
     </AuthLayout>

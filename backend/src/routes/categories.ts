@@ -4,6 +4,7 @@ import { AppDataSource } from "../config/data-source";
 import { Category } from "../entities/Category";
 import { requireAuth, requireSuperAdmin } from "../middleware/auth";
 import { validateUuidParam } from "../middleware/validateUuid";
+import { audit } from "../services/audit";
 import { imageUrlSchema, nameSchema, shortTextSchema } from "../utils/validators";
 
 const router = Router();
@@ -47,6 +48,7 @@ router.put("/:id", validateUuidParam(), requireAuth, requireSuperAdmin, async (r
 router.delete("/:id", validateUuidParam(), requireAuth, requireSuperAdmin, async (req, res) => {
   const result = await repo().delete(req.params.id);
   if (!result.affected) return res.status(404).json({ message: "Category not found" });
+  void audit(req, "category.delete", "category", req.params.id);
   res.status(204).send();
 });
 

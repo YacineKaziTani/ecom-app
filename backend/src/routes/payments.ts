@@ -47,6 +47,11 @@ router.post("/create-checkout", optionalAuth, async (req, res) => {
     return res.status(404).json({ message: "Order not found" });
   }
 
+  if (order.paymentMethod === "cod") {
+    return res
+      .status(400)
+      .json({ message: "This order is paid in cash on delivery" });
+  }
   if (order.paymentStatus === "paid") {
     return res
       .status(400)

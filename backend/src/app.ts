@@ -22,6 +22,16 @@ import paymentWebhookRoutes from "./routes/paymentWebhook";
 import couponRoutes from "./routes/coupons";
 import analyticsRoutes from "./routes/analytics";
 import cartRoutes from "./routes/cart";
+import shippingRoutes from "./routes/shipping";
+import payoutRoutes from "./routes/payouts";
+import twoFactorRoutes from "./routes/twoFactor";
+import sellerApplicationRoutes from "./routes/sellerApplications";
+import auditLogRoutes from "./routes/auditLogs";
+import reviewRoutes from "./routes/reviews";
+import wishlistRoutes from "./routes/wishlist";
+import seoRoutes from "./routes/seo";
+import { availablePaymentMethods } from "./services/shipping";
+import { RESERVATION_MINUTES } from "./services/orderLifecycle";
 
 export const app = express();
 
@@ -97,6 +107,7 @@ app.use(cookieParser());
 app.use(sanitizeBody);
 app.use("/api", apiLimiter);
 
+app.use("/api/auth/2fa", twoFactorRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/shops", shopRoutes);
 app.use("/api/products", productRoutes);
@@ -107,6 +118,21 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/coupons", couponRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/cart", cartRoutes);
+app.use("/api/shipping", shippingRoutes);
+app.use("/api/payouts", payoutRoutes);
+app.use("/api/seller-applications", sellerApplicationRoutes);
+app.use("/api/audit-logs", auditLogRoutes);
+app.use("/api/wishlist", wishlistRoutes);
+app.use("/api/seo", seoRoutes);
+app.use("/api", reviewRoutes); // /products/:id/reviews, /reviews/:id
+
+// Public storefront configuration the checkout needs.
+app.get("/api/config", (_req, res) => {
+  res.json({
+    paymentMethods: availablePaymentMethods(),
+    reservationMinutes: RESERVATION_MINUTES,
+  });
+});
 
 app.use("/api", notFoundHandler);
 app.use(errorHandler);

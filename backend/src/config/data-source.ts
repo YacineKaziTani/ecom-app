@@ -11,6 +11,14 @@ import { RefreshToken } from "../entities/RefreshToken";
 import { Coupon } from "../entities/Coupon";
 import { PasswordResetToken } from "../entities/PasswordResetToken";
 import { CartItem } from "../entities/CartItem";
+import { ShippingZone } from "../entities/ShippingZone";
+import { Shipment } from "../entities/Shipment";
+import { Payout } from "../entities/Payout";
+import { SellerApplication } from "../entities/SellerApplication";
+import { EmailVerificationToken } from "../entities/EmailVerificationToken";
+import { AuditLog } from "../entities/AuditLog";
+import { Review } from "../entities/Review";
+import { WishlistItem } from "../entities/WishlistItem";
 
 const isTest = process.env.NODE_ENV === "test";
 
@@ -50,6 +58,14 @@ export const AppDataSource = new DataSource({
     Coupon,
     PasswordResetToken,
     CartItem,
+    ShippingZone,
+    Shipment,
+    Payout,
+    SellerApplication,
+    EmailVerificationToken,
+    AuditLog,
+    Review,
+    WishlistItem,
   ],
   migrations: [__dirname + "/../migrations/*{.ts,.js}"],
 });

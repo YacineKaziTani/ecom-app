@@ -1,4 +1,6 @@
-import { useState, useRef, FormEvent } from "react";
+import { useState, useRef, useEffect, FormEvent } from "react";
+import { useI18n } from "../i18n/I18nProvider";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { Link, useNavigate } from "react-router";
 import {
   Trash2,
@@ -10,14 +12,21 @@ import {
   ShoppingBag,
   Lock,
   ArrowLeft,
+  Banknote,
+  CreditCard,
+  Truck,
+  Store,
 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCart } from "../hooks/useCart";
 import { useAuth } from "../store/AuthContext";
 import { ordersApi, CreateOrderInput } from "../api/orders";
 import { paymentsApi } from "../api/payments";
 import { couponsApi, CouponPreview } from "../api/coupons";
+import { shippingApi } from "../api/shipping";
+import { configApi } from "../api/config";
 import { ApiError } from "../api/client";
+import { DeliveryType, PaymentMethod } from "../api/types";
 import { formatPrice } from "../lib/status";
 import { EmptyState } from "../components/ui/EmptyState";
 import { cn } from "@/lib/utils";
@@ -34,14 +43,54 @@ interface StockIssue {
 export default function Cart() {
   const { lines, removeItem, setQuantity, total, clear } = useCart();
   const { user } = useAuth();
-  const [address, setAddress] = useState(user?.address || "");
   const [guestEmail, setGuestEmail] = useState("");
   const [guestName, setGuestName] = useState("");
+  const [phone, setPhone] = useState(user?.phone || "");
+  const [wilayaCode, setWilayaCode] = useState<number | "">(user?.wilayaCode ?? "");
+  const [commune, setCommune] = useState(user?.commune || "");
+  const [address, setAddress] = useState(user?.address || "");
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>("home");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
   const [stockIssues, setStockIssues] = useState<Record<string, StockIssue>>({});
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<CouponPreview | null>(null);
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { t, tp } = useI18n();
+  useDocumentMeta(t("cart.title"));
+
+  // The session can finish loading after the first render — pre-fill the
+  // delivery form from the saved profile once it's there (never overwriting
+  // anything the customer already typed).
+  useEffect(() => {
+    if (!user) return;
+    setPhone((v) => v || user.phone || "");
+    setWilayaCode((v) => (v === "" ? user.wilayaCode ?? "" : v));
+    setCommune((v) => v || user.commune || "");
+    setAddress((v) => v || user.address || "");
+  }, [user]);
+
+  const { data: zones } = useQuery({
+    queryKey: ["shipping-zones"],
+    queryFn: shippingApi.zones,
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: config } = useQuery({
+    queryKey: ["store-config"],
+    queryFn: configApi.get,
+    staleTime: 5 * 60 * 1000,
+  });
+  const cardAvailable = config?.paymentMethods.includes("card") ?? false;
+  const method: PaymentMethod = cardAvailable ? paymentMethod : "cod";
+
+  const zone = zones?.find((z) => z.code === wilayaCode);
+  const deskAvailable = zone?.deskPrice != null;
+  const delivery: DeliveryType = deskAvailable ? deliveryType : "home";
+  const shippingFee = zone
+    ? delivery === "desk"
+      ? zone.deskPrice!
+      : zone.homePrice
+    : null;
 
   const couponMutation = useMutation({
     mutationFn: () =>
@@ -52,7 +101,7 @@ export default function Cart() {
     onSuccess: (preview) => {
       setAppliedCoupon(preview);
       toast.success(
-        `Coupon applied — you saved ${formatPrice(preview.discountAmount)}`,
+        t("cart.couponApplied", { amount: formatPrice(preview.discountAmount) }),
       );
     },
     onError: (err: any) => {
@@ -66,6 +115,13 @@ export default function Cart() {
     idempotencyKeyRef.current = crypto.randomUUID();
   }
 
+  function goToConfirmation(order: { id: string; guestEmail?: string }, state?: unknown) {
+    const query = order.guestEmail
+      ? `?email=${encodeURIComponent(order.guestEmail)}`
+      : "";
+    navigate(`/order-confirmation/${order.id}${query}`, { state });
+  }
+
   const mutation = useMutation({
     mutationFn: (data: CreateOrderInput) =>
       ordersApi.create(data, idempotencyKeyRef.current!),
@@ -75,22 +131,23 @@ export default function Cart() {
       setAppliedCoupon(null);
       qc.invalidateQueries({ queryKey: ["orders"] });
 
+      if (order.paymentMethod === "cod") {
+        toast.success(t("cart.placedCod"));
+        goToConfirmation(order, { order });
+        return;
+      }
+
       try {
         const { checkoutUrl } = await paymentsApi.createCheckout(
           order.id,
           order.guestEmail,
         );
         window.location.href = checkoutUrl;
-      } catch (err) {
+      } catch {
         toast.error(
-          "Order placed, but we couldn't start the payment step — you can retry from there.",
+          t("cart.paymentStartFailed"),
         );
-        const query = order.guestEmail
-          ? `?email=${encodeURIComponent(order.guestEmail)}`
-          : "";
-        navigate(`/order-confirmation/${order.id}${query}`, {
-          state: { order },
-        });
+        goToConfirmation(order, { order });
       }
     },
     onError: (err: any) => {
@@ -112,13 +169,7 @@ export default function Cart() {
         setStockIssues(issueMap);
         setAppliedCoupon(null); // cart contents changed — the discount preview is now stale, re-apply if desired
 
-        const names = issues.map((i) => i.productName || "an item").join(", ");
-        toast.error(
-          issues.length === 1
-            ? `Only ${issues[0].availableStock} left of "${issues[0].productName}" — updated your cart quantity.`
-            : `Stock changed for: ${names}. We've updated your cart — please review before retrying.`,
-          { duration: 6000 },
-        );
+        toast.error(t("cart.stockChanged"), { duration: 6000 });
       } else {
         toast.error(String(err));
       }
@@ -127,8 +178,17 @@ export default function Cart() {
 
   function handleCheckout(e: FormEvent) {
     e.preventDefault();
+    if (wilayaCode === "") {
+      toast.error(t("cart.chooseWilayaError"));
+      return;
+    }
     setStockIssues({});
     mutation.mutate({
+      paymentMethod: method,
+      phone,
+      wilayaCode,
+      commune,
+      deliveryType: delivery,
       shippingAddress: address,
       guestEmail: user ? undefined : guestEmail,
       guestName: user ? undefined : guestName,
@@ -145,12 +205,12 @@ export default function Cart() {
       <div className="container-page py-16">
         <EmptyState
           icon={ShoppingBag}
-          title="Your cart is empty"
-          description="Once you find something you like, it will show up here ready for checkout."
+          title={t("cart.emptyTitle")}
+          description={t("cart.emptyBody")}
           action={
             <Link to="/" className="btn-primary">
-              <ArrowLeft className="h-4 w-4" />
-              Continue shopping
+              <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
+              {t("common.continueShopping")}
             </Link>
           }
         />
@@ -160,19 +220,19 @@ export default function Cart() {
 
   const subtotal = total();
   const discount = appliedCoupon?.discountAmount ?? 0;
-  const grandTotal = Math.max(subtotal - discount, 0);
+  const grandTotal = Math.max(subtotal - discount, 0) + (shippingFee ?? 0);
   const itemCount = lines.reduce((n, l) => n + l.quantity, 0);
 
   return (
     <div className="container-page py-8 sm:py-12">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground">Your cart</h1>
+        <h1 className="text-3xl font-bold text-foreground">{t("cart.title")}</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          {itemCount} {itemCount === 1 ? "item" : "items"} ready for checkout
+          {tp("cart.ready", itemCount)}
         </p>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_400px] lg:items-start">
+      <div className="grid gap-8 lg:grid-cols-[1fr_420px] lg:items-start">
         {/* Line items -------------------------------------------- */}
         <div className="space-y-3">
           {lines.map(({ product, quantity }) => {
@@ -208,12 +268,12 @@ export default function Cart() {
                     {product.name}
                   </Link>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    {formatPrice(product.price)} each
+                    {t("cart.each", { price: formatPrice(product.price) })}
                   </p>
                   {issue && (
                     <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-warning">
                       <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-                      Only {issue.availableStock} left — quantity updated
+                      {t("cart.onlyLeftUpdated", { count: issue.availableStock })}
                     </p>
                   )}
                 </div>
@@ -224,7 +284,7 @@ export default function Cart() {
                       setQuantity(product.id, Math.max(1, quantity - 1))
                     }
                     className="icon-btn h-7 w-7 p-0"
-                    aria-label={`Decrease quantity of ${product.name}`}
+                    aria-label={t("product.decrease")}
                   >
                     <Minus className="h-3.5 w-3.5" />
                   </button>
@@ -234,20 +294,20 @@ export default function Cart() {
                   <button
                     onClick={() => setQuantity(product.id, quantity + 1)}
                     className="icon-btn h-7 w-7 p-0"
-                    aria-label={`Increase quantity of ${product.name}`}
+                    aria-label={t("product.increase")}
                   >
                     <Plus className="h-3.5 w-3.5" />
                   </button>
                 </div>
 
-                <p className="w-20 text-right font-serif text-lg font-bold text-foreground">
+                <p className="w-28 text-end font-serif text-lg font-bold text-foreground">
                   {formatPrice(Number(product.price) * quantity)}
                 </p>
 
                 <button
                   onClick={() => removeItem(product.id)}
                   className="icon-btn-danger"
-                  aria-label={`Remove ${product.name} from cart`}
+                  aria-label={t("cart.remove", { name: product.name })}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -259,22 +319,22 @@ export default function Cart() {
             to="/"
             className="inline-flex items-center gap-1.5 pt-2 text-sm font-medium text-muted-foreground transition-colors hover:text-accent"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Continue shopping
+            <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
+            {t("common.continueShopping")}
           </Link>
         </div>
 
-        {/* Summary ----------------------------------------------- */}
+        {/* Summary + checkout ------------------------------------ */}
         <div className="card sticky top-24 overflow-hidden">
           <div className="border-b border-border bg-secondary/40 px-6 py-4">
             <h2 className="font-serif text-lg font-bold text-foreground">
-              Order summary
+              {t("cart.summary")}
             </h2>
           </div>
 
           <div className="space-y-4 px-6 py-5">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal</span>
+              <span className="text-muted-foreground">{t("cart.subtotal")}</span>
               <span className="font-medium text-foreground">
                 {formatPrice(subtotal)}
               </span>
@@ -291,8 +351,8 @@ export default function Cart() {
                       setAppliedCoupon(null);
                       setCouponInput("");
                     }}
-                    className="ml-1 rounded-full p-0.5 opacity-70 transition-opacity hover:opacity-100"
-                    aria-label="Remove coupon"
+                    className="ms-1 rounded-full p-0.5 opacity-70 transition-opacity hover:opacity-100"
+                    aria-label={t("cart.removeCoupon")}
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -306,8 +366,8 @@ export default function Cart() {
                 <input
                   value={couponInput}
                   onChange={(e) => setCouponInput(e.target.value)}
-                  placeholder="Coupon code"
-                  aria-label="Coupon code"
+                  placeholder={t("cart.couponPlaceholder")}
+                  aria-label={t("cart.couponPlaceholder")}
                   className="input flex-1 font-mono uppercase"
                 />
                 <button
@@ -316,15 +376,26 @@ export default function Cart() {
                   disabled={!couponInput.trim() || couponMutation.isPending}
                   className="btn-outline"
                 >
-                  {couponMutation.isPending ? "Checking…" : "Apply"}
+                  {couponMutation.isPending ? t("cart.checking") : t("cart.apply")}
                 </button>
               </div>
             )}
 
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">{t("cart.delivery")}</span>
+              <span className="font-medium text-foreground">
+                {shippingFee == null
+                  ? t("cart.chooseWilaya")
+                  : shippingFee === 0
+                    ? t("common.free")
+                    : formatPrice(shippingFee)}
+              </span>
+            </div>
+
             <div className="divider" />
 
             <div className="flex items-baseline justify-between">
-              <span className="font-semibold text-foreground">Total</span>
+              <span className="font-semibold text-foreground">{t("cart.total")}</span>
               <span className="font-serif text-2xl font-bold text-foreground">
                 {formatPrice(grandTotal)}
               </span>
@@ -339,7 +410,7 @@ export default function Cart() {
               <>
                 <div>
                   <label htmlFor="guestName" className="label">
-                    Full name
+                    {t("cart.fullName")}
                   </label>
                   <input
                     id="guestName"
@@ -347,13 +418,14 @@ export default function Cart() {
                     value={guestName}
                     onChange={(e) => setGuestName(e.target.value)}
                     className="input"
-                    placeholder="Jane Doe"
+                    placeholder="Amina Benali"
+                    autoComplete="name"
                   />
                 </div>
 
                 <div>
                   <label htmlFor="guestEmail" className="label">
-                    Email
+                    {t("cart.email")}
                   </label>
                   <input
                     id="guestEmail"
@@ -363,50 +435,207 @@ export default function Cart() {
                     onChange={(e) => setGuestEmail(e.target.value)}
                     className="input"
                     placeholder="you@example.com"
+                    autoComplete="email"
                   />
                   <p className="field-hint">
-                    We'll send your order confirmation here.{" "}
+                    {t("cart.emailHint")}{" "}
                     <Link to="/login" className="link-accent">
-                      Sign in
+                      {t("cart.signInInstead")}
                     </Link>{" "}
-                    instead to track orders in your account.
+                    {t("cart.signInHint")}
                   </p>
                 </div>
               </>
             )}
 
             <div>
+              <label htmlFor="phone" className="label">
+                {t("cart.phone")}
+              </label>
+              <input
+                id="phone"
+                type="tel"
+                inputMode="tel"
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="input"
+                placeholder="0550 12 34 56"
+                autoComplete="tel"
+              />
+              <p className="field-hint">
+                {t("cart.phoneHint")}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="wilaya" className="label">
+                  {t("cart.wilaya")}
+                </label>
+                <select
+                  id="wilaya"
+                  required
+                  value={wilayaCode}
+                  onChange={(e) =>
+                    setWilayaCode(e.target.value ? Number(e.target.value) : "")
+                  }
+                  className="select"
+                >
+                  <option value="">{t("cart.choose")}</option>
+                  {zones?.map((z) => (
+                    <option key={z.code} value={z.code} disabled={!z.isActive}>
+                      {String(z.code).padStart(2, "0")} — {z.name}
+                      {!z.isActive ? ` ${t("cart.notDelivered")}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="commune" className="label">
+                  {t("cart.commune")}
+                </label>
+                <input
+                  id="commune"
+                  required
+                  value={commune}
+                  onChange={(e) => setCommune(e.target.value)}
+                  className="input"
+                  placeholder="Bab Ezzouar"
+                />
+              </div>
+            </div>
+
+            <div>
               <label htmlFor="address" className="label">
-                Shipping address
+                {t("cart.address")}
               </label>
               <textarea
                 id="address"
                 required
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                rows={3}
+                rows={2}
                 className="textarea"
-                placeholder="Street, city, postal code…"
+                placeholder={t("cart.addressPlaceholder")}
+                autoComplete="street-address"
               />
             </div>
+
+            {zone && (
+              <fieldset>
+                <legend className="label">{t("cart.deliveryLegend")}</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  <ChoiceCard
+                    selected={delivery === "home"}
+                    onSelect={() => setDeliveryType("home")}
+                    icon={Truck}
+                    title={t("cart.toDoor")}
+                    detail={zone.homePrice === 0 ? t("common.free") : formatPrice(zone.homePrice)}
+                  />
+                  <ChoiceCard
+                    selected={delivery === "desk"}
+                    onSelect={() => setDeliveryType("desk")}
+                    disabled={!deskAvailable}
+                    icon={Store}
+                    title={t("cart.stopDesk")}
+                    detail={
+                      deskAvailable
+                        ? zone.deskPrice === 0
+                          ? t("common.free")
+                          : formatPrice(zone.deskPrice!)
+                        : t("cart.notOffered")
+                    }
+                  />
+                </div>
+              </fieldset>
+            )}
+
+            <fieldset>
+              <legend className="label">{t("cart.payment")}</legend>
+              <div className="grid grid-cols-2 gap-2">
+                <ChoiceCard
+                  selected={method === "cod"}
+                  onSelect={() => setPaymentMethod("cod")}
+                  icon={Banknote}
+                  title={t("cart.cod")}
+                  detail={t("cart.codHint")}
+                />
+                <ChoiceCard
+                  selected={method === "card"}
+                  onSelect={() => setPaymentMethod("card")}
+                  disabled={!cardAvailable}
+                  icon={CreditCard}
+                  title={t("cart.online")}
+                  detail={cardAvailable ? "EDAHABIA / CIB" : t("cart.unavailable")}
+                />
+              </div>
+            </fieldset>
 
             <button
               type="submit"
               disabled={mutation.isPending}
               className="btn-primary btn-lg w-full"
             >
-              <Lock className="h-4 w-4" />
+              {method === "card" ? (
+                <Lock className="h-4 w-4" />
+              ) : (
+                <Banknote className="h-4 w-4" />
+              )}
               {mutation.isPending
-                ? "Redirecting to payment…"
-                : "Continue to payment"}
+                ? method === "card"
+                  ? t("cart.redirecting")
+                  : t("cart.placing")
+                : method === "card"
+                  ? t("cart.continueToPayment")
+                  : t("cart.placeOrder")}
             </button>
 
             <p className="text-center text-xs text-muted-foreground">
-              Payments are encrypted and processed securely.
+              {method === "card"
+                ? t("cart.redirectNote")
+                : t("cart.codNote", { amount: formatPrice(grandTotal) })}
             </p>
           </form>
         </div>
       </div>
     </div>
+  );
+}
+
+function ChoiceCard({
+  selected,
+  onSelect,
+  disabled,
+  icon: Icon,
+  title,
+  detail,
+}: {
+  selected: boolean;
+  onSelect: () => void;
+  disabled?: boolean;
+  icon: typeof Truck;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      disabled={disabled}
+      className={cn(
+        "flex flex-col items-start gap-1 rounded-lg border p-3 text-start transition-colors",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        selected
+          ? "border-accent bg-accent-soft"
+          : "border-border bg-card hover:border-accent/50",
+      )}
+    >
+      <Icon className={cn("h-4 w-4", selected ? "text-accent" : "text-muted-foreground")} />
+      <span className="text-sm font-semibold text-foreground">{title}</span>
+      <span className="text-xs text-muted-foreground">{detail}</span>
+    </button>
   );
 }

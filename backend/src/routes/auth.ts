@@ -1,5 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
@@ -28,15 +29,27 @@ import {
 } from "../services/passwordReset";
 import { sendPasswordResetEmail } from "../services/email";
 import { paginated, parsePagination } from "../utils/pagination";
+import { consumeVerificationToken, sendVerificationEmail } from "../services/emailVerification";
+import { inBackground } from "../services/notifications";
+import { audit } from "../services/audit";
+import { checkSecondFactor, loadWithTotp } from "./twoFactor";
 
 const router = Router();
 const userRepo = () => AppDataSource.getRepository(User);
 
-// `password` is select:false, but a user we just created/hashed in memory (or
-// explicitly selected for login) still carries it — strip it before responding.
-function toPublicUser({ password: _pw, ...user }: User) {
+// Secrets are select:false, but a user we just created in memory (or loaded
+// with them explicitly for login / 2FA) still carries them — strip before responding.
+function toPublicUser({
+  password: _pw,
+  totpSecret: _s,
+  totpRecoveryCodes: _r,
+  totpLastUsedStep: _l,
+  ...user
+}: User) {
   return user;
 }
+
+const challengeSecret = () => process.env.JWT_SECRET as string;
 
 const nameSchema = z
   .string()
@@ -93,6 +106,7 @@ router.post("/register", registerLimiter, async (req, res) => {
 
   await issueSession(res, user);
   res.status(201).json({ user: toPublicUser(user) });
+  inBackground(sendVerificationEmail(user), { userId: user.id });
 });
 
 router.post("/login", loginLimiter, async (req, res) => {
@@ -111,8 +125,68 @@ router.post("/login", loginLimiter, async (req, res) => {
   const match = await bcrypt.compare(password, user.password);
   if (!match) return res.status(401).json({ message: "Invalid credentials" });
 
+  // Two-factor accounts get a short-lived challenge instead of a session; the
+  // session is only issued by POST /login/2fa with a valid code.
+  if (user.totpEnabledAt) {
+    const challenge = jwt.sign({ sub: user.id, purpose: "2fa" }, challengeSecret(), {
+      expiresIn: "5m",
+    });
+    return res.json({ twoFactorRequired: true, challenge });
+  }
+
   await issueSession(res, user);
   res.json({ user: toPublicUser(user) });
+});
+
+const secondStepSchema = z.object({
+  challenge: z.string().min(1).max(2000),
+  code: z.string().trim().min(6).max(20),
+});
+
+router.post("/login/2fa", loginLimiter, async (req, res) => {
+  const parsed = secondStepSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: "Enter your code" });
+
+  let userId: string;
+  try {
+    const payload = jwt.verify(parsed.data.challenge, challengeSecret()) as {
+      sub?: string;
+      purpose?: string;
+    };
+    if (payload.purpose !== "2fa" || !payload.sub) throw new Error("wrong token");
+    userId = payload.sub;
+  } catch {
+    return res
+      .status(401)
+      .json({ message: "Your sign-in timed out — enter your password again" });
+  }
+
+  const user = await loadWithTotp(userId);
+  if (!user?.totpEnabledAt || !(await checkSecondFactor(user, parsed.data.code))) {
+    return res.status(401).json({ message: "That code didn't match" });
+  }
+
+  await issueSession(res, user);
+  res.json({ user: toPublicUser(user) });
+});
+
+const verifyEmailSchema = z.object({ token: z.string().regex(/^[a-f0-9]{64}$/) });
+
+router.post("/verify-email", resetPasswordLimiter, async (req, res) => {
+  const parsed = verifyEmailSchema.safeParse(req.body);
+  if (!parsed.success || !(await consumeVerificationToken(parsed.data.token))) {
+    return res
+      .status(400)
+      .json({ message: "This confirmation link is invalid or has expired" });
+  }
+  res.json({ message: "Email confirmed — thank you!" });
+});
+
+router.post("/resend-verification", forgotPasswordLimiter, requireAuth, async (req, res) => {
+  const user = await userRepo().findOneByOrFail({ id: req.user!.id });
+  if (user.emailVerifiedAt) return res.status(400).json({ message: "Your email is already confirmed" });
+  await sendVerificationEmail(user);
+  res.json({ message: "We've sent you a new confirmation link" });
 });
 
 router.post("/refresh", refreshLimiter, async (req, res) => {
@@ -245,6 +319,8 @@ const updateProfileSchema = z.object({
     .regex(/^[\d\s+()-]*$/, "Invalid phone number")
     .optional(),
   address: z.string().trim().max(500).optional(),
+  wilayaCode: z.number().int().min(1).max(99).nullable().optional(),
+  commune: z.string().trim().max(100).nullable().optional(),
 });
 
 router.patch("/me", requireAuth, async (req, res) => {
@@ -309,10 +385,16 @@ router.patch(
     const user = await repo.findOne({ where: { id: req.params.id } });
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    const previousRole = user.role;
     user.role = parsed.data.role;
     await repo.save(user);
 
     await revokeAllRefreshTokensForUser(user.id);
+    await audit(req, "user.role_change", "user", user.id, {
+      email: user.email,
+      from: previousRole,
+      to: user.role,
+    });
     res.json({ user });
   },
 );

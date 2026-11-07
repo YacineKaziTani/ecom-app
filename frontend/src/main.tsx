@@ -6,6 +6,7 @@ import { Toaster } from "react-hot-toast";
 import App from "./App";
 import { AuthProvider } from "./store/AuthContext";
 import { ThemeProvider } from "./store/ThemeContext";
+import { I18nProvider } from "./i18n/I18nProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { initMonitoring } from "./lib/monitoring";
 import "./index.css";
@@ -44,6 +45,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <ThemeProvider>
+            <I18nProvider>
             <AuthProvider>
               <App />
               <Toaster
@@ -68,6 +70,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 }}
               />
             </AuthProvider>
+            </I18nProvider>
           </ThemeProvider>
         </BrowserRouter>
       </QueryClientProvider>

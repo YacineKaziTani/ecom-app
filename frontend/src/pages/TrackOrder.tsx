@@ -1,22 +1,28 @@
 import { useState, FormEvent } from "react";
+import { useI18n } from "../i18n/I18nProvider";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { Link } from "react-router";
 import { useMutation } from "@tanstack/react-query";
-import { Search, Loader2, MapPin } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import { ordersApi } from "../api/orders";
 import { Order } from "../api/types";
 import {
   orderStatusBadge,
-  paymentStatusBadge,
+  paymentBadge,
+  paymentLabelKey,
   formatPrice,
   formatDate,
 } from "../lib/status";
 import { PageHeader } from "../components/ui/PageHeader";
+import { OrderTotals, DeliveryDetails, ShipmentList } from "../components/OrderTotals";
 import toast from "react-hot-toast";
 
 export default function TrackOrder() {
   const [orderId, setOrderId] = useState("");
   const [email, setEmail] = useState("");
   const [order, setOrder] = useState<Order | null>(null);
+  const { t } = useI18n();
+  useDocumentMeta(t("track.title"));
 
   const mutation = useMutation({
     mutationFn: () => ordersApi.track(orderId.trim(), email.trim()),
@@ -36,16 +42,16 @@ export default function TrackOrder() {
     <div>
       <PageHeader
         variant="hero"
-        eyebrow="Guest checkout"
-        title="Track your order"
-        description="Enter the order ID from your confirmation email along with the email you used at checkout."
+        eyebrow={t("track.eyebrow")}
+        title={t("track.title")}
+        description={t("track.subtitle")}
       />
 
       <div className="container-narrow max-w-xl py-10 sm:py-14">
         <form onSubmit={handleSubmit} className="card space-y-4 p-6">
           <div>
             <label htmlFor="orderId" className="label">
-              Order ID
+              {t("track.orderId")}
             </label>
             <input
               id="orderId"
@@ -59,7 +65,7 @@ export default function TrackOrder() {
 
           <div>
             <label htmlFor="email" className="label">
-              Email
+              {t("track.email")}
             </label>
             <input
               id="email"
@@ -82,7 +88,7 @@ export default function TrackOrder() {
             ) : (
               <Search className="h-4 w-4" />
             )}
-            {mutation.isPending ? "Looking up…" : "Find my order"}
+            {mutation.isPending ? t("track.lookingUp") : t("track.find")}
           </button>
         </form>
 
@@ -94,15 +100,15 @@ export default function TrackOrder() {
                   #{order.id.slice(0, 8)}
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Placed {formatDate(order.createdAt)}
+                  {t("order.placedOn", { date: formatDate(order.createdAt) })}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <span className={paymentStatusBadge[order.paymentStatus]}>
-                  {order.paymentStatus}
+                <span className={paymentBadge(order)}>
+                  {t(paymentLabelKey(order))}
                 </span>
                 <span className={orderStatusBadge[order.status]}>
-                  {order.status}
+                  {t(`status.${order.status}`)}
                 </span>
               </div>
             </header>
@@ -127,35 +133,19 @@ export default function TrackOrder() {
               ))}
             </div>
 
-            <div className="flex items-baseline justify-between border-t border-border px-5 py-4">
-              <span className="font-semibold text-foreground">Total</span>
-              <span className="font-serif text-xl font-bold tabular-nums text-foreground">
-                {formatPrice(order.total)}
-              </span>
-            </div>
+            <OrderTotals order={order} />
+            <ShipmentList order={order} />
 
-            {order.shippingAddress && (
-              <div className="flex items-start gap-2.5 border-t border-border bg-secondary/30 px-5 py-4">
-                <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Shipping to
-                  </p>
-                  <p className="mt-1 text-sm leading-relaxed text-foreground">
-                    {order.shippingAddress}
-                  </p>
-                </div>
-              </div>
-            )}
+            <DeliveryDetails order={order} />
           </article>
         )}
 
         <p className="mt-8 text-center text-sm text-muted-foreground">
-          Have an account?{" "}
+          {t("track.haveAccount")}{" "}
           <Link to="/login" className="link-accent">
-            Sign in
+            {t("nav.signIn")}
           </Link>{" "}
-          to see every order in one place.
+          {t("track.signInHint")}
         </p>
       </div>
     </div>

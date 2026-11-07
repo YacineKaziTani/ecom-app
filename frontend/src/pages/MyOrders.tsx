@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useI18n } from "../i18n/I18nProvider";
 import { Link } from "react-router";
 import { useQuery, useMutation, keepPreviousData } from "@tanstack/react-query";
 import { CreditCard, PackageOpen, ChevronRight } from "lucide-react";
@@ -6,7 +7,8 @@ import { ordersApi } from "../api/orders";
 import { paymentsApi } from "../api/payments";
 import {
   orderStatusBadge,
-  paymentStatusBadge,
+  paymentBadge,
+  paymentLabelKey,
   formatPrice,
   formatDate,
   formatTime,
@@ -15,10 +17,12 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
 import { CardListSkeleton } from "../components/ui/Skeleton";
 import { Pagination } from "../components/Pagination";
+import { OrderTotals, ShipmentList } from "../components/OrderTotals";
 import toast from "react-hot-toast";
 
 export default function MyOrders() {
   const [page, setPage] = useState(1);
+  const { t } = useI18n();
   const { data, isLoading } = useQuery({
     queryKey: ["orders", "mine", page],
     queryFn: () => ordersApi.list({ page, limit: 10 }),
@@ -38,9 +42,9 @@ export default function MyOrders() {
     <div>
       <PageHeader
         variant="hero"
-        eyebrow="Your account"
-        title="My orders"
-        description="Every order you've placed, with its current status and payment state."
+        eyebrow={t("orders.eyebrow")}
+        title={t("orders.title")}
+        description={t("orders.subtitle")}
       />
 
       <div className="container-narrow py-10 sm:py-14">
@@ -56,16 +60,16 @@ export default function MyOrders() {
                       #{order.id.slice(0, 8)}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      Placed {formatDate(order.createdAt)}
+                      {t("order.placedOn", { date: formatDate(order.createdAt) })}
                     </p>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    <span className={paymentStatusBadge[order.paymentStatus]}>
-                      {order.paymentStatus}
+                    <span className={paymentBadge(order)}>
+                      {t(paymentLabelKey(order))}
                     </span>
                     <span className={orderStatusBadge[order.status]}>
-                      {order.status}
+                      {t(`status.${order.status}`)}
                     </span>
                   </div>
                 </header>
@@ -90,35 +94,10 @@ export default function MyOrders() {
                   ))}
                 </div>
 
-                <div className="space-y-1.5 border-t border-border px-5 py-4">
-                  {order.discountAmount > 0 && (
-                    <>
-                      <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>Subtotal</span>
-                        <span className="tabular-nums">
-                          {formatPrice(order.subtotal)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm text-success">
-                        <span>
-                          Discount
-                          {order.couponCode ? ` (${order.couponCode})` : ""}
-                        </span>
-                        <span className="tabular-nums">
-                          −{formatPrice(order.discountAmount)}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                  <div className="flex items-baseline justify-between pt-1">
-                    <span className="font-semibold text-foreground">Total</span>
-                    <span className="font-serif text-xl font-bold tabular-nums text-foreground">
-                      {formatPrice(order.total)}
-                    </span>
-                  </div>
-                </div>
+                <OrderTotals order={order} />
+                <ShipmentList order={order} />
 
-                {order.paymentStatus !== "paid" && order.status !== "cancelled" && (
+                {order.paymentMethod === "card" && order.paymentStatus !== "paid" && order.status !== "cancelled" && (
                   <div className="border-t border-border bg-secondary/30 px-5 py-4">
                     <button
                       onClick={() => payMutation.mutate(order.id)}
@@ -126,12 +105,11 @@ export default function MyOrders() {
                       className="btn-primary w-full"
                     >
                       <CreditCard className="h-4 w-4" />
-                      {payMutation.isPending ? "Redirecting…" : "Pay now"}
+                      {payMutation.isPending ? t("order.redirecting") : t("order.payNow")}
                     </button>
                     {order.reservedUntil && (
                       <p className="mt-2 text-center text-xs text-muted-foreground">
-                        Items held until {formatTime(order.reservedUntil)} — unpaid
-                        orders are cancelled after that.
+                        {t("order.heldUntil", { time: formatTime(order.reservedUntil) })}
                       </p>
                     )}
                   </div>
@@ -151,12 +129,12 @@ export default function MyOrders() {
         ) : (
           <EmptyState
             icon={PackageOpen}
-            title="No orders yet"
-            description="When you place your first order it will appear here, along with its delivery status."
+            title={t("orders.emptyTitle")}
+            description={t("orders.emptyBody")}
             action={
               <Link to="/" className="btn-primary">
-                Start shopping
-                <ChevronRight className="h-4 w-4" />
+                {t("orders.start")}
+                <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
               </Link>
             }
           />

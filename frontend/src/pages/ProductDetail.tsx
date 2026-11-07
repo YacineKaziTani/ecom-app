@@ -1,4 +1,7 @@
 import { useParams, Link } from "react-router";
+import type { MessageKey } from "../i18n/messages";
+import { useI18n } from "../i18n/I18nProvider";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import {
@@ -19,24 +22,57 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 import { optimizedImage } from "../lib/images";
+import { WishlistButton } from "../components/WishlistButton";
+import { StarRating } from "../components/StarRating";
+import { ReviewsSection } from "../components/ReviewsSection";
 
 // Only promises the platform actually keeps.
-const guarantees = [
-  { icon: Store, label: "Independent makers", hint: "Shipped by the shop" },
-  { icon: ShieldCheck, label: "Secure payment", hint: "EDAHABIA & CIB" },
-  { icon: PackageSearch, label: "Order tracking", hint: "Check status anytime" },
+const guarantees: { icon: typeof Store; label: MessageKey; hint: MessageKey }[] = [
+  { icon: Store, label: "guarantee.makers", hint: "guarantee.makersHint" },
+  { icon: ShieldCheck, label: "guarantee.payment", hint: "guarantee.paymentHint" },
+  { icon: PackageSearch, label: "guarantee.tracking", hint: "guarantee.trackingHint" },
 ];
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const [qty, setQty] = useState(1);
+  const [activeImage, setActiveImage] = useState<string | null>(null);
   const { addItem } = useCart();
+  const { t, tp } = useI18n();
 
   const { data: product, isLoading } = useQuery({
     queryKey: ["product", id],
     queryFn: () => productsApi.get(id!),
     enabled: !!id,
   });
+
+  useDocumentMeta(
+    product?.name,
+    product?.description,
+    product && {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      name: product.name,
+      description: product.description,
+      image: [product.imageUrl, ...(product.galleryUrls ?? [])].filter(Boolean),
+      ...(product.shop ? { brand: { "@type": "Brand", name: product.shop.name } } : {}),
+      offers: {
+        "@type": "Offer",
+        price: Number(product.price).toFixed(2),
+        priceCurrency: "DZD",
+        availability: product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      },
+      ...((product.ratingCount ?? 0) > 0
+        ? {
+            aggregateRating: {
+              "@type": "AggregateRating",
+              ratingValue: Number(product.ratingAverage).toFixed(1),
+              reviewCount: product.ratingCount,
+            },
+          }
+        : {}),
+    },
+  );
 
   if (isLoading) {
     return (
@@ -62,11 +98,11 @@ export default function ProductDetail() {
       <div className="container-page py-16">
         <EmptyState
           icon={ImageOff}
-          title="Product not found"
-          description="This product may have been removed or is no longer available."
+          title={t("product.notFoundTitle")}
+          description={t("product.notFoundBody")}
           action={
             <Link to="/" className="btn-primary">
-              Back to shop
+              {t("common.backToShop")}
             </Link>
           }
         />
@@ -82,7 +118,7 @@ export default function ProductDetail() {
         to="/"
         className="mb-7 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-accent"
       >
-        <ArrowLeft className="h-4 w-4" /> Back to shop
+        <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" /> {t("common.backToShop")}
       </Link>
 
       <div className="grid gap-10 lg:grid-cols-2 lg:gap-14">
@@ -91,25 +127,49 @@ export default function ProductDetail() {
           <div className="relative aspect-square overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-secondary to-muted p-8 shadow-sm">
             {product.imageUrl ? (
               <img
-                src={optimizedImage(product.imageUrl, 1200)}
+                src={optimizedImage(activeImage ?? product.imageUrl, 1200)}
                 alt={product.name}
                 className="h-full w-full object-contain drop-shadow-lg transition-transform duration-700 hover:scale-105"
               />
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
                 <ImageOff className="h-9 w-9" />
-                <span className="text-sm">No image available</span>
+                <span className="text-sm">{t("product.noImage")}</span>
               </div>
             )}
 
             {soldOut && (
               <div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-[2px]">
                 <span className="rounded-full bg-foreground px-5 py-2 text-sm font-semibold text-background">
-                  Sold out
+                  {t("product.soldOut")}
                 </span>
               </div>
             )}
           </div>
+
+          {/* Thumbnails: the main photo plus the gallery */}
+          {product.imageUrl && (product.galleryUrls?.length ?? 0) > 0 && (
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {[product.imageUrl, ...(product.galleryUrls ?? [])].map((url) => {
+                const active = (activeImage ?? product.imageUrl) === url;
+                return (
+                  <button
+                    key={url}
+                    type="button"
+                    onClick={() => setActiveImage(url)}
+                    aria-label={t("product.showPhoto")}
+                    aria-pressed={active}
+                    className={cn(
+                      "h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border-2 bg-secondary transition-colors",
+                      active ? "border-accent" : "border-transparent hover:border-border",
+                    )}
+                  >
+                    <img src={optimizedImage(url, 128)} alt="" className="h-full w-full object-cover" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           <div className="mt-4 grid grid-cols-3 gap-3">
             {guarantees.map(({ icon: Icon, label, hint }) => (
@@ -119,10 +179,10 @@ export default function ProductDetail() {
               >
                 <Icon className="mx-auto h-4 w-4 text-accent" />
                 <p className="mt-1.5 text-xs font-semibold text-foreground">
-                  {label}
+                  {t(label)}
                 </p>
                 <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">
-                  {hint}
+                  {t(hint)}
                 </p>
               </div>
             ))}
@@ -135,9 +195,17 @@ export default function ProductDetail() {
             <span className="eyebrow">{product.category.name}</span>
           )}
 
-          <h1 className="mt-2 text-3xl font-bold leading-tight text-foreground sm:text-4xl">
-            {product.name}
-          </h1>
+          <div className="mt-2 flex items-start justify-between gap-3">
+            <h1 className="text-3xl font-bold leading-tight text-foreground sm:text-4xl">
+              {product.name}
+            </h1>
+            <WishlistButton productId={product.id} className="flex-shrink-0 border border-border" />
+          </div>
+          {(product.ratingCount ?? 0) > 0 && (
+            <div className="mt-2">
+              <StarRating value={Number(product.ratingAverage)} count={product.ratingCount} size="md" />
+            </div>
+          )}
 
           {product.shop && (
             <Link
@@ -184,10 +252,10 @@ export default function ProductDetail() {
               )}
             >
               {soldOut
-                ? "Out of stock"
+                ? t("product.outOfStock")
                 : product.stock <= 5
-                  ? `Only ${product.stock} left in stock`
-                  : `${product.stock} in stock`}
+                  ? t("product.onlyLeftInStock", { count: product.stock })
+                  : t("product.inStock", { count: product.stock })}
             </span>
           </div>
 
@@ -195,11 +263,11 @@ export default function ProductDetail() {
 
           <div className="prose-sm">
             <h2 className="font-sans text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Description
+              {t("product.description")}
             </h2>
             <p className="mt-2.5 leading-relaxed text-muted-foreground">
               {product.description ||
-                "No description has been provided for this product yet."}
+                t("product.noDescription")}
             </p>
           </div>
 
@@ -210,7 +278,7 @@ export default function ProductDetail() {
                 onClick={() => setQty((q) => Math.max(1, q - 1))}
                 disabled={qty <= 1}
                 className="icon-btn h-9 w-9"
-                aria-label="Decrease quantity"
+                aria-label={t("product.decrease")}
               >
                 <Minus className="h-4 w-4" />
               </button>
@@ -224,7 +292,7 @@ export default function ProductDetail() {
                 onClick={() => setQty((q) => Math.min(product.stock, q + 1))}
                 disabled={qty >= product.stock}
                 className="icon-btn h-9 w-9"
-                aria-label="Increase quantity"
+                aria-label={t("product.increase")}
               >
                 <Plus className="h-4 w-4" />
               </button>
@@ -233,19 +301,19 @@ export default function ProductDetail() {
             <button
               onClick={() => {
                 addItem(product, qty);
-                toast.success(`${product.name} added to cart`);
+                toast.success(t("product.added", { name: product.name }));
               }}
               disabled={soldOut}
               className="btn-primary btn-lg flex-1"
             >
               <ShoppingBag className="h-4 w-4" />
-              {soldOut ? "Out of stock" : "Add to cart"}
+              {soldOut ? t("product.outOfStock") : t("product.addToCart")}
             </button>
           </div>
 
           {!soldOut && (
-            <p className="mt-3 text-center text-xs text-muted-foreground sm:text-left">
-              Subtotal for {qty} {qty === 1 ? "item" : "items"}:{" "}
+            <p className="mt-3 text-center text-xs text-muted-foreground sm:text-start">
+              {tp("product.subtotalFor", qty)}{" "}
               <span className="font-semibold text-foreground">
                 {formatPrice(Number(product.price) * qty)}
               </span>
@@ -253,6 +321,8 @@ export default function ProductDetail() {
           )}
         </div>
       </div>
+
+      <ReviewsSection productId={product.id} />
     </div>
   );
 }

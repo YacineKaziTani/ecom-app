@@ -1,6 +1,6 @@
 /* CSS requires @import to precede every other rule, and "tailwindcss" expands
    into rules — so the font import goes first. */
-@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -13,8 +13,8 @@
  * through one of these so light and dark stay in lockstep.
  * ------------------------------------------------------------------ */
 @theme inline {
-  --font-serif: "Playfair Display", Georgia, serif;
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", "Tajawal", Georgia, serif;
+  --font-sans: "Inter", "Tajawal", ui-sans-serif, system-ui, sans-serif;
 
   --color-brand-50: #fbf8f1;
   --color-brand-100: #f5ecd8;
@@ -518,4 +518,10 @@
   .link-accent {
     @apply font-medium text-brand-600 underline-offset-4 transition-colors hover:underline dark:text-accent;
   }
+}
+
+/* Arabic is a connected script: letter-spacing pulls the letters apart, so
+   the tracking utilities used for Latin headings are switched off. */
+html[lang="ar"] body * {
+  letter-spacing: normal !important;
 }

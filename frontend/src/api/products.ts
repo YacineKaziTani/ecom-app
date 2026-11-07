@@ -18,6 +18,7 @@ export interface ProductInput {
   price: number;
   stock: number;
   imageUrl?: string; // "" removes the image
+  galleryUrls?: string[];
   categoryId?: string | null; // null removes the category
   shopId?: string; // only used/required when the caller is super_admin
 }

@@ -2,7 +2,7 @@ import crypto from "crypto";
 import request from "supertest";
 import { app } from "../src/app";
 import { initTestDb, closeTestDb, clearDatabase } from "./testDb";
-import { loginAs, createShop, createProduct, placeGuestOrder } from "./helpers";
+import { loginAs, createShop, createProduct, placeGuestOrder, DELIVERY } from "./helpers";
 import { AppDataSource } from "../src/config/data-source";
 import { Order } from "../src/entities/Order";
 import { Product } from "../src/entities/Product";
@@ -42,7 +42,7 @@ describe("POST /api/payments/create-checkout — access rules", () => {
     const product = await productWithStock(5);
     const { agent: owner } = await loginAs("customer");
     const order = await owner.post("/api/orders").send({
-      shippingAddress: "Constantine",
+      ...DELIVERY, shippingAddress: "Constantine",
       items: [{ productId: product.id, quantity: 1 }],
     });
     expect(order.status).toBe(201);

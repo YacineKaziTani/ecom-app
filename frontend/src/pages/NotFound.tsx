@@ -20,7 +20,7 @@ export default function NotFound() {
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link to="/" className="btn-primary">
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
             Back to shop
           </Link>
           <Link to="/shops" className="btn-outline">

@@ -23,11 +23,19 @@ async function main() {
   const existing = await repo.findOne({ where: { email } });
   if (existing) {
     existing.role = "super_admin";
+    existing.emailVerifiedAt ??= new Date();
     await repo.save(existing);
     console.log(`Existing user ${email} promoted to super_admin.`);
   } else {
     const hashed = await bcrypt.hash(password, 10);
-    const user = repo.create({ email, password: hashed, firstName, lastName, role: "super_admin" });
+    const user = repo.create({
+      email,
+      password: hashed,
+      firstName,
+      lastName,
+      role: "super_admin",
+      emailVerifiedAt: new Date(),
+    });
     await repo.save(user);
     console.log(`Created super_admin ${email}.`);
   }
