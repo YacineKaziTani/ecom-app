@@ -1,9 +1,13 @@
 // Storefront translations. `fr` and `ar` are typed against `en`, so a missing
 // key is a compile error. Plurals use `_one` / `_two` / `_few` / `_many` /
 // `_other` suffixes picked with Intl.PluralRules (Arabic needs all of them).
-// The admin dashboard is intentionally English-only.
+// The dashboard (dashboardMessages.ts) and account / seller pages
+// (pageMessages.ts) live in their own files and are merged in here.
 
-const en = {
+import { dashboardAr, dashboardEn, dashboardFr } from "./dashboardMessages";
+import { pagesAr, pagesEn, pagesFr } from "./pageMessages";
+
+const storefrontEn = {
   // common
   "common.loading": "Loading…",
   "common.backToShop": "Back to shop",
@@ -17,6 +21,7 @@ const en = {
   "status.shipped": "Shipped",
   "status.delivered": "Delivered",
   "status.cancelled": "Cancelled",
+  "status.returned": "Returned",
   "payment.unpaid": "Payment pending",
   "payment.paid": "Paid",
   "payment.failed": "Payment failed",
@@ -71,6 +76,9 @@ const en = {
   "home.inCategory": "in {category}",
   "home.matching": "matching “{search}”",
   "home.clearFilters": "Clear filters",
+  "home.minPrice": "Min DA",
+  "home.maxPrice": "Max DA",
+  "home.inStockOnly": "In stock",
   "home.emptyTitle": "No products found",
   "home.emptyFiltered": "Nothing matches those filters yet. Try a broader search or a different category.",
   "home.emptyAll": "There are no products in the shop right now — check back soon.",
@@ -78,6 +86,7 @@ const en = {
   "sort.priceAsc": "Price: low to high",
   "sort.priceDesc": "Price: high to low",
   "sort.nameAsc": "Name: A–Z",
+  "sort.ratingDesc": "Best rated",
 
   // product card / detail
   "product.noImage": "No image",
@@ -90,6 +99,13 @@ const en = {
   "product.outOfStock": "Out of stock",
   "product.inStock": "{count} in stock",
   "product.onlyLeftInStock": "Only {count} left in stock",
+  "product.option": "Option: {name}",
+  "product.chooseOption": "Choose an option",
+  "product.chooseOptions": "Choose options",
+  "product.chooseOptionsNamed": "Choose options for {name}",
+  "product.inStockOptions": "In stock — choose an option to see availability",
+  "product.related": "You may also like",
+  "product.recentlyViewed": "Recently viewed",
   "product.description": "Description",
   "product.noDescription": "No description has been provided for this product yet.",
   "product.notFoundTitle": "Product not found",
@@ -180,6 +196,16 @@ const en = {
   "cart.paymentStartFailed": "Order placed, but we couldn't start the payment step — you can retry from there.",
   "cart.chooseWilayaError": "Choose your wilaya",
   "cart.stockChanged": "Stock changed — we've updated your cart. Please review before retrying.",
+  "cart.chooseOption": "This product now comes in several options — choose one on its page.",
+  "cart.phoneCode": "Confirmation code",
+  "cart.sendCode": "Text me a code",
+  "cart.resendCode": "Send a new code",
+  "cart.codeSent": "Code sent to {phone}",
+  "cart.codeHint": "For pay-on-delivery orders over {amount}, we confirm your number with a 6-digit code sent by SMS.",
+  "cart.codeRequired": "Enter the code we texted you",
+  "cart.codeInvalid": "That code is wrong or has expired — ask for a new one",
+  "cart.codBlocked": "Pay on delivery isn't available for this number — please pay online.",
+  "cart.enterPhoneFirst": "Enter your mobile number first",
 
   // order views
   "order.subtotal": "Subtotal",
@@ -284,10 +310,14 @@ const en = {
   "pagination.next": "Next page",
 };
 
+const en = { ...storefrontEn, ...dashboardEn, ...pagesEn };
+
 export type MessageKey = keyof typeof en;
 type Messages = Record<MessageKey, string> & Record<string, string>;
 
 const fr: Messages = {
+  ...dashboardFr,
+  ...pagesFr,
   "common.loading": "Chargement…",
   "common.backToShop": "Retour à la boutique",
   "common.continueShopping": "Continuer mes achats",
@@ -299,6 +329,7 @@ const fr: Messages = {
   "status.shipped": "Expédiée",
   "status.delivered": "Livrée",
   "status.cancelled": "Annulée",
+  "status.returned": "Retournée",
   "payment.unpaid": "Paiement en attente",
   "payment.paid": "Payée",
   "payment.failed": "Paiement échoué",
@@ -350,6 +381,9 @@ const fr: Messages = {
   "home.inCategory": "dans {category}",
   "home.matching": "pour « {search} »",
   "home.clearFilters": "Effacer les filtres",
+  "home.minPrice": "Min DA",
+  "home.maxPrice": "Max DA",
+  "home.inStockOnly": "En stock",
   "home.emptyTitle": "Aucun produit trouvé",
   "home.emptyFiltered": "Rien ne correspond à ces filtres pour l'instant. Essayez une recherche plus large ou une autre catégorie.",
   "home.emptyAll": "Il n'y a aucun produit pour le moment — revenez bientôt.",
@@ -357,6 +391,7 @@ const fr: Messages = {
   "sort.priceAsc": "Prix croissant",
   "sort.priceDesc": "Prix décroissant",
   "sort.nameAsc": "Nom : A–Z",
+  "sort.ratingDesc": "Mieux notés",
 
   "product.noImage": "Pas d'image",
   "product.soldOut": "Épuisé",
@@ -368,6 +403,13 @@ const fr: Messages = {
   "product.outOfStock": "Rupture de stock",
   "product.inStock": "{count} en stock",
   "product.onlyLeftInStock": "Plus que {count} en stock",
+  "product.option": "Option : {name}",
+  "product.chooseOption": "Choisissez une option",
+  "product.chooseOptions": "Choisir les options",
+  "product.chooseOptionsNamed": "Choisir les options de {name}",
+  "product.inStockOptions": "En stock — choisissez une option pour voir la disponibilité",
+  "product.related": "Vous aimerez aussi",
+  "product.recentlyViewed": "Vus récemment",
   "product.description": "Description",
   "product.noDescription": "Aucune description n'a encore été ajoutée pour ce produit.",
   "product.notFoundTitle": "Produit introuvable",
@@ -455,6 +497,16 @@ const fr: Messages = {
   "cart.paymentStartFailed": "Commande passée, mais le paiement n'a pas pu démarrer — vous pourrez réessayer depuis la page de commande.",
   "cart.chooseWilayaError": "Choisissez votre wilaya",
   "cart.stockChanged": "Le stock a changé — votre panier a été mis à jour. Vérifiez-le avant de réessayer.",
+  "cart.chooseOption": "Ce produit existe maintenant en plusieurs options — choisissez-en une sur sa page.",
+  "cart.phoneCode": "Code de confirmation",
+  "cart.sendCode": "Recevoir un code par SMS",
+  "cart.resendCode": "Renvoyer un code",
+  "cart.codeSent": "Code envoyé au {phone}",
+  "cart.codeHint": "Pour les commandes payées à la livraison de plus de {amount}, nous confirmons votre numéro avec un code à 6 chiffres envoyé par SMS.",
+  "cart.codeRequired": "Saisissez le code reçu par SMS",
+  "cart.codeInvalid": "Ce code est incorrect ou a expiré — demandez-en un nouveau",
+  "cart.codBlocked": "Le paiement à la livraison n'est pas disponible pour ce numéro — veuillez payer en ligne.",
+  "cart.enterPhoneFirst": "Saisissez d'abord votre numéro de mobile",
 
   "order.subtotal": "Sous-total",
   "order.discount": "Remise",
@@ -555,6 +607,8 @@ const fr: Messages = {
 };
 
 const ar: Messages = {
+  ...dashboardAr,
+  ...pagesAr,
   "common.loading": "جارٍ التحميل…",
   "common.backToShop": "العودة إلى المتجر",
   "common.continueShopping": "متابعة التسوق",
@@ -566,6 +620,7 @@ const ar: Messages = {
   "status.shipped": "تم الشحن",
   "status.delivered": "تم التسليم",
   "status.cancelled": "ملغاة",
+  "status.returned": "مرتجعة",
   "payment.unpaid": "بانتظار الدفع",
   "payment.paid": "مدفوعة",
   "payment.failed": "فشل الدفع",
@@ -625,6 +680,9 @@ const ar: Messages = {
   "home.inCategory": "في {category}",
   "home.matching": "تطابق «{search}»",
   "home.clearFilters": "مسح الفلاتر",
+  "home.minPrice": "الأدنى دج",
+  "home.maxPrice": "الأقصى دج",
+  "home.inStockOnly": "متوفر",
   "home.emptyTitle": "لم يتم العثور على منتجات",
   "home.emptyFiltered": "لا شيء يطابق هذه الفلاتر حالياً. جرّب بحثاً أوسع أو فئة أخرى.",
   "home.emptyAll": "لا توجد منتجات في المتجر حالياً — عُد قريباً.",
@@ -632,6 +690,7 @@ const ar: Messages = {
   "sort.priceAsc": "السعر: من الأقل إلى الأعلى",
   "sort.priceDesc": "السعر: من الأعلى إلى الأقل",
   "sort.nameAsc": "الاسم: أ–ي",
+  "sort.ratingDesc": "الأعلى تقييمًا",
 
   "product.noImage": "لا توجد صورة",
   "product.soldOut": "نفدت الكمية",
@@ -643,6 +702,13 @@ const ar: Messages = {
   "product.outOfStock": "غير متوفر",
   "product.inStock": "{count} متوفر",
   "product.onlyLeftInStock": "بقي {count} فقط في المخزون",
+  "product.option": "الخيار: {name}",
+  "product.chooseOption": "اختر خيارًا",
+  "product.chooseOptions": "اختيار الخيارات",
+  "product.chooseOptionsNamed": "اختيار خيارات {name}",
+  "product.inStockOptions": "متوفر — اختر خيارًا لمعرفة الكمية المتاحة",
+  "product.related": "قد يعجبك أيضًا",
+  "product.recentlyViewed": "شوهدت مؤخرًا",
   "product.description": "الوصف",
   "product.noDescription": "لم يُضف وصف لهذا المنتج بعد.",
   "product.notFoundTitle": "المنتج غير موجود",
@@ -736,6 +802,16 @@ const ar: Messages = {
   "cart.paymentStartFailed": "تم تسجيل الطلب، لكن تعذّر بدء الدفع — يمكنك إعادة المحاولة من صفحة الطلب.",
   "cart.chooseWilayaError": "اختر ولايتك",
   "cart.stockChanged": "تغيّر المخزون — حدّثنا سلتك. راجعها قبل إعادة المحاولة.",
+  "cart.chooseOption": "أصبح لهذا المنتج عدة خيارات — اختر أحدها من صفحته.",
+  "cart.phoneCode": "رمز التأكيد",
+  "cart.sendCode": "أرسل لي رمزاً عبر SMS",
+  "cart.resendCode": "إرسال رمز جديد",
+  "cart.codeSent": "أُرسل الرمز إلى {phone}",
+  "cart.codeHint": "للطلبات المدفوعة عند الاستلام التي تتجاوز {amount}، نؤكد رقمك برمز من 6 أرقام يُرسل عبر SMS.",
+  "cart.codeRequired": "أدخل الرمز الذي أرسلناه إليك",
+  "cart.codeInvalid": "الرمز خاطئ أو منتهي الصلاحية — اطلب رمزاً جديداً",
+  "cart.codBlocked": "الدفع عند الاستلام غير متاح لهذا الرقم — يرجى الدفع عبر الإنترنت.",
+  "cart.enterPhoneFirst": "أدخل رقم هاتفك المحمول أولاً",
 
   "order.subtotal": "المجموع الفرعي",
   "order.discount": "الخصم",

@@ -9,7 +9,7 @@ const TTL_MS = 24 * 60 * 60 * 1000;
 const hash = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
 
 // Replaces any earlier link, then emails a fresh one.
-export async function sendVerificationEmail(user: Pick<User, "id" | "email" | "firstName">) {
+export async function sendVerificationEmail(user: Pick<User, "id" | "email" | "firstName" | "locale">) {
   const repo = AppDataSource.getRepository(EmailVerificationToken);
   await repo.delete({ userId: user.id });
   const raw = crypto.randomBytes(32).toString("hex");
@@ -17,7 +17,7 @@ export async function sendVerificationEmail(user: Pick<User, "id" | "email" | "f
     repo.create({ userId: user.id, tokenHash: hash(raw), expiresAt: new Date(Date.now() + TTL_MS) }),
   );
   const link = `${process.env.CLIENT_URL || "http://localhost:5173"}/verify-email?token=${raw}`;
-  return mailer.sendEmail("verify-email", user.email, verifyEmailEmail(user.firstName, link));
+  return mailer.sendEmail("verify-email", user.email, verifyEmailEmail(user.firstName, link, user.locale));
 }
 
 // Marks the account verified if the token is valid; single use.

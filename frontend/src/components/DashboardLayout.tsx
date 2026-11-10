@@ -20,16 +20,20 @@ import {
   Wallet,
   UserPlus,
   History,
+  Ban,
 } from "lucide-react";
 import { useAuth } from "../store/AuthContext";
 import { useTheme } from "../store/ThemeContext";
+import { LANGUAGES } from "../i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { PageLoader } from "./ui/PageLoader";
+import { useI18n } from "../i18n/I18nProvider";
 
 export function DashboardLayout() {
   const { isSuperAdmin, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { t, lang, setLang } = useI18n();
   const { pathname } = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -38,19 +42,20 @@ export function DashboardLayout() {
   }, [pathname]);
 
   const navItems = [
-    { to: "/dashboard", label: "Overview", icon: LayoutGrid, end: true, show: true },
-    { to: "/dashboard/analytics", label: "Analytics", icon: BarChart3, show: true },
-    { to: "/dashboard/my-shop", label: "My Shop", icon: Store, show: !isSuperAdmin },
-    { to: "/dashboard/products", label: "Products", icon: Package, show: true },
-    { to: "/dashboard/categories", label: "Categories", icon: Tags, show: isSuperAdmin },
-    { to: "/dashboard/orders", label: "Orders", icon: ClipboardList, show: true },
-    { to: "/dashboard/coupons", label: "Coupons", icon: Tag, show: true },
-    { to: "/dashboard/payouts", label: "Payouts", icon: Wallet, show: true },
-    { to: "/dashboard/users", label: "Users", icon: Users, show: isSuperAdmin },
-    { to: "/dashboard/shipping", label: "Shipping", icon: Truck, show: isSuperAdmin },
-    { to: "/dashboard/applications", label: "Applications", icon: UserPlus, show: isSuperAdmin },
-    { to: "/dashboard/activity", label: "Activity", icon: History, show: isSuperAdmin },
-    { to: "/dashboard/profile", label: "Profile", icon: UserIcon, show: true },
+    { to: "/dashboard", label: t("dash.nav.overview"), icon: LayoutGrid, end: true, show: true },
+    { to: "/dashboard/analytics", label: t("dash.nav.analytics"), icon: BarChart3, show: true },
+    { to: "/dashboard/my-shop", label: t("dash.nav.myShop"), icon: Store, show: !isSuperAdmin },
+    { to: "/dashboard/products", label: t("dash.nav.products"), icon: Package, show: true },
+    { to: "/dashboard/categories", label: t("dash.nav.categories"), icon: Tags, show: isSuperAdmin },
+    { to: "/dashboard/orders", label: t("dash.nav.orders"), icon: ClipboardList, show: true },
+    { to: "/dashboard/coupons", label: t("dash.nav.coupons"), icon: Tag, show: true },
+    { to: "/dashboard/payouts", label: t("dash.nav.payouts"), icon: Wallet, show: true },
+    { to: "/dashboard/users", label: t("dash.nav.users"), icon: Users, show: isSuperAdmin },
+    { to: "/dashboard/shipping", label: t("dash.nav.shipping"), icon: Truck, show: isSuperAdmin },
+    { to: "/dashboard/applications", label: t("dash.nav.applications"), icon: UserPlus, show: isSuperAdmin },
+    { to: "/dashboard/blocked-numbers", label: t("dash.nav.blocked"), icon: Ban, show: isSuperAdmin },
+    { to: "/dashboard/activity", label: t("dash.nav.activity"), icon: History, show: isSuperAdmin },
+    { to: "/dashboard/profile", label: t("dash.nav.profile"), icon: UserIcon, show: true },
   ].filter((item) => item.show);
 
   const sidebar = (
@@ -67,7 +72,7 @@ export function DashboardLayout() {
         <button
           onClick={() => setSidebarOpen(false)}
           className="icon-btn lg:hidden"
-          aria-label="Close sidebar"
+          aria-label={t("dash.nav.closeSidebar")}
         >
           <X className="h-5 w-5" />
         </button>
@@ -84,7 +89,7 @@ export function DashboardLayout() {
               {user?.firstName} {user?.lastName}
             </p>
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {isSuperAdmin ? "Super admin" : "Shop admin"}
+              {t(isSuperAdmin ? "role.super_admin" : "role.admin")}
             </p>
           </div>
         </div>
@@ -109,7 +114,7 @@ export function DashboardLayout() {
               <>
                 <span
                   className={cn(
-                    "absolute left-0 h-5 w-1 rounded-r-full bg-accent transition-all duration-200",
+                    "absolute start-0 h-5 w-1 rounded-e-full bg-accent transition-all duration-200",
                     isActive ? "opacity-100" : "opacity-0",
                   )}
                 />
@@ -137,24 +142,41 @@ export function DashboardLayout() {
           ) : (
             <Moon className="h-4.5 w-4.5" />
           )}
-          {theme === "dark" ? "Light mode" : "Dark mode"}
+          {theme === "dark" ? t("dash.nav.lightMode") : t("dash.nav.darkMode")}
         </button>
         <Link
           to="/"
           className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
                      text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
-          <ArrowLeft className="h-4.5 w-4.5" />
-          Back to shop
+          <ArrowLeft className="h-4.5 w-4.5 rtl:-scale-x-100" />
+          {t("dash.nav.backToShop")}
         </Link>
+        <div className="flex gap-1 px-3 pt-1" role="group" aria-label={t("dash.nav.language")}>
+          {LANGUAGES.map((l) => (
+            <button
+              key={l.code}
+              type="button"
+              onClick={() => setLang(l.code)}
+              aria-pressed={lang === l.code}
+              lang={l.code}
+              className={cn(
+                "flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition-colors",
+                lang === l.code ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/60",
+              )}
+            >
+              {l.short}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-background" dir="ltr" lang="en">
+    <div className="min-h-screen bg-background">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-sidebar-border lg:block">
+      <aside className="fixed inset-y-0 start-0 z-40 hidden w-64 border-e border-sidebar-border lg:block">
         {sidebar}
       </aside>
 
@@ -165,19 +187,19 @@ export function DashboardLayout() {
             className="absolute inset-0 bg-foreground/40 backdrop-blur-sm animate-fade-in"
             onClick={() => setSidebarOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 w-72 border-r border-sidebar-border shadow-xl animate-fade-in">
+          <aside className="absolute inset-y-0 start-0 w-72 border-e border-sidebar-border shadow-xl animate-fade-in">
             {sidebar}
           </aside>
         </div>
       )}
 
-      <div className="lg:pl-64">
+      <div className="lg:ps-64">
         {/* Mobile top bar */}
         <div className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-card/85 px-4 backdrop-blur-xl lg:hidden">
           <button
             onClick={() => setSidebarOpen(true)}
             className="icon-btn"
-            aria-label="Open sidebar"
+            aria-label={t("dash.nav.openSidebar")}
           >
             <Menu className="h-5 w-5" />
           </button>

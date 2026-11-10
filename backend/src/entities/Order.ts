@@ -9,16 +9,28 @@ import {
   JoinColumn,
   Index,
 } from "typeorm";
+import type { Locale } from "../emails/i18n";
 import { User } from "./User";
 import { OrderItem } from "./OrderItem";
 import { Shipment } from "./Shipment";
+import { OrderCall } from "./OrderCall";
 
 export type OrderStatus =
   | "pending"
   | "processing"
   | "shipped"
   | "delivered"
-  | "cancelled";
+  | "cancelled"
+  // The parcel came back: refused at the door, unreachable customer, or
+  // returned after delivery. Restocks like a cancellation.
+  | "returned";
+
+// Statuses where the sale didn't happen: stock is back on the shelf and the
+// order counts toward neither revenue nor payouts.
+export const CLOSED_STATUSES: readonly OrderStatus[] = ["cancelled", "returned"];
+// SQL predicate for "this sale counts" (paid, not closed) — revenue, payouts,
+// analytics, verified-buyer reviews. Expects the orders table aliased as `o`.
+export const COUNTED_SALE_SQL = `o."paymentStatus" = 'paid' AND o.status NOT IN (${CLOSED_STATUSES.map((s) => `'${s}'`).join(", ")})`;
 export type PaymentStatus = "unpaid" | "paid" | "failed";
 // card = online via Chargily; cod = cash paid to the courier on delivery.
 export type PaymentMethod = "card" | "cod";
@@ -55,6 +67,25 @@ export class Order {
 
   @Column({ type: "varchar", default: "unpaid" })
   paymentStatus!: PaymentStatus;
+
+  // Pay-on-delivery confirmation by phone (see OrderCall).
+  @Column({ type: "timestamptz", nullable: true })
+  confirmedAt?: Date | null;
+
+  // Unanswered confirmation calls so far.
+  @Column({ type: "int", default: 0 })
+  callAttempts!: number;
+
+  // Set when the order is marked "returned".
+  @Column({ type: "timestamptz", nullable: true })
+  returnedAt?: Date | null;
+
+  @Column({ type: "varchar", nullable: true })
+  returnReason?: string | null;
+
+  // What the courier charged to bring the parcel back (for reporting).
+  @Column({ type: "decimal", precision: 10, scale: 2, default: 0 })
+  returnCost!: number;
 
   @Column({ type: "varchar", default: "card" })
   paymentMethod!: PaymentMethod;
@@ -113,8 +144,19 @@ export class Order {
   @OneToMany(() => Shipment, (shipment) => shipment.order)
   shipments?: Shipment[];
 
+  @OneToMany(() => OrderCall, (call) => call.order)
+  calls?: OrderCall[];
+
   @Column({ nullable: true, unique: true })
   idempotencyKey?: string;
+
+  // Language the customer ordered in; every email about this order uses it.
+  @Column({ type: "varchar", length: 2, default: "en" })
+  locale!: Locale;
+
+  // "customer" when the customer cancelled it themselves (before it shipped).
+  @Column({ type: "varchar", nullable: true })
+  cancelledBy?: "customer" | null;
 
   // An unpaid order holds its stock only until this moment; after that the
   // expiry job (services/orderLifecycle.ts) cancels it and releases the stock.

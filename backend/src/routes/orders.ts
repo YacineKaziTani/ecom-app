@@ -3,8 +3,12 @@ import { z } from "zod";
 import { FindOptionsWhere } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { logger } from "../config/logger";
-import { Order, OrderStatus } from "../entities/Order";
+import { CLOSED_STATUSES, COUNTED_SALE_SQL, Order, OrderStatus } from "../entities/Order";
 import { OrderItem } from "../entities/OrderItem";
+import { CallOutcome, OrderCall } from "../entities/OrderCall";
+import { isPhoneBlocked, riskByPhone } from "../services/customerRisk";
+import { codOtpMinTotal } from "../services/sms";
+import { consumePhoneCode, verifyPhoneCode } from "../services/phoneVerification";
 import {
   requireAuth,
   requireAnyAdmin,
@@ -13,17 +17,20 @@ import {
 } from "../middleware/auth";
 import { validateUuidParam } from "../middleware/validateUuid";
 import { addressSchema, algerianPhoneSchema } from "../utils/validators";
+import type { CancelReason } from "../emails/orderEmails";
+import { requestLocale } from "../utils/locale";
 import { availablePaymentMethods, quoteShipping } from "../services/shipping";
 import { HttpError, StockIssue, stockConflict } from "../utils/httpError";
+import { applyStockChanges, LowStockAlert, lockStock, mergeLines, unitPrice } from "../services/inventory";
 import { paginated, parsePagination } from "../utils/pagination";
 import * as notifications from "../services/notifications";
 import { audit } from "../services/audit";
 import { createShipments, rollUpStatus, shipmentsOf } from "../services/fulfilment";
 import { commissionPercent } from "../services/payouts";
 import { applyCouponWithLock } from "../services/coupons";
+import { expireChargilyCheckout } from "../services/chargily";
 import {
   loadOrderForUpdate,
-  lockProducts,
   reservationDeadline,
   setOrderStatus,
 } from "../services/orderLifecycle";
@@ -38,8 +45,16 @@ const ORDER_STATUSES = [
   "shipped",
   "delivered",
   "cancelled",
+  "returned",
 ] as const;
 const statusFilterSchema = z.enum(ORDER_STATUSES).optional();
+
+// Admins see each customer's delivery history (orders / delivered / returned /
+// refused, blocked or not) next to the order, to spot risky COD orders.
+async function withCustomerRisk<T extends Pick<Order, "phone">>(orders: T[]) {
+  const risk = await riskByPhone(orders.map((o) => o.phone));
+  return orders.map((o) => ({ ...o, customerRisk: (o.phone && risk.get(o.phone)) || null }));
+}
 
 // Paginated order list, scoped by role:
 //   customer    → their own orders
@@ -71,7 +86,7 @@ router.get("/", requireAuth, attachShop, async (req, res) => {
       .take(pageParams.limit);
     if (status.data) qb.andWhere("order.status = :status", { status: status.data });
     const [items, total] = await qb.getManyAndCount();
-    return res.json(paginated(items, total, pageParams));
+    return res.json(paginated(await withCustomerRisk(items), total, pageParams));
   }
 
   const where: FindOptionsWhere<Order> = {};
@@ -85,7 +100,8 @@ router.get("/", requireAuth, attachShop, async (req, res) => {
     skip: pageParams.skip,
     take: pageParams.limit,
   });
-  res.json(paginated(items, total, pageParams));
+  const body = role === "customer" ? items : await withCustomerRisk(items);
+  res.json(paginated(body, total, pageParams));
 });
 
 // Dashboard headline numbers, computed in SQL so the overview never has to
@@ -97,7 +113,7 @@ router.get(
   requireAnyAdmin,
   attachShop,
   async (req, res) => {
-    const paidRevenue = `o."paymentStatus" = 'paid' AND o.status <> 'cancelled'`;
+    const paidRevenue = COUNTED_SALE_SQL;
     const [row] =
       req.user!.role === "super_admin"
         ? await AppDataSource.query(
@@ -132,26 +148,30 @@ router.get(
   async (req, res) => {
     const order = await orderRepo().findOne({
       where: { id: req.params.id },
-      relations: ["items", "user", "shipments", "shipments.shop"],
+      relations: ["items", "user", "shipments", "shipments.shop", "calls"],
+      order: { calls: { createdAt: "DESC" } },
     });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     const role = req.user!.role;
-    if (role === "customer" && order.userId !== req.user!.id) {
-      return res.status(403).json({ message: "Forbidden" });
+    if (role === "customer") {
+      if (order.userId !== req.user!.id) return res.status(403).json({ message: "Forbidden" });
+      const { calls: _internal, ...forCustomer } = order; // call notes are staff-only
+      return res.json(forCustomer);
     }
+
+    let view: Order = order;
     if (role === "admin") {
       const myItems = order.items.filter((i) => i.shopId === req.shopId);
       if (myItems.length === 0)
         return res.status(403).json({ message: "Forbidden" });
-      return res.json({
-        ...order,
+      view = Object.assign(new Order(), order, {
         items: myItems,
         shipments: order.shipments?.filter((s) => s.shopId === req.shopId),
       });
     }
-
-    res.json(order);
+    const [withHistory] = await withCustomerRisk([view]);
+    res.json(withHistory);
   },
 );
 
@@ -162,6 +182,8 @@ const createOrderSchema = z.object({
   wilayaCode: z.number().int().min(1).max(99),
   commune: z.string().trim().min(1).max(100),
   deliveryType: z.enum(["home", "desk"]).default("home"),
+  // SMS code, when large pay-on-delivery orders require one (services/sms.ts).
+  phoneCode: z.string().trim().regex(/^\d{6}$/).optional(),
   shippingAddress: addressSchema,
   guestEmail: z.string().trim().toLowerCase().email().max(254).optional(), // required if not logged in
   guestName: z.string().trim().min(1).max(80).optional(), // used to personalize the confirmation email
@@ -170,6 +192,8 @@ const createOrderSchema = z.object({
     .array(
       z.object({
         productId: z.string().uuid(),
+        // Required when the product has options (size, colour...).
+        variantId: z.string().uuid().nullish(),
         quantity: z.number().int().positive().max(1000),
       }),
     )
@@ -194,6 +218,7 @@ router.post("/", optionalAuth, async (req, res) => {
     wilayaCode,
     commune,
     deliveryType,
+    phoneCode,
   } = parsed.data;
   const userId = req.user?.id;
 
@@ -203,18 +228,34 @@ router.post("/", optionalAuth, async (req, res) => {
       .json({ message: "Online payment isn't available — choose pay on delivery" });
   }
 
+  if (paymentMethod === "cod" && (await isPhoneBlocked(phone))) {
+    return res.status(400).json({
+      code: "COD_BLOCKED",
+      message: "Pay on delivery isn't available for this phone number — please pay online or contact us.",
+    });
+  }
+
+  // Checked before the order transaction so wrong guesses are counted even
+  // when the checkout then fails.
+  let verifiedCodeId: string | null = null;
+  if (phoneCode) {
+    verifiedCodeId = await verifyPhoneCode(phone, phoneCode);
+    if (!verifiedCodeId) {
+      return res.status(400).json({
+        code: "PHONE_CODE_INVALID",
+        message: "That code is wrong or has expired — ask for a new one",
+      });
+    }
+  }
+  const otpMinTotal = paymentMethod === "cod" ? codOtpMinTotal() : null;
+
   if (!userId && !guestEmail) {
     return res
       .status(400)
       .json({ message: "An email is required to check out as a guest" });
   }
 
-  // The same product listed twice must be checked against stock as one line,
-  // otherwise each line passes the check on its own and stock goes negative.
-  const quantities = new Map<string, number>();
-  for (const { productId, quantity } of parsed.data.items) {
-    quantities.set(productId, (quantities.get(productId) ?? 0) + quantity);
-  }
+  const lines = mergeLines(parsed.data.items);
 
   // Optional client-supplied key so a retried request (network timeout, a
   // double-click that slipped past the disabled button, etc.) returns the
@@ -230,23 +271,23 @@ router.post("/", optionalAuth, async (req, res) => {
   }
 
   let order: Order;
+  let lowStock: LowStockAlert[] = [];
   try {
     order = await AppDataSource.transaction(async (manager) => {
       const shipping = await quoteShipping(manager, wilayaCode, deliveryType);
-      const products = await lockProducts(manager, [...quantities.keys()]);
+      const stock = await lockStock(manager, lines.map((l) => l.productId));
 
       // Validate every line before touching anything.
       const issues: StockIssue[] = [];
-      for (const [productId, quantity] of quantities) {
-        const product = products.get(productId);
-        if (!product || product.stock < quantity) {
-          issues.push({
-            productId,
-            productName: product?.name,
-            availableStock: product?.stock ?? 0,
-            requestedQuantity: quantity,
+      for (const line of lines) {
+        const product = stock.products.get(line.productId);
+        if (product && !line.variantId && stock.hasVariants(product.id)) {
+          throw new HttpError(400, `Choose an option for ${product.name}`, {
+            code: "VARIANT_REQUIRED",
+            productId: product.id,
           });
         }
+        if (stock.available(line) < line.quantity) issues.push(stock.issue(line));
       }
       if (issues.length > 0) {
         throw stockConflict(
@@ -257,21 +298,27 @@ router.post("/", optionalAuth, async (req, res) => {
 
       const orderItems: OrderItem[] = [];
       let subtotal = 0;
-      for (const [productId, quantity] of quantities) {
-        const product = products.get(productId)!;
+      for (const line of lines) {
+        const product = stock.products.get(line.productId)!;
+        const variant = line.variantId ? stock.variant(product.id, line.variantId)! : null;
+        const price = unitPrice(product, variant);
         const orderItem = new OrderItem();
         orderItem.productId = product.id;
         orderItem.shopId = product.shopId;
         orderItem.productName = product.name;
-        orderItem.price = product.price;
-        orderItem.quantity = quantity;
+        orderItem.variantId = variant?.id ?? null;
+        orderItem.variantName = variant?.name ?? null;
+        orderItem.price = price;
+        orderItem.quantity = line.quantity;
         orderItem.commissionRate = commissionPercent();
         orderItems.push(orderItem);
-        subtotal += Number(product.price) * quantity;
-
-        product.stock -= quantity;
-        await manager.save(product);
+        subtotal += price * line.quantity;
       }
+      lowStock = await applyStockChanges(
+        manager,
+        stock,
+        lines.map((l) => ({ ...l, delta: -l.quantity })),
+      );
 
       let discountAmount = 0;
       let appliedCouponCode: string | undefined;
@@ -286,6 +333,16 @@ router.post("/", optionalAuth, async (req, res) => {
         discountAmount = result.discountAmount;
         appliedCouponCode = result.coupon.code;
         couponShopId = result.coupon.shopId ?? null;
+      }
+
+      const total = subtotal - discountAmount + shipping.fee;
+      if (otpMinTotal !== null && total >= otpMinTotal) {
+        if (!verifiedCodeId) {
+          throw new HttpError(400, "Confirm your phone number with the code we text you", {
+            code: "PHONE_CODE_REQUIRED",
+          });
+        }
+        await consumePhoneCode(manager, verifiedCodeId);
       }
 
       const newOrder = manager.getRepository(Order).create({
@@ -304,13 +361,14 @@ router.post("/", optionalAuth, async (req, res) => {
         couponCode: appliedCouponCode,
         couponShopId,
         shippingFee: shipping.fee,
-        total: subtotal - discountAmount + shipping.fee,
+        total,
         status: "pending",
         // Card orders hold stock only until this deadline unless paid; pay-on-
         // delivery orders hold it until an admin confirms or cancels them.
         reservedUntil: paymentMethod === "card" ? reservationDeadline() : null,
         items: orderItems,
         idempotencyKey,
+        locale: requestLocale(req),
       });
       const saved = await manager.getRepository(Order).save(newOrder);
       // Each shop fulfils (and tracks) its own part of the order.
@@ -337,6 +395,11 @@ router.post("/", optionalAuth, async (req, res) => {
   notifications.inBackground(notifications.notifyOrderPlaced(order.id), {
     orderId: order.id,
   });
+  if (lowStock.length > 0) {
+    notifications.inBackground(notifications.notifyLowStock(lowStock), {
+      orderId: order.id,
+    });
+  }
 });
 
 // Public guest lookup: order id + the email used at checkout. Registered
@@ -363,7 +426,66 @@ router.get("/track/:id", validateUuidParam(), async (req, res) => {
   res.json(order);
 });
 
-const statusSchema = z.object({ status: z.enum(ORDER_STATUSES) });
+// Guests prove the order is theirs with the email used at checkout.
+const cancelSchema = z.object({ email: z.string().trim().max(254).optional() });
+const CANCELLABLE: OrderStatus[] = ["pending", "processing"];
+
+// A customer cancels their own order while nothing has shipped yet; stock and
+// coupon use are released. An order already paid online needs a refund, so
+// those go through the shop team instead.
+router.post("/:id/cancel", validateUuidParam(), optionalAuth, async (req, res) => {
+  const parsed = cancelSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ message: "Invalid input" });
+  const email = parsed.data.email?.toLowerCase();
+
+  let changed = false;
+  const order = await AppDataSource.transaction(async (manager) => {
+    const order = await loadOrderForUpdate(manager, req.params.id);
+    const owns =
+      order &&
+      (order.userId
+        ? order.userId === req.user?.id
+        : !!email && order.guestEmail?.toLowerCase() === email);
+    if (!order || !owns) throw new HttpError(404, "Order not found");
+    if (order.status === "cancelled") return order; // already done
+
+    const shipments = await shipmentsOf(manager, order);
+    if (!CANCELLABLE.includes(order.status) || shipments.some((s) => !CANCELLABLE.includes(s.status))) {
+      throw new HttpError(409, "This order has already shipped — you can refuse the parcel, or contact us", {
+        code: "CANCEL_TOO_LATE",
+      });
+    }
+    if (order.paymentMethod === "card" && order.paymentStatus === "paid") {
+      throw new HttpError(409, "This order is already paid — contact us to cancel it and get a refund", {
+        code: "CANCEL_NEEDS_REFUND",
+      });
+    }
+
+    await setOrderStatus(manager, order, "cancelled");
+    await manager.getRepository(Order).update(order.id, { cancelledBy: "customer" });
+    order.cancelledBy = "customer";
+    changed = true;
+    return order;
+  });
+
+  res.json(order);
+  if (changed) {
+    notifications.inBackground(notifications.notifyCustomerCancelled(order.id), { orderId: order.id });
+    // An unpaid card order may still have a payment page open: close it so
+    // the customer can't pay for what they just cancelled. (If a payment
+    // slips through anyway, the webhook keeps the order cancelled.)
+    if (order.paymentMethod === "card" && order.paymentCheckoutId) {
+      notifications.inBackground(expireChargilyCheckout(order.paymentCheckoutId), { orderId: order.id });
+    }
+  }
+});
+
+const statusSchema = z.object({
+  status: z.enum(ORDER_STATUSES),
+  // Only used when marking an order "returned".
+  returnReason: z.string().trim().max(200).optional(),
+  returnCost: z.number().min(0).max(100_000).optional(),
+});
 
 router.patch(
   "/:id/status",
@@ -392,8 +514,22 @@ router.patch(
         );
       }
 
+      if (newStatus === "returned" && !["shipped", "delivered", "returned"].includes(order.status)) {
+        throw new HttpError(400, "Only a shipped order can be marked returned — cancel it instead");
+      }
+
       previousStatus = order.status;
-      return setOrderStatus(manager, order, newStatus);
+      const updated = await setOrderStatus(manager, order, newStatus);
+      if (newStatus === "returned" && previousStatus !== "returned") {
+        const returnInfo = {
+          returnedAt: new Date(),
+          returnReason: parsed.data.returnReason || null,
+          returnCost: parsed.data.returnCost ?? 0,
+        };
+        await manager.getRepository(Order).update(order.id, returnInfo);
+        Object.assign(updated, returnInfo);
+      }
+      return updated;
     });
 
     res.json(updated);
@@ -435,7 +571,7 @@ router.patch(
     const { order, shipment } = await AppDataSource.transaction(async (manager) => {
       const order = await loadOrderForUpdate(manager, req.params.id);
       if (!order) throw new HttpError(404, "Order not found");
-      if (order.status === "cancelled") throw new HttpError(400, "This order was cancelled");
+      if (CLOSED_STATUSES.includes(order.status)) throw new HttpError(400, `This order was ${order.status}`);
       if (
         parsed.data.status &&
         order.paymentMethod === "card" &&
@@ -469,6 +605,91 @@ router.patch(
     if (previousStatus !== order.status) {
       notifications.inBackground(
         notifications.notifyStatusChange(order.id, order.status),
+        { orderId: order.id, status: order.status },
+      );
+    }
+  },
+);
+
+const callSchema = z.object({
+  outcome: z.enum(["confirmed", "no_answer", "declined", "wrong_number"]),
+  note: z.string().trim().max(300).optional(),
+});
+
+const CALL_CANCEL_REASON: Partial<Record<CallOutcome, CancelReason>> = {
+  declined: "declined",
+  wrong_number: "wrongNumber",
+};
+
+// Logs a confirmation call for a pay-on-delivery order awaiting confirmation:
+//   confirmed → order moves to "processing" (customer emailed)
+//   no_answer → counted in callAttempts, order stays pending
+//   declined / wrong_number → order cancelled and restocked
+router.post(
+  "/:id/calls",
+  validateUuidParam(),
+  requireAuth,
+  requireAnyAdmin,
+  attachShop,
+  async (req, res) => {
+    const parsed = callSchema.safeParse(req.body);
+    if (!parsed.success)
+      return res.status(400).json({ message: "Invalid input", errors: parsed.error.flatten() });
+    const { outcome, note } = parsed.data;
+
+    let previousStatus: OrderStatus | undefined;
+    const { order, call } = await AppDataSource.transaction(async (manager) => {
+      const order = await loadOrderForUpdate(manager, req.params.id);
+      if (!order) throw new HttpError(404, "Order not found");
+      // Confirming or cancelling moves the whole order, so (as for /status) a
+      // shop admin may only do it when every item is theirs.
+      if (req.user!.role === "admin" && !order.items.every((i) => i.shopId === req.shopId)) {
+        throw new HttpError(
+          403,
+          "This order includes items from other shops — a super admin must confirm it",
+        );
+      }
+      if (order.paymentMethod !== "cod" || order.status !== "pending") {
+        throw new HttpError(400, "Only pay-on-delivery orders awaiting confirmation can be confirmed by phone");
+      }
+
+      const call = await manager.getRepository(OrderCall).save(
+        manager.getRepository(OrderCall).create({
+          orderId: order.id,
+          outcome,
+          note: note || null,
+          createdById: req.user!.id,
+        }),
+      );
+      previousStatus = order.status;
+
+      if (outcome === "confirmed") {
+        const confirmedAt = new Date();
+        await manager.getRepository(Order).update(order.id, { confirmedAt });
+        order.confirmedAt = confirmedAt;
+        await setOrderStatus(manager, order, "processing");
+      } else if (outcome === "no_answer") {
+        await manager.getRepository(Order).increment({ id: order.id }, "callAttempts", 1);
+        order.callAttempts += 1;
+      } else {
+        await setOrderStatus(manager, order, "cancelled");
+      }
+      return { order, call };
+    });
+
+    void audit(req, "order.call", "order", order.id, { outcome, note });
+    res.status(201).json({
+      call,
+      order: {
+        id: order.id,
+        status: order.status,
+        callAttempts: order.callAttempts,
+        confirmedAt: order.confirmedAt,
+      },
+    });
+    if (previousStatus !== order.status) {
+      notifications.inBackground(
+        notifications.notifyStatusChange(order.id, order.status, CALL_CANCEL_REASON[outcome]),
         { orderId: order.id, status: order.status },
       );
     }

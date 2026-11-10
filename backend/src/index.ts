@@ -1,5 +1,10 @@
+import path from "path";
 import dotenv from "dotenv";
-dotenv.config();
+// NODE_ENV=test (Jest, the Playwright end-to-end run) reads only .env.test, so
+// real credentials in a local .env (database, email, payments) can't leak in.
+dotenv.config({
+  path: path.resolve(__dirname, "..", process.env.NODE_ENV === "test" ? ".env.test" : ".env"),
+});
 
 import { initSentry, Sentry } from "./config/sentry";
 initSentry();

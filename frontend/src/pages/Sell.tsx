@@ -8,34 +8,36 @@ import { shippingApi } from "../api/shipping";
 import { useAuth } from "../store/AuthContext";
 import { PageHeader } from "../components/ui/PageHeader";
 import toast from "react-hot-toast";
+import { useI18n } from "../i18n/I18nProvider";
 
 // "Sell on ArtisanShop": customers apply here; a super admin approves the
 // application, which creates the shop and gives them a seller dashboard.
 export default function Sell() {
   const { user, isAdmin } = useAuth();
-  useDocumentMeta("Sell on ArtisanShop", "Open your own shop and reach customers across all 58 wilayas.");
+  const { t } = useI18n();
+  useDocumentMeta(t("sell.metaTitle"), t("sell.metaDescription"));
 
   return (
     <div>
       <PageHeader
         variant="hero"
-        eyebrow="Sell on ArtisanShop"
-        title="Open your own shop"
-        description="Reach customers across all 58 wilayas. We handle checkout, payments and order tracking — you focus on making."
+        eyebrow={t("sell.metaTitle")}
+        title={t("sell.title")}
+        description={t("sell.description")}
       />
       <div className="container-narrow max-w-xl py-10 sm:py-14">
         {!user ? (
           <div className="card space-y-4 p-6 text-center">
-            <p className="text-muted-foreground">Create an account (or sign in) to apply.</p>
+            <p className="text-muted-foreground">{t("sell.signInToApply")}</p>
             <div className="flex justify-center gap-3">
-              <Link to="/register" className="btn-primary">Create an account</Link>
-              <Link to="/login" className="btn-outline">Sign in</Link>
+              <Link to="/register" className="btn-primary">{t("sell.createAccount")}</Link>
+              <Link to="/login" className="btn-outline">{t("sell.signIn")}</Link>
             </div>
           </div>
         ) : isAdmin ? (
           <div className="card space-y-4 p-6 text-center">
-            <p className="text-muted-foreground">You already have seller access.</p>
-            <Link to="/dashboard" className="btn-primary">Open your dashboard</Link>
+            <p className="text-muted-foreground">{t("sell.alreadySeller")}</p>
+            <Link to="/dashboard" className="btn-primary">{t("sell.openDashboard")}</Link>
           </div>
         ) : (
           <ApplicationArea emailVerified={!!user.emailVerifiedAt} defaultPhone={user.phone || ""} />
@@ -51,14 +53,15 @@ function ApplicationArea({ emailVerified, defaultPhone }: { emailVerified: boole
     queryFn: sellerApplicationsApi.mine,
   });
   const [reapply, setReapply] = useState(false);
+  const { t } = useI18n();
 
   if (isLoading) return <Loader2 className="mx-auto h-6 w-6 animate-spin text-accent" />;
 
   if (application && !reapply) {
     const status = {
-      pending: { icon: Clock, tone: "text-info", title: "Application under review", body: "We'll email you as soon as it's been reviewed." },
-      approved: { icon: CheckCircle2, tone: "text-success", title: "Approved!", body: "Sign out and back in to open your seller dashboard." },
-      rejected: { icon: XCircle, tone: "text-destructive", title: "Not approved this time", body: application.reviewNote || "You're welcome to apply again." },
+      pending: { icon: Clock, tone: "text-info", title: t("sell.pendingTitle"), body: t("sell.pendingBody") },
+      approved: { icon: CheckCircle2, tone: "text-success", title: t("sell.approvedTitle"), body: t("sell.approvedBody") },
+      rejected: { icon: XCircle, tone: "text-destructive", title: t("sell.rejectedTitle"), body: application.reviewNote || t("sell.rejectedBody") },
     }[application.status];
     const Icon = status.icon;
     return (
@@ -69,7 +72,7 @@ function ApplicationArea({ emailVerified, defaultPhone }: { emailVerified: boole
           <strong className="text-foreground">{application.shopName}</strong> — {status.body}
         </p>
         {application.status === "rejected" && (
-          <button onClick={() => setReapply(true)} className="btn-outline">Apply again</button>
+          <button onClick={() => setReapply(true)} className="btn-outline">{t("sell.applyAgain")}</button>
         )}
       </div>
     );
@@ -78,7 +81,7 @@ function ApplicationArea({ emailVerified, defaultPhone }: { emailVerified: boole
   if (!emailVerified) {
     return (
       <div className="card p-6 text-center text-sm text-muted-foreground">
-        Confirm your email address first — use the link we sent you (or "Resend link" in the banner above).
+        {t("sell.confirmEmailFirst")}
       </div>
     );
   }
@@ -88,6 +91,7 @@ function ApplicationArea({ emailVerified, defaultPhone }: { emailVerified: boole
 
 function ApplicationForm({ defaultPhone, onDone }: { defaultPhone: string; onDone: () => void }) {
   const qc = useQueryClient();
+  const { t } = useI18n();
   const [form, setForm] = useState({ shopName: "", description: "", phone: defaultPhone, wilayaCode: "", message: "" });
   const { data: zones } = useQuery({ queryKey: ["shipping-zones"], queryFn: shippingApi.zones, staleTime: 300_000 });
 
@@ -102,7 +106,7 @@ function ApplicationForm({ defaultPhone, onDone }: { defaultPhone: string; onDon
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["seller-application"] });
-      toast.success("Application sent — we'll be in touch soon");
+      toast.success(t("sell.sent"));
       onDone();
     },
     onError: (err: any) => toast.error(String(err)),
@@ -120,23 +124,23 @@ function ApplicationForm({ defaultPhone, onDone }: { defaultPhone: string; onDon
     <form onSubmit={handleSubmit} className="card space-y-4 p-6">
       <div className="flex items-center gap-2 text-foreground">
         <Store className="h-5 w-5 text-accent" />
-        <h2 className="text-lg font-bold">Tell us about your shop</h2>
+        <h2 className="text-lg font-bold">{t("sell.formTitle")}</h2>
       </div>
       <div>
-        <label htmlFor="shopName" className="label">Shop name</label>
+        <label htmlFor="shopName" className="label">{t("sell.shopName")}</label>
         <input id="shopName" required value={form.shopName} onChange={set("shopName")} className="input" placeholder="Poterie de Tlemcen" />
       </div>
       <div>
-        <label htmlFor="description" className="label">What do you make?</label>
-        <textarea id="description" rows={3} value={form.description} onChange={set("description")} className="textarea" placeholder="Hand-thrown ceramics, glazed with natural pigments…" />
+        <label htmlFor="description" className="label">{t("sell.whatYouMake")}</label>
+        <textarea id="description" rows={3} value={form.description} onChange={set("description")} className="textarea" placeholder={t("sell.whatYouMakePlaceholder")} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="phone" className="label">Mobile number</label>
+          <label htmlFor="phone" className="label">{t("sell.mobile")}</label>
           <input id="phone" type="tel" required value={form.phone} onChange={set("phone")} className="input" placeholder="0550 12 34 56" />
         </div>
         <div>
-          <label htmlFor="wilaya" className="label">Wilaya</label>
+          <label htmlFor="wilaya" className="label">{t("sell.wilaya")}</label>
           <select id="wilaya" value={form.wilayaCode} onChange={set("wilayaCode")} className="select">
             <option value="">—</option>
             {zones?.map((z) => (
@@ -146,11 +150,11 @@ function ApplicationForm({ defaultPhone, onDone }: { defaultPhone: string; onDon
         </div>
       </div>
       <div>
-        <label htmlFor="message" className="label">Anything else? (links to your work, social media…)</label>
+        <label htmlFor="message" className="label">{t("sell.message")}</label>
         <textarea id="message" rows={3} value={form.message} onChange={set("message")} className="textarea" />
       </div>
       <button type="submit" disabled={mutation.isPending} className="btn-primary btn-lg w-full">
-        {mutation.isPending ? "Sending…" : "Send application"}
+        {mutation.isPending ? t("sell.sending") : t("sell.submit")}
       </button>
     </form>
   );

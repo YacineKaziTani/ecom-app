@@ -13,33 +13,32 @@ import { StatCard } from "../../components/StatCard";
 import { Pagination } from "../../components/Pagination";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export default function PayoutsAdmin() {
   const { isSuperAdmin } = useAuth();
   return isSuperAdmin ? <PlatformPayouts /> : <ShopPayouts />;
 }
 
-const EXPLAINER =
-  "Sales count once the money is in — card orders when paid, pay-on-delivery orders when delivered — and drop out again if an order is cancelled.";
-
 function ShopPayouts() {
   const { data, isLoading } = useQuery({ queryKey: ["payouts", "mine"], queryFn: payoutsApi.mine });
+  const { t } = useI18n();
 
   return (
     <div>
-      <PageHeader eyebrow="Earnings" title="Payouts" description={EXPLAINER} />
+      <PageHeader eyebrow={t("dash.payouts.earnings")} title={t("dash.nav.payouts")} description={t("dash.payouts.explainer")} />
       {isLoading || !data ? null : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Sales" value={formatPrice(data.sales)} icon={Banknote} accent="brand" />
+          <StatCard label={t("dash.payouts.sales")} value={formatPrice(data.sales)} icon={Banknote} accent="brand" />
           <StatCard
-            label={`Commission (${data.commissionPercent}%)`}
+            label={t("dash.payouts.commissionPct", { percent: data.commissionPercent })}
             value={formatPrice(data.commission)}
             icon={Percent}
             accent="amber"
-            hint={data.discounts > 0 ? `+ ${formatPrice(data.discounts)} your coupons` : undefined}
+            hint={data.discounts > 0 ? t("dash.payouts.yourCoupons", { amount: formatPrice(data.discounts) }) : undefined}
           />
-          <StatCard label="Paid out" value={formatPrice(data.paidOut)} icon={ArrowDownToLine} accent="blue" />
-          <StatCard label="Balance owed to you" value={formatPrice(data.balance)} icon={Wallet} accent="green" />
+          <StatCard label={t("dash.payouts.paidOut")} value={formatPrice(data.paidOut)} icon={ArrowDownToLine} accent="blue" />
+          <StatCard label={t("dash.payouts.owed")} value={formatPrice(data.balance)} icon={Wallet} accent="green" />
         </div>
       )}
       <PayoutHistory />
@@ -50,13 +49,14 @@ function ShopPayouts() {
 function PlatformPayouts() {
   const [paying, setPaying] = useState<ShopBalance | null>(null);
   const { data, isLoading } = useQuery({ queryKey: ["payouts", "balances"], queryFn: payoutsApi.balances });
+  const { t } = useI18n();
 
   return (
     <div>
       <PageHeader
-        eyebrow="Marketplace"
-        title="Payouts"
-        description={`What each shop is owed (platform commission: ${data?.commissionPercent ?? 0}%). ${EXPLAINER}`}
+        eyebrow={t("dash.payouts.marketplace")}
+        title={t("dash.nav.payouts")}
+        description={t("dash.payouts.platformDescription", { percent: data?.commissionPercent ?? 0, explainer: t("dash.payouts.explainer") })}
       />
 
       <div className="table-wrap">
@@ -64,13 +64,13 @@ function PlatformPayouts() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Shop</th>
-                <th className="text-right">Sales</th>
-                <th className="text-right">Commission</th>
-                <th className="text-right">Shop coupons</th>
-                <th className="text-right">Paid out</th>
-                <th className="text-right">Balance</th>
-                <th className="text-right" />
+                <th>{t("dash.col.shop")}</th>
+                <th className="text-end">{t("dash.payouts.sales")}</th>
+                <th className="text-end">{t("dash.payouts.commission")}</th>
+                <th className="text-end">{t("dash.payouts.shopCoupons")}</th>
+                <th className="text-end">{t("dash.payouts.paidOut")}</th>
+                <th className="text-end">{t("dash.payouts.balance")}</th>
+                <th className="text-end" />
               </tr>
             </thead>
             {isLoading ? (
@@ -81,16 +81,16 @@ function PlatformPayouts() {
                   data.shops.map((s) => (
                     <tr key={s.shopId}>
                       <td className="font-medium text-foreground">{s.shopName}</td>
-                      <td className="text-right tabular-nums">{formatPrice(s.sales)}</td>
-                      <td className="text-right tabular-nums text-muted-foreground">{formatPrice(s.commission)}</td>
-                      <td className="text-right tabular-nums text-muted-foreground">{formatPrice(s.discounts)}</td>
-                      <td className="text-right tabular-nums text-muted-foreground">{formatPrice(s.paidOut)}</td>
-                      <td className={cn("text-right font-semibold tabular-nums", s.balance < 0 ? "text-destructive" : "text-foreground")}>
+                      <td className="text-end tabular-nums">{formatPrice(s.sales)}</td>
+                      <td className="text-end tabular-nums text-muted-foreground">{formatPrice(s.commission)}</td>
+                      <td className="text-end tabular-nums text-muted-foreground">{formatPrice(s.discounts)}</td>
+                      <td className="text-end tabular-nums text-muted-foreground">{formatPrice(s.paidOut)}</td>
+                      <td className={cn("text-end font-semibold tabular-nums", s.balance < 0 ? "text-destructive" : "text-foreground")}>
                         {formatPrice(s.balance)}
                       </td>
-                      <td className="text-right">
+                      <td className="text-end">
                         <button onClick={() => setPaying(s)} disabled={s.balance <= 0} className="btn-outline btn-sm">
-                          Record payout
+                          {t("dash.payouts.record")}
                         </button>
                       </td>
                     </tr>
@@ -98,7 +98,7 @@ function PlatformPayouts() {
                 ) : (
                   <tr>
                     <td colSpan={7} className="p-0">
-                      <EmptyState icon={Landmark} title="No shops yet" className="rounded-none border-0" />
+                      <EmptyState icon={Landmark} title={t("dash.payouts.noShops")} className="rounded-none border-0" />
                     </td>
                   </tr>
                 )}
@@ -116,6 +116,7 @@ function PlatformPayouts() {
 
 function RecordPayoutModal({ shop, onClose }: { shop: ShopBalance; onClose: () => void }) {
   const qc = useQueryClient();
+  const { t } = useI18n();
   const [amount, setAmount] = useState(String(shop.balance));
   const [reference, setReference] = useState("");
   const [note, setNote] = useState("");
@@ -130,7 +131,7 @@ function RecordPayoutModal({ shop, onClose }: { shop: ShopBalance; onClose: () =
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["payouts"] });
-      toast.success(`Payout to ${shop.shopName} recorded`);
+      toast.success(t("dash.payouts.recorded", { shop: shop.shopName }));
       onClose();
     },
     onError: (err: any) => toast.error(String(err)),
@@ -145,27 +146,27 @@ function RecordPayoutModal({ shop, onClose }: { shop: ShopBalance; onClose: () =
     <Modal
       open
       onClose={onClose}
-      title={`Payout to ${shop.shopName}`}
-      description={`Record a transfer you've already made. Owed: ${formatPrice(shop.balance)}.`}
+      title={t("dash.payouts.modalTitle", { shop: shop.shopName })}
+      description={t("dash.payouts.modalDescription", { amount: formatPrice(shop.balance) })}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="amount" className="label">Amount (DA)</label>
+          <label htmlFor="amount" className="label">{t("dash.payouts.amount")}</label>
           <input id="amount" type="number" min="1" step="0.01" max={shop.balance} required
             value={amount} onChange={(e) => setAmount(e.target.value)} className="input" />
         </div>
         <div>
-          <label htmlFor="reference" className="label">Transfer reference</label>
+          <label htmlFor="reference" className="label">{t("dash.payouts.reference")}</label>
           <input id="reference" value={reference} onChange={(e) => setReference(e.target.value)}
-            className="input" placeholder="CCP / bank transfer number" />
+            className="input" placeholder={t("dash.payouts.referencePlaceholder")} />
         </div>
         <div>
-          <label htmlFor="note" className="label">Note</label>
-          <input id="note" value={note} onChange={(e) => setNote(e.target.value)} className="input" placeholder="Optional" />
+          <label htmlFor="note" className="label">{t("dash.payouts.note")}</label>
+          <input id="note" value={note} onChange={(e) => setNote(e.target.value)} className="input" placeholder={t("dash.coupons.optional")} />
         </div>
         <div className="flex gap-3 border-t border-border pt-4">
-          <button type="button" onClick={onClose} className="btn-outline flex-1">Cancel</button>
-          <button type="submit" disabled={mutation.isPending} className="btn-primary flex-1">Record payout</button>
+          <button type="button" onClick={onClose} className="btn-outline flex-1">{t("dash.cancel")}</button>
+          <button type="submit" disabled={mutation.isPending} className="btn-primary flex-1">{t("dash.payouts.record")}</button>
         </div>
       </form>
     </Modal>
@@ -174,6 +175,7 @@ function RecordPayoutModal({ shop, onClose }: { shop: ShopBalance; onClose: () =
 
 function PayoutHistory({ showShop = false }: { showShop?: boolean }) {
   const [page, setPage] = useState(1);
+  const { t } = useI18n();
   const { data, isLoading } = useQuery({
     queryKey: ["payouts", "history", page],
     queryFn: () => payoutsApi.list(page),
@@ -183,17 +185,17 @@ function PayoutHistory({ showShop = false }: { showShop?: boolean }) {
 
   return (
     <section className="mt-8">
-      <h2 className="mb-4 font-serif text-xl font-bold text-foreground">Payout history</h2>
+      <h2 className="mb-4 font-serif text-xl font-bold text-foreground">{t("dash.payouts.history")}</h2>
       <div className="table-wrap">
         <div className="table-scroll">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Date</th>
-                {showShop && <th>Shop</th>}
-                <th className="text-right">Amount</th>
-                <th>Reference</th>
-                <th>Note</th>
+                <th>{t("dash.col.date")}</th>
+                {showShop && <th>{t("dash.col.shop")}</th>}
+                <th className="text-end">{t("dash.payouts.amountCol")}</th>
+                <th>{t("dash.payouts.reference")}</th>
+                <th>{t("dash.payouts.note")}</th>
               </tr>
             </thead>
             {isLoading ? (
@@ -205,7 +207,7 @@ function PayoutHistory({ showShop = false }: { showShop?: boolean }) {
                     <tr key={p.id}>
                       <td className="whitespace-nowrap text-muted-foreground">{formatDate(p.createdAt)}</td>
                       {showShop && <td className="text-foreground">{p.shop?.name ?? "—"}</td>}
-                      <td className="text-right font-medium tabular-nums">{formatPrice(p.amount)}</td>
+                      <td className="text-end font-medium tabular-nums">{formatPrice(p.amount)}</td>
                       <td className="font-mono text-xs text-muted-foreground">{p.reference || "—"}</td>
                       <td className="text-muted-foreground">{p.note || "—"}</td>
                     </tr>
@@ -213,7 +215,7 @@ function PayoutHistory({ showShop = false }: { showShop?: boolean }) {
                 ) : (
                   <tr>
                     <td colSpan={cols} className="p-0">
-                      <EmptyState icon={Wallet} title="No payouts yet" className="rounded-none border-0" />
+                      <EmptyState icon={Wallet} title={t("dash.payouts.noPayouts")} className="rounded-none border-0" />
                     </td>
                   </tr>
                 )}

@@ -4,6 +4,7 @@ import { uploadApi } from "../api/upload";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 import { optimizedImage } from "../lib/images";
+import { useI18n } from "../i18n/I18nProvider";
 
 interface ImageUploadProps {
   value?: string;
@@ -16,8 +17,9 @@ export function ImageUpload({
   value,
   onChange,
   folder,
-  label = "Image",
+  label,
 }: ImageUploadProps) {
+  const { t } = useI18n();
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -26,11 +28,11 @@ export function ImageUpload({
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      toast.error("Please choose an image file");
+      toast.error(t("upload.notImage"));
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be under 5MB");
+      toast.error(t("upload.tooBig"));
       return;
     }
 
@@ -39,7 +41,7 @@ export function ImageUpload({
       const result = await uploadApi.image(file, folder);
       onChange(result.url);
     } catch (err: any) {
-      toast.error(String(err) || "Upload failed");
+      toast.error(String(err) || t("upload.failed"));
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -54,7 +56,7 @@ export function ImageUpload({
 
   return (
     <div>
-      <label className="label">{label}</label>
+      {label !== "" && <label className="label">{label ?? t("upload.image")}</label>}
 
       {value ? (
         <div className="flex items-start gap-3">
@@ -63,10 +65,10 @@ export function ImageUpload({
             <button
               type="button"
               onClick={() => onChange("")}
-              className="absolute right-1.5 top-1.5 rounded-full bg-foreground/70 p-1 text-background
+              className="absolute end-1.5 top-1.5 rounded-full bg-foreground/70 p-1 text-background
                          opacity-0 transition-opacity hover:bg-foreground group-hover:opacity-100
                          focus-visible:opacity-100"
-              aria-label="Remove image"
+              aria-label={t("upload.remove")}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -83,7 +85,7 @@ export function ImageUpload({
             ) : (
               <Upload className="h-3.5 w-3.5" />
             )}
-            {uploading ? "Uploading…" : "Replace"}
+            {uploading ? t("upload.uploading") : t("upload.replace")}
           </button>
         </div>
       ) : (
@@ -108,15 +110,13 @@ export function ImageUpload({
           {uploading ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-xs font-medium">Uploading…</span>
+              <span className="text-xs font-medium">{t("upload.uploading")}</span>
             </>
           ) : (
             <>
               <ImagePlus className="h-6 w-6" />
-              <span className="text-xs font-medium">
-                Click or drop an image
-              </span>
-              <span className="text-[11px] opacity-70">PNG or JPG, max 5MB</span>
+              <span className="text-xs font-medium">{t("upload.drop")}</span>
+              <span className="text-[11px] opacity-70">{t("upload.formats")}</span>
             </>
           )}
         </button>

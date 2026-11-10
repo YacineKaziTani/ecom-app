@@ -12,6 +12,7 @@ import { Pagination } from "../../components/Pagination";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const roles: UserRole[] = ["customer", "admin", "super_admin"];
 
@@ -21,6 +22,7 @@ export default function UsersAdmin() {
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search.trim());
   const qc = useQueryClient();
+  const { t } = useI18n();
 
   const { data, isLoading } = useQuery({
     queryKey: ["users", debouncedSearch, page],
@@ -35,7 +37,7 @@ export default function UsersAdmin() {
       usersApi.updateRole(id, role),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["users"] });
-      toast.success("Role updated");
+      toast.success(t("dash.users.roleUpdated"));
     },
     onError: (err: any) => toast.error(String(err)),
   });
@@ -44,8 +46,8 @@ export default function UsersAdmin() {
     return (
       <EmptyState
         icon={ShieldAlert}
-        title="Restricted area"
-        description="Only super admins can view and manage user roles."
+        title={t("dash.restricted")}
+        description={t("dash.users.restrictedBody")}
       />
     );
   }
@@ -53,22 +55,22 @@ export default function UsersAdmin() {
   return (
     <div>
       <PageHeader
-        eyebrow="Access control"
-        title="Users"
-        description="Search accounts and manage what each person can do."
+        eyebrow={t("dash.users.eyebrow")}
+        title={t("dash.nav.users")}
+        description={t("dash.users.description")}
       />
 
       <div className="relative mb-5 max-w-sm">
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <input
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
             setPage(1);
           }}
-          placeholder="Search by name or email…"
-          aria-label="Search users"
-          className="input pl-10 pr-10"
+          placeholder={t("dash.users.searchPlaceholder")}
+          aria-label={t("dash.users.search")}
+          className="input ps-10 pe-10"
         />
         {search && (
           <button
@@ -76,9 +78,9 @@ export default function UsersAdmin() {
               setSearch("");
               setPage(1);
             }}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1
+            className="absolute end-2.5 top-1/2 -translate-y-1/2 rounded-full p-1
                        text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            aria-label="Clear search"
+            aria-label={t("dash.users.clear")}
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -90,10 +92,10 @@ export default function UsersAdmin() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Joined</th>
-                <th>Role</th>
+                <th>{t("dash.users.name")}</th>
+                <th>{t("dash.users.email")}</th>
+                <th>{t("dash.users.joined")}</th>
+                <th>{t("dash.users.role")}</th>
               </tr>
             </thead>
 
@@ -115,8 +117,8 @@ export default function UsersAdmin() {
                             <span className="font-medium text-foreground">
                               {u.firstName} {u.lastName}
                               {isSelf && (
-                                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                                  (you)
+                                <span className="ms-1.5 text-xs font-normal text-muted-foreground">
+                                  {t("dash.users.you")}
                                 </span>
                               )}
                             </span>
@@ -134,15 +136,15 @@ export default function UsersAdmin() {
                               const role = e.target.value as UserRole;
                               if (
                                 confirm(
-                                  `Change ${u.firstName} ${u.lastName}'s role to "${role.replace("_", " ")}"?`,
+                                  t("dash.users.confirmRole", { name: `${u.firstName} ${u.lastName}`, role: t(`role.${role}`) }),
                                 )
                               ) {
                                 updateRoleMutation.mutate({ id: u.id, role });
                               }
                             }}
-                            aria-label={`Role for ${u.firstName} ${u.lastName}`}
+                            aria-label={t("dash.users.roleFor", { name: `${u.firstName} ${u.lastName}` })}
                             className={cn(
-                              "appearance-none rounded-full border-0 px-2.5 py-1 text-xs font-semibold capitalize",
+                              "appearance-none rounded-full border-0 px-2.5 py-1 text-xs font-semibold",
                               "focus:outline-none focus:ring-2 focus:ring-ring/60",
                               roleBadge[u.role],
                               isSelf
@@ -152,7 +154,7 @@ export default function UsersAdmin() {
                           >
                             {roles.map((r) => (
                               <option key={r} value={r}>
-                                {r.replace("_", " ")}
+                                {t(`role.${r}`)}
                               </option>
                             ))}
                           </select>
@@ -165,11 +167,11 @@ export default function UsersAdmin() {
                     <td colSpan={4} className="p-0">
                       <EmptyState
                         icon={Users}
-                        title={search ? "No matching users" : "No users yet"}
+                        title={search ? t("dash.users.noMatchTitle") : t("dash.users.emptyTitle")}
                         description={
                           search
-                            ? `Nothing matched “${search}”. Try a different name or email.`
-                            : "Accounts will appear here once people sign up."
+                            ? t("dash.users.noMatchBody", { search })
+                            : t("dash.users.emptyBody")
                         }
                         className="rounded-none border-0"
                       />

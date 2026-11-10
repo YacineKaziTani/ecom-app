@@ -16,6 +16,7 @@ import {
 import { PageHeader } from "../components/ui/PageHeader";
 import { OrderTotals, DeliveryDetails, ShipmentList } from "../components/OrderTotals";
 import toast from "react-hot-toast";
+import { itemLabel } from "../lib/cart";
 
 export default function TrackOrder() {
   const [orderId, setOrderId] = useState("");
@@ -120,7 +121,7 @@ export default function TrackOrder() {
                   className="flex items-center justify-between gap-4 py-3 text-sm"
                 >
                   <span className="min-w-0 flex-1 text-foreground">
-                    {item.productName}
+                    {itemLabel(item.productName, item.variantName)}
                     <span className="text-muted-foreground">
                       {" "}
                       × {item.quantity}

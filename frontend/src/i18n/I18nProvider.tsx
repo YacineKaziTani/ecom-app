@@ -1,5 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { messages, Lang, MessageKey } from "./messages";
+import { api } from "../api/client";
 
 export const LANGUAGES: { code: Lang; label: string; short: string }[] = [
   { code: "fr", label: "Français", short: "FR" },
@@ -20,6 +21,12 @@ function initialLang(): Lang {
   return browser === "fr" || browser === "ar" ? browser : "en";
 }
 
+// The API answers (and writes emails) in the storefront's language. Set
+// synchronously so even the very first requests carry it.
+function tellApi(lang: Lang) {
+  api.defaults.headers.common["Accept-Language"] = lang;
+}
+
 type Vars = Record<string, string | number>;
 
 interface I18nValue {
@@ -38,7 +45,11 @@ function interpolate(text: string, vars?: Vars) {
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>(initialLang);
+  const [lang, setLangState] = useState<Lang>(() => {
+    const initial = initialLang();
+    tellApi(initial);
+    return initial;
+  });
   const dir = lang === "ar" ? "rtl" : "ltr";
 
   useEffect(() => {
@@ -47,6 +58,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, [lang, dir]);
 
   const setLang = useCallback((next: Lang) => {
+    tellApi(next);
     setLangState(next);
     try {
       localStorage.setItem(STORAGE_KEY, next);
@@ -74,6 +86,15 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, [lang, dir, setLang]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+}
+
+// For components that may render outside the provider (the top-level error
+// screen): falls back to English.
+export function useOptionalI18n(): Pick<I18nValue, "t"> {
+  const ctx = useContext(I18nContext);
+  if (ctx) return ctx;
+  const en = messages.en as Record<string, string>;
+  return { t: (key, vars) => interpolate(en[key] ?? key, vars) };
 }
 
 export function useI18n() {

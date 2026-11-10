@@ -55,6 +55,17 @@ export function checkEnvironment(env: NodeJS.ProcessEnv = process.env) {
     }
   }
 
+  const sms = env.SMS_PROVIDER;
+  if (sms && !["twilio", "log", "memory"].includes(sms)) {
+    errors.push(`SMS_PROVIDER must be "twilio" (or "log" in development) — got "${sms}".`);
+  }
+  if (sms === "twilio" && (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN || !(env.TWILIO_FROM || env.TWILIO_MESSAGING_SERVICE_SID))) {
+    errors.push("SMS_PROVIDER=twilio needs TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM (or TWILIO_MESSAGING_SERVICE_SID).");
+  }
+  if (isProd && (sms === "log" || sms === "memory")) {
+    errors.push(`SMS_PROVIDER=${sms} is for development only — it would write login codes to the logs instead of texting them.`);
+  }
+
   const chargilyKey = env.CHARGILY_API_KEY;
   if (chargilyKey) {
     const live = env.CHARGILY_MODE === "live";

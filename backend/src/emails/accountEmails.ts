@@ -1,7 +1,9 @@
 import { email, renderLayout } from "./layout";
+import { Locale, translator } from "./i18n";
 import type { RenderedEmail } from "./orderEmails";
 
 function simple(
+  locale: Locale,
   subject: string,
   heading: string,
   paragraphs: string[],
@@ -13,6 +15,7 @@ function simple(
       title: subject,
       bodyHtml: email.heading(heading) + paragraphs.map(email.paragraph).join(""),
       cta,
+      locale,
     }),
     text: [heading, "", ...paragraphs, ...(cta ? ["", `${cta.label}: ${cta.url}`] : [])].join("\n"),
   };
@@ -22,12 +25,15 @@ export function sellerApplicationForAdminEmail(
   applicantName: string,
   shopName: string,
   reviewLink: string,
+  locale: Locale = "en",
 ): RenderedEmail {
+  const t = translator(locale);
   return simple(
-    `New seller application — ${shopName}`,
-    "New seller application",
-    [`${applicantName} wants to open "${shopName}" on ArtisanShop.`],
-    { label: "Review applications", url: reviewLink },
+    locale,
+    t("sellerAdmin.subject", { shop: shopName }),
+    t("sellerAdmin.heading"),
+    [t("sellerAdmin.body", { name: applicantName, shop: shopName })],
+    { label: t("sellerAdmin.cta"), url: reviewLink },
   );
 }
 
@@ -37,37 +43,32 @@ export function sellerApplicationDecisionEmail(
   shopName: string,
   link: string,
   note?: string | null,
+  locale: Locale = "en",
 ): RenderedEmail {
+  const t = translator(locale);
   if (approved) {
     return simple(
-      `Your shop "${shopName}" is approved`,
-      `Welcome aboard, ${name}!`,
-      [
-        `Your shop "${shopName}" has been created. Sign in again to open your dashboard, add products and start selling.`,
-        ...(note ? [note] : []),
-      ],
-      { label: "Open my dashboard", url: link },
+      locale,
+      t("sellerOk.subject", { shop: shopName }),
+      t("sellerOk.heading", { name }),
+      [t("sellerOk.body", { shop: shopName }), ...(note ? [note] : [])],
+      { label: t("sellerOk.cta"), url: link },
     );
   }
-  return simple(
-    `About your shop application`,
-    `Hi ${name},`,
-    [
-      `Thanks for applying to open "${shopName}". We can't approve it right now.`,
-      ...(note ? [`Reason: ${note}`] : []),
-      "You're welcome to apply again later.",
-    ],
-  );
+  return simple(locale, t("sellerNo.subject"), t("account.hi", { name }), [
+    t("sellerNo.body", { shop: shopName }),
+    ...(note ? [t("sellerNo.reason", { note })] : []),
+    t("sellerNo.again"),
+  ]);
 }
 
-export function verifyEmailEmail(name: string, link: string): RenderedEmail {
+export function verifyEmailEmail(name: string, link: string, locale: Locale = "en"): RenderedEmail {
+  const t = translator(locale);
   return simple(
-    "Confirm your email address",
-    `Hi ${name},`,
-    [
-      "Please confirm your email address so we can keep your account secure and send you order updates.",
-      "This link expires in 24 hours.",
-    ],
-    { label: "Confirm my email", url: link },
+    locale,
+    t("verify.subject"),
+    t("account.hi", { name }),
+    [t("verify.body"), t("verify.expires")],
+    { label: t("verify.cta"), url: link },
   );
 }

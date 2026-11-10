@@ -63,6 +63,23 @@ export async function createChargilyCheckout(
   return response.json();
 }
 
+// Closes an open checkout so it can no longer be paid (used when the customer
+// cancels an unpaid card order). Best effort: never throws, resolves to
+// whether Chargily accepted it. Reference:
+// https://dev.chargily.com/pay-v2/api-reference/checkouts/expire
+export async function expireChargilyCheckout(checkoutId: string): Promise<boolean> {
+  if (!CHARGILY_API_KEY) return false;
+  try {
+    const response = await fetch(`${CHARGILY_BASE_URL}/checkouts/${encodeURIComponent(checkoutId)}/expire`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${CHARGILY_API_KEY}`, Accept: "application/json" },
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 // Every webhook Chargily sends carries a `signature` header: an HMAC-SHA256 of
 // the raw request body, keyed with your API secret key. Must be computed over
 // the exact raw bytes received — not a re-serialized/re-parsed version of the

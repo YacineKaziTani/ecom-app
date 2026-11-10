@@ -1,15 +1,18 @@
 import { useState, FormEvent } from "react";
 import { Link } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Package, Store, ArrowRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Package, Store, ArrowRight, FileUp } from "lucide-react";
 import { productsApi, ProductInput } from "../../api/products";
 import { categoriesApi } from "../../api/categories";
 import { shopsApi } from "../../api/shops";
 import { Product } from "../../api/types";
 import { useAuth } from "../../store/AuthContext";
+import { useI18n } from "../../i18n/I18nProvider";
 import { Pagination } from "../../components/Pagination";
 import { ImageUpload } from "../../components/ImageUpload";
 import { GalleryUpload } from "../../components/GalleryUpload";
+import { VariantsEditor, VariantRow, rowsStock, toInput, toRows } from "../../components/VariantsEditor";
+import { ProductImportModal } from "../../components/ProductImportModal";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Modal } from "../../components/ui/Modal";
@@ -19,7 +22,9 @@ import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 import { optimizedImage } from "../../lib/images";
 
-const emptyForm: ProductInput = {
+type ProductForm = Omit<ProductInput, "variants">;
+
+const emptyForm: ProductForm = {
   name: "",
   description: "",
   price: 0,
@@ -32,11 +37,14 @@ const emptyForm: ProductInput = {
 
 export default function ProductsAdmin() {
   const { isSuperAdmin } = useAuth();
+  const { t } = useI18n();
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
-  const [form, setForm] = useState<ProductInput>(emptyForm);
+  const [form, setForm] = useState<ProductForm>(emptyForm);
+  const [variants, setVariants] = useState<VariantRow[]>([]);
 
   // A shop-admin only ever sees/creates products for their own shop.
   const { data: myShop, isLoading: shopLoading } = useQuery({
@@ -66,13 +74,16 @@ export default function ProductsAdmin() {
     queryFn: categoriesApi.list,
   });
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["products"] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["products"] });
+    qc.invalidateQueries({ queryKey: ["product"] });
+  };
 
   const createMutation = useMutation({
     mutationFn: productsApi.create,
     onSuccess: () => {
       invalidate();
-      toast.success("Product created");
+      toast.success(t("dash.products.created"));
       closeModal();
     },
     onError: (err: any) => toast.error(String(err)),
@@ -83,7 +94,7 @@ export default function ProductsAdmin() {
       productsApi.update(id, data),
     onSuccess: () => {
       invalidate();
-      toast.success("Product updated");
+      toast.success(t("dash.products.updated"));
       closeModal();
     },
     onError: (err: any) => toast.error(String(err)),
@@ -93,7 +104,28 @@ export default function ProductsAdmin() {
     mutationFn: productsApi.remove,
     onSuccess: () => {
       invalidate();
-      toast.success("Product deleted");
+      toast.success(t("dash.products.deleted"));
+    },
+    onError: (err: any) => toast.error(String(err)),
+  });
+
+  // The list only carries an option count; the edit form needs the options.
+  const openEditMutation = useMutation({
+    mutationFn: (id: string) => productsApi.get(id),
+    onSuccess: (product) => {
+      setEditing(product);
+      setForm({
+        name: product.name,
+        description: product.description || "",
+        price: Number(product.price),
+        stock: product.stock,
+        imageUrl: product.imageUrl || "",
+        galleryUrls: product.galleryUrls ?? [],
+        categoryId: product.categoryId || "",
+        shopId: product.shopId,
+      });
+      setVariants(toRows(product.variants ?? []));
+      setModalOpen(true);
     },
     onError: (err: any) => toast.error(String(err)),
   });
@@ -101,21 +133,7 @@ export default function ProductsAdmin() {
   function openCreate() {
     setEditing(null);
     setForm({ ...emptyForm, shopId: isSuperAdmin ? "" : myShop?.id || "" });
-    setModalOpen(true);
-  }
-
-  function openEdit(product: Product) {
-    setEditing(product);
-    setForm({
-      name: product.name,
-      description: product.description || "",
-      price: Number(product.price),
-      stock: product.stock,
-      imageUrl: product.imageUrl || "",
-      galleryUrls: product.galleryUrls ?? [],
-      categoryId: product.categoryId || "",
-      shopId: product.shopId,
-    });
+    setVariants([]);
     setModalOpen(true);
   }
 
@@ -124,16 +142,19 @@ export default function ProductsAdmin() {
     setEditing(null);
   }
 
+  const hasOptions = variants.length > 0;
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    const body = { ...form, variants: toInput(variants), stock: hasOptions ? rowsStock(variants) : form.stock };
     if (editing) {
       // null (not undefined) so clearing the category actually removes it.
       updateMutation.mutate({
         id: editing.id,
-        data: { ...form, categoryId: form.categoryId || null },
+        data: { ...body, categoryId: form.categoryId || null },
       });
     } else {
-      createMutation.mutate({ ...form, categoryId: form.categoryId || undefined });
+      createMutation.mutate({ ...body, categoryId: form.categoryId || undefined });
     }
   }
 
@@ -144,12 +165,12 @@ export default function ProductsAdmin() {
     return (
       <EmptyState
         icon={Store}
-        title="Create your shop first"
-        description="Products belong to a shop, so you'll need to set yours up before adding any."
+        title={t("dash.products.noShopTitle")}
+        description={t("dash.products.noShopBody")}
         action={
           <Link to="/dashboard/my-shop" className="btn-primary">
-            Create my shop
-            <ArrowRight className="h-4 w-4" />
+            {t("dash.products.createShop")}
+            <ArrowRight className="h-4 w-4 rtl:-scale-x-100" />
           </Link>
         }
       />
@@ -161,14 +182,20 @@ export default function ProductsAdmin() {
   return (
     <div>
       <PageHeader
-        eyebrow="Catalogue"
-        title="Products"
-        description="Add, edit and remove the items in your shop."
+        eyebrow={t("dash.products.eyebrow")}
+        title={t("dash.products.title")}
+        description={t("dash.products.description")}
         actions={
-          <button onClick={openCreate} className="btn-primary">
-            <Plus className="h-4 w-4" />
-            Add product
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setImportOpen(true)} className="btn-outline">
+              <FileUp className="h-4 w-4" />
+              {t("dash.products.import")}
+            </button>
+            <button onClick={openCreate} className="btn-primary">
+              <Plus className="h-4 w-4" />
+              {t("dash.products.add")}
+            </button>
+          </div>
         }
       />
 
@@ -177,12 +204,12 @@ export default function ProductsAdmin() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Product</th>
-                {isSuperAdmin && <th>Shop</th>}
-                <th>Category</th>
-                <th className="text-right">Price</th>
-                <th className="text-right">Stock</th>
-                <th className="text-right">Actions</th>
+                <th>{t("dash.col.product")}</th>
+                {isSuperAdmin && <th>{t("dash.col.shop")}</th>}
+                <th>{t("dash.col.category")}</th>
+                <th className="text-end">{t("dash.col.price")}</th>
+                <th className="text-end">{t("dash.col.stock")}</th>
+                <th className="text-end">{t("dash.col.actions")}</th>
               </tr>
             </thead>
 
@@ -230,11 +257,11 @@ export default function ProductsAdmin() {
                         )}
                       </td>
 
-                      <td className="text-right font-medium tabular-nums text-foreground">
+                      <td className="text-end font-medium tabular-nums text-foreground">
                         {formatPrice(p.price)}
                       </td>
 
-                      <td className="text-right">
+                      <td className="text-end">
                         <span
                           className={cn(
                             "font-medium tabular-nums",
@@ -247,24 +274,30 @@ export default function ProductsAdmin() {
                         >
                           {p.stock}
                         </span>
+                        {(p.variantCount ?? 0) > 0 && (
+                          <span className="block text-[11px] text-muted-foreground">
+                            {t("dash.products.optionsCount", { count: p.variantCount ?? 0 })}
+                          </span>
+                        )}
                       </td>
 
                       <td>
                         <div className="flex justify-end gap-1">
                           <button
-                            onClick={() => openEdit(p)}
+                            onClick={() => openEditMutation.mutate(p.id)}
+                            disabled={openEditMutation.isPending}
                             className="icon-btn"
-                            aria-label={`Edit ${p.name}`}
+                            aria-label={t("dash.products.edit", { name: p.name })}
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => {
-                              if (confirm(`Delete "${p.name}"?`))
+                              if (confirm(t("dash.products.confirmDelete", { name: p.name })))
                                 deleteMutation.mutate(p.id);
                             }}
                             className="icon-btn-danger"
-                            aria-label={`Delete ${p.name}`}
+                            aria-label={t("dash.products.delete", { name: p.name })}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -277,12 +310,12 @@ export default function ProductsAdmin() {
                     <td colSpan={colCount} className="p-0">
                       <EmptyState
                         icon={Package}
-                        title="No products yet"
-                        description="Add your first product to start selling."
+                        title={t("dash.products.emptyTitle")}
+                        description={t("dash.products.emptyBody")}
                         action={
                           <button onClick={openCreate} className="btn-primary">
                             <Plus className="h-4 w-4" />
-                            Add product
+                            {t("dash.products.add")}
                           </button>
                         }
                         className="rounded-none border-0"
@@ -306,21 +339,19 @@ export default function ProductsAdmin() {
         />
       )}
 
+      {importOpen && <ProductImportModal onClose={() => setImportOpen(false)} />}
+
       <Modal
         open={modalOpen}
         onClose={closeModal}
-        title={editing ? "Edit product" : "New product"}
-        description={
-          editing
-            ? "Update the details of this listing."
-            : "Add a new item to your catalogue."
-        }
+        title={editing ? t("dash.products.editTitle") : t("dash.products.newTitle")}
+        description={editing ? t("dash.products.editDescription") : t("dash.products.newDescription")}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           {isSuperAdmin && (
             <div>
               <label htmlFor="shopId" className="label">
-                Shop
+                {t("dash.col.shop")}
               </label>
               <select
                 id="shopId"
@@ -329,7 +360,7 @@ export default function ProductsAdmin() {
                 onChange={(e) => setForm({ ...form, shopId: e.target.value })}
                 className="select"
               >
-                <option value="">Select a shop…</option>
+                <option value="">{t("dash.products.selectShop")}</option>
                 {allShops?.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -341,7 +372,7 @@ export default function ProductsAdmin() {
 
           <div>
             <label htmlFor="name" className="label">
-              Name
+              {t("dash.products.name")}
             </label>
             <input
               id="name"
@@ -349,13 +380,13 @@ export default function ProductsAdmin() {
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               className="input"
-              placeholder="Hand-thrown ceramic mug"
+              placeholder={t("dash.products.namePlaceholder")}
             />
           </div>
 
           <div>
             <label htmlFor="description" className="label">
-              Description
+              {t("dash.products.descriptionLabel")}
             </label>
             <textarea
               id="description"
@@ -365,14 +396,14 @@ export default function ProductsAdmin() {
               }
               rows={3}
               className="textarea"
-              placeholder="What makes this piece special?"
+              placeholder={t("dash.products.descriptionPlaceholder")}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="price" className="label">
-                Price (DA)
+                {t("dash.products.price")}
               </label>
               <input
                 id="price"
@@ -389,27 +420,33 @@ export default function ProductsAdmin() {
             </div>
             <div>
               <label htmlFor="stock" className="label">
-                Stock
+                {t("dash.col.stock")}
               </label>
               <input
                 id="stock"
                 type="number"
                 min="0"
                 required
-                value={form.stock}
+                disabled={hasOptions}
+                value={hasOptions ? rowsStock(variants) : form.stock}
                 onChange={(e) =>
                   setForm({ ...form, stock: Number(e.target.value) })
                 }
                 className="input"
               />
+              {hasOptions && (
+                <p className="mt-1 text-xs text-muted-foreground">{t("dash.products.stockFromOptions")}</p>
+              )}
             </div>
           </div>
+
+          <VariantsEditor rows={variants} onChange={setVariants} />
 
           <ImageUpload
             value={form.imageUrl}
             onChange={(url) => setForm({ ...form, imageUrl: url })}
             folder="products"
-            label="Product image"
+            label={t("dash.products.image")}
           />
 
           <GalleryUpload
@@ -419,7 +456,7 @@ export default function ProductsAdmin() {
 
           <div>
             <label htmlFor="categoryId" className="label">
-              Category
+              {t("dash.col.category")}
             </label>
             <select
               id="categoryId"
@@ -429,7 +466,7 @@ export default function ProductsAdmin() {
               }
               className="select"
             >
-              <option value="">None</option>
+              <option value="">{t("dash.products.noCategory")}</option>
               {categories?.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -444,14 +481,14 @@ export default function ProductsAdmin() {
               onClick={closeModal}
               className="btn-outline flex-1"
             >
-              Cancel
+              {t("dash.cancel")}
             </button>
             <button
               type="submit"
               disabled={createMutation.isPending || updateMutation.isPending}
               className="btn-primary flex-1"
             >
-              {editing ? "Save changes" : "Create product"}
+              {editing ? t("dash.products.save") : t("dash.products.create")}
             </button>
           </div>
         </form>

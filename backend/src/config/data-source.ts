@@ -19,6 +19,11 @@ import { EmailVerificationToken } from "../entities/EmailVerificationToken";
 import { AuditLog } from "../entities/AuditLog";
 import { Review } from "../entities/Review";
 import { WishlistItem } from "../entities/WishlistItem";
+import { OrderCall } from "../entities/OrderCall";
+import { BlockedPhone } from "../entities/BlockedPhone";
+import { PhoneVerification } from "../entities/PhoneVerification";
+import { ProductVariant } from "../entities/ProductVariant";
+import { Address } from "../entities/Address";
 
 const isTest = process.env.NODE_ENV === "test";
 
@@ -66,6 +71,11 @@ export const AppDataSource = new DataSource({
     AuditLog,
     Review,
     WishlistItem,
+    OrderCall,
+    BlockedPhone,
+    PhoneVerification,
+    ProductVariant,
+    Address,
   ],
   migrations: [__dirname + "/../migrations/*{.ts,.js}"],
 });

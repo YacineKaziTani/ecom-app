@@ -36,7 +36,7 @@ export function StatCard({
       )}
     >
       {/* Faint corner wash that lifts on hover. */}
-      <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-accent/5 transition-transform duration-500 group-hover:scale-150" />
+      <div className="pointer-events-none absolute -end-6 -top-6 h-24 w-24 rounded-full bg-accent/5 transition-transform duration-500 group-hover:scale-150" />
 
       <div className="relative flex items-start justify-between gap-4">
         <div className="min-w-0">

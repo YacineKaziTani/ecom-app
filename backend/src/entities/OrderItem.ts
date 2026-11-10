@@ -8,6 +8,7 @@ import {
 } from "typeorm";
 import { Order } from "./Order";
 import { Product } from "./Product";
+import { ProductVariant } from "./ProductVariant";
 
 @Entity("order_items")
 export class OrderItem {
@@ -38,6 +39,17 @@ export class OrderItem {
 
   @Column()
   productName!: string;
+
+  // The option bought, if the product has variants (name kept as a snapshot).
+  @ManyToOne(() => ProductVariant, { onDelete: "SET NULL", nullable: true })
+  @JoinColumn({ name: "variantId" })
+  variant?: ProductVariant | null;
+
+  @Column({ type: "uuid", nullable: true })
+  variantId?: string | null;
+
+  @Column({ type: "varchar", nullable: true })
+  variantName?: string | null;
 
   @Column({ type: "decimal", precision: 10, scale: 2 })
   price!: number;

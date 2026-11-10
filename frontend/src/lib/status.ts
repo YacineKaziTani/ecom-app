@@ -12,6 +12,14 @@ export const orderStatusBadge: Record<OrderStatus, string> = {
   shipped: "badge-accent",
   delivered: "badge-success",
   cancelled: "badge-danger",
+  returned: "badge-neutral",
+};
+
+export const riskBadge: Record<"low" | "medium" | "high" | "blocked", string> = {
+  low: "badge-success",
+  medium: "badge-warning",
+  high: "badge-danger",
+  blocked: "badge-danger",
 };
 
 export const paymentStatusBadge: Record<PaymentStatus, string> = {

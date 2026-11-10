@@ -1,6 +1,7 @@
 import { ReactNode, useEffect } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface ModalProps {
   open: boolean;
@@ -19,6 +20,7 @@ export function Modal({
   children,
   className,
 }: ModalProps) {
+  const { t } = useI18n();
   // Escape to dismiss, and keep the page behind from scrolling while open.
   useEffect(() => {
     if (!open) return;
@@ -68,8 +70,8 @@ export function Modal({
           <button
             type="button"
             onClick={onClose}
-            className="icon-btn -mr-2 -mt-1"
-            aria-label="Close dialog"
+            className="icon-btn -me-2 -mt-1"
+            aria-label={t("common.close")}
           >
             <X className="h-5 w-5" />
           </button>

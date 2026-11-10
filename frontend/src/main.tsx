@@ -30,6 +30,14 @@ window.addEventListener("vite:preloadError", (event) => {
   }
 });
 
+// Installable app + offline shell (public/manifest.webmanifest, sw.js). Only
+// in production builds: in dev the worker would serve stale modules.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch((err) => console.warn("Service worker not registered", err));
+  });
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

@@ -10,6 +10,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { Modal } from "../../components/ui/Modal";
 import { TableSkeleton } from "../../components/ui/Skeleton";
 import toast from "react-hot-toast";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const emptyForm: CouponInput = {
   code: "",
@@ -23,6 +24,7 @@ const emptyForm: CouponInput = {
 export default function CouponsAdmin() {
   const { isSuperAdmin } = useAuth();
   const qc = useQueryClient();
+  const { t } = useI18n();
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<CouponInput>(emptyForm);
 
@@ -37,7 +39,7 @@ export default function CouponsAdmin() {
     mutationFn: couponsApi.create,
     onSuccess: () => {
       invalidate();
-      toast.success("Coupon created");
+      toast.success(t("dash.coupons.created"));
       setModalOpen(false);
       setForm(emptyForm);
     },
@@ -48,7 +50,7 @@ export default function CouponsAdmin() {
     mutationFn: couponsApi.remove,
     onSuccess: () => {
       invalidate();
-      toast.success("Coupon deleted");
+      toast.success(t("dash.coupons.deleted"));
     },
     onError: (err: any) => toast.error(String(err)),
   });
@@ -76,24 +78,24 @@ export default function CouponsAdmin() {
   }
 
   function statusFor(c: Coupon) {
-    if (!c.isActive) return { label: "Disabled", className: "badge-neutral" };
+    if (!c.isActive) return { label: t("dash.coupons.disabled"), className: "badge-neutral" };
     if (c.expiresAt && new Date(c.expiresAt).getTime() < Date.now())
-      return { label: "Expired", className: "badge-danger" };
+      return { label: t("dash.coupons.expired"), className: "badge-danger" };
     if (c.maxUses != null && c.usedCount >= c.maxUses)
-      return { label: "Used up", className: "badge-danger" };
-    return { label: "Active", className: "badge-success" };
+      return { label: t("dash.coupons.usedUp"), className: "badge-danger" };
+    return { label: t("dash.coupons.active"), className: "badge-success" };
   }
 
   return (
     <div>
       <PageHeader
-        eyebrow="Promotions"
-        title="Coupons"
-        description="Create discount codes and control how often they can be used."
+        eyebrow={t("dash.coupons.eyebrow")}
+        title={t("dash.nav.coupons")}
+        description={t("dash.coupons.description")}
         actions={
           <button onClick={() => setModalOpen(true)} className="btn-primary">
             <Plus className="h-4 w-4" />
-            New coupon
+            {t("dash.coupons.new")}
           </button>
         }
       />
@@ -101,8 +103,8 @@ export default function CouponsAdmin() {
       <p className="mb-6 flex items-start gap-2 rounded-lg border border-info/30 bg-info-soft px-4 py-3 text-sm text-info">
         <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
         {isSuperAdmin
-          ? "Coupons created here are platform-wide and work across any shop."
-          : "Coupons you create only apply to orders made up entirely of your shop's products."}
+          ? t("dash.coupons.platformNote")
+          : t("dash.coupons.shopNote")}
       </p>
 
       <div className="table-wrap">
@@ -110,12 +112,12 @@ export default function CouponsAdmin() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Code</th>
-                <th>Discount</th>
-                <th className="text-right">Usage</th>
-                <th>Expires</th>
-                <th>Status</th>
-                <th className="text-right">Actions</th>
+                <th>{t("dash.coupons.code")}</th>
+                <th>{t("dash.coupons.discount")}</th>
+                <th className="text-end">{t("dash.coupons.usage")}</th>
+                <th>{t("dash.coupons.expires")}</th>
+                <th>{t("dash.col.status")}</th>
+                <th className="text-end">{t("dash.col.actions")}</th>
               </tr>
             </thead>
 
@@ -138,23 +140,23 @@ export default function CouponsAdmin() {
                         <td className="text-foreground">
                           <span className="font-medium">
                             {c.type === "percentage"
-                              ? `${Number(c.value)}% off`
-                              : `${formatPrice(c.value)} off`}
+                              ? t("dash.coupons.percentOff", { value: Number(c.value) })
+                              : t("dash.coupons.amountOff", { amount: formatPrice(c.value) })}
                           </span>
                           {c.minOrderAmount ? (
                             <span className="block text-xs text-muted-foreground">
-                              min {formatPrice(c.minOrderAmount)}
+                              {t("dash.coupons.min", { amount: formatPrice(c.minOrderAmount) })}
                             </span>
                           ) : null}
                         </td>
 
-                        <td className="text-right tabular-nums text-muted-foreground">
+                        <td className="text-end tabular-nums text-muted-foreground">
                           {c.usedCount}
                           {c.maxUses ? ` / ${c.maxUses}` : ""}
                         </td>
 
                         <td className="whitespace-nowrap text-muted-foreground">
-                          {c.expiresAt ? formatDate(c.expiresAt) : "Never"}
+                          {c.expiresAt ? formatDate(c.expiresAt) : t("dash.coupons.never")}
                         </td>
 
                         <td>
@@ -166,7 +168,7 @@ export default function CouponsAdmin() {
                               })
                             }
                             title={
-                              c.isActive ? "Disable coupon" : "Enable coupon"
+                              c.isActive ? t("dash.coupons.disable") : t("dash.coupons.enable")
                             }
                             className={`${status.className} transition-opacity hover:opacity-80`}
                           >
@@ -174,14 +176,14 @@ export default function CouponsAdmin() {
                           </button>
                         </td>
 
-                        <td className="text-right">
+                        <td className="text-end">
                           <button
                             onClick={() => {
-                              if (confirm(`Delete coupon "${c.code}"?`))
+                              if (confirm(t("dash.coupons.confirmDelete", { code: c.code })))
                                 deleteMutation.mutate(c.id);
                             }}
                             className="icon-btn-danger"
-                            aria-label={`Delete coupon ${c.code}`}
+                            aria-label={t("dash.coupons.delete", { code: c.code })}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -194,15 +196,15 @@ export default function CouponsAdmin() {
                     <td colSpan={6} className="p-0">
                       <EmptyState
                         icon={Tag}
-                        title="No coupons yet"
-                        description="Create a discount code to run your first promotion."
+                        title={t("dash.coupons.emptyTitle")}
+                        description={t("dash.coupons.emptyBody")}
                         action={
                           <button
                             onClick={() => setModalOpen(true)}
                             className="btn-primary"
                           >
                             <Plus className="h-4 w-4" />
-                            New coupon
+                            {t("dash.coupons.new")}
                           </button>
                         }
                         className="rounded-none border-0"
@@ -219,13 +221,13 @@ export default function CouponsAdmin() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title="New coupon"
-        description="Codes are case-insensitive and stored in uppercase."
+        title={t("dash.coupons.new")}
+        description={t("dash.coupons.modalHint")}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="code" className="label">
-              Code
+              {t("dash.coupons.code")}
             </label>
             <input
               id="code"
@@ -240,7 +242,7 @@ export default function CouponsAdmin() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="type" className="label">
-                Type
+                {t("dash.coupons.type")}
               </label>
               <select
                 id="type"
@@ -253,13 +255,13 @@ export default function CouponsAdmin() {
                 }
                 className="select"
               >
-                <option value="percentage">Percentage</option>
-                <option value="fixed">Fixed amount</option>
+                <option value="percentage">{t("dash.coupons.percentage")}</option>
+                <option value="fixed">{t("dash.coupons.fixed")}</option>
               </select>
             </div>
             <div>
               <label htmlFor="value" className="label">
-                Value {form.type === "percentage" ? "(%)" : "(DA)"}
+                {t("dash.coupons.value")} {form.type === "percentage" ? "(%)" : "(DA)"}
               </label>
               <input
                 id="value"
@@ -280,7 +282,7 @@ export default function CouponsAdmin() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="minOrderAmount" className="label">
-                Min order (DA)
+                {t("dash.coupons.minOrder")}
               </label>
               <input
                 id="minOrderAmount"
@@ -297,12 +299,12 @@ export default function CouponsAdmin() {
                   })
                 }
                 className="input"
-                placeholder="Optional"
+                placeholder={t("dash.coupons.optional")}
               />
             </div>
             <div>
               <label htmlFor="maxUses" className="label">
-                Max uses
+                {t("dash.coupons.maxUses")}
               </label>
               <input
                 id="maxUses"
@@ -318,14 +320,14 @@ export default function CouponsAdmin() {
                   })
                 }
                 className="input"
-                placeholder="Unlimited"
+                placeholder={t("dash.coupons.unlimited")}
               />
             </div>
           </div>
 
           <div>
             <label htmlFor="expiresAt" className="label">
-              Expires
+              {t("dash.coupons.expires")}
             </label>
             <input
               id="expiresAt"
@@ -334,7 +336,7 @@ export default function CouponsAdmin() {
               onChange={(e) => setForm({ ...form, expiresAt: e.target.value })}
               className="input"
             />
-            <p className="field-hint">Leave blank for a code that never expires.</p>
+            <p className="field-hint">{t("dash.coupons.neverHint")}</p>
           </div>
 
           <div className="flex gap-3 border-t border-border pt-4">
@@ -343,14 +345,14 @@ export default function CouponsAdmin() {
               onClick={() => setModalOpen(false)}
               className="btn-outline flex-1"
             >
-              Cancel
+              {t("dash.cancel")}
             </button>
             <button
               type="submit"
               disabled={createMutation.isPending}
               className="btn-primary flex-1"
             >
-              Create coupon
+              {t("dash.coupons.create")}
             </button>
           </div>
         </form>

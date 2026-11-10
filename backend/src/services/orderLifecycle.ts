@@ -1,14 +1,14 @@
-import { EntityManager, In, LessThan, Not } from "typeorm";
+import { EntityManager, LessThan, Not } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Coupon } from "../entities/Coupon";
-import { Order, OrderStatus } from "../entities/Order";
+import { CLOSED_STATUSES, Order, OrderStatus } from "../entities/Order";
 import { OrderItem } from "../entities/OrderItem";
-import { Product } from "../entities/Product";
-import { StockIssue, stockConflict } from "../utils/httpError";
+import { stockConflict } from "../utils/httpError";
 import { logger } from "../config/logger";
 import { Sentry } from "../config/sentry";
 import * as notifications from "./notifications";
 import { syncShipments } from "./fulfilment";
+import { applyStockChanges, lockStock } from "./inventory";
 
 // How long an unpaid order keeps its items out of stock. Each new payment
 // attempt ("Pay now") restarts the clock.
@@ -17,20 +17,6 @@ export const RESERVATION_MINUTES =
 
 export function reservationDeadline(from = new Date()): Date {
   return new Date(from.getTime() + RESERVATION_MINUTES * 60_000);
-}
-
-// Loads and row-locks (SELECT ... FOR UPDATE) the given products for the rest
-// of the transaction, so two concurrent checkouts can't both pass the stock
-// check and oversell. Locked in id order so concurrent transactions acquire
-// locks in the same order and can't deadlock each other.
-export async function lockProducts(manager: EntityManager, ids: string[]) {
-  if (ids.length === 0) return new Map<string, Product>();
-  const products = await manager.getRepository(Product).find({
-    where: { id: In(ids) },
-    order: { id: "ASC" },
-    lock: { mode: "pessimistic_write" },
-  });
-  return new Map(products.map((p) => [p.id, p]));
 }
 
 // Locks the order row (so two concurrent status changes can't both act on the
@@ -73,9 +59,10 @@ async function adjustCouponUsage(
 
 // Moves an order (from loadOrderForUpdate, same transaction) to `newStatus`,
 // keeping stock and coupon usage in sync:
-//   → cancelled: items go back into stock, the coupon use is released
-//   cancelled →: stock is re-reserved (409 if it's no longer there) and the
-//                coupon use is consumed again
+//   → cancelled / returned: items go back into stock, the coupon use is released
+//   cancelled / returned →: stock is re-reserved (409 if it's no longer there)
+//                           and the coupon use is consumed again
+// Moving between the two closed states (cancelled ↔ returned) touches nothing.
 // Same status twice is a no-op, so nothing is ever restocked twice.
 //
 // Every shop's shipment follows the order unless `syncShipments` is false
@@ -88,27 +75,29 @@ export async function setOrderStatus(
 ): Promise<Order> {
   if (order.status === newStatus) return order;
 
-  const entering = newStatus === "cancelled";
-  const leaving = order.status === "cancelled";
+  const entering = CLOSED_STATUSES.includes(newStatus) && !CLOSED_STATUSES.includes(order.status);
+  const leaving = CLOSED_STATUSES.includes(order.status) && !CLOSED_STATUSES.includes(newStatus);
 
   if (entering || leaving) {
-    // Items whose product was deleted since the order was placed are skipped.
-    const lines = order.items.filter((i) => i.productId);
-    const products = await lockProducts(
-      manager,
-      lines.map((i) => i.productId!),
-    );
+    // Items whose product or option was deleted since the order was placed
+    // have no stock left to give back or take, so they're skipped.
+    const lines = order.items
+      .filter((i) => i.productId && !(i.variantName && !i.variantId))
+      .map((i) => ({
+        productId: i.productId!,
+        variantId: i.variantId ?? null,
+        quantity: i.quantity,
+        productName: i.productName,
+        variantName: i.variantName,
+      }));
+    const stock = await lockStock(manager, lines.map((l) => l.productId));
+    const tracked = lines.filter((l) => stock.holder(l.productId, l.variantId));
 
     if (leaving) {
       // Stock may have been bought up while the order was cancelled.
-      const issues: StockIssue[] = lines
-        .filter((i) => (products.get(i.productId!)?.stock ?? 0) < i.quantity)
-        .map((i) => ({
-          productId: i.productId!,
-          productName: i.productName,
-          availableStock: products.get(i.productId!)?.stock ?? 0,
-          requestedQuantity: i.quantity,
-        }));
+      const issues = tracked
+        .filter((l) => stock.available(l) < l.quantity)
+        .map((l) => stock.issue(l, l));
       if (issues.length > 0) {
         throw stockConflict(
           "Can't reactivate this order — some items no longer have enough stock",
@@ -117,12 +106,11 @@ export async function setOrderStatus(
       }
     }
 
-    for (const item of lines) {
-      const product = products.get(item.productId!);
-      if (!product) continue;
-      product.stock += entering ? item.quantity : -item.quantity;
-      await manager.save(product);
-    }
+    await applyStockChanges(
+      manager,
+      stock,
+      tracked.map((l) => ({ ...l, delta: entering ? l.quantity : -l.quantity })),
+    );
     await adjustCouponUsage(
       manager,
       order.couponCode,
@@ -132,6 +120,13 @@ export async function setOrderStatus(
 
   const changes: Partial<Order> = { status: newStatus };
   if (entering) changes.reservedUntil = null;
+  if (leaving) {
+    // Reactivated: it's no longer a cancellation or a return.
+    changes.cancelledBy = null;
+    changes.returnedAt = null;
+    changes.returnReason = null;
+    changes.returnCost = 0;
+  }
   // Pay on delivery: the courier collects the cash when the parcel is handed over.
   if (
     newStatus === "delivered" &&
@@ -182,11 +177,7 @@ export async function expireUnpaidOrders(now = new Date()): Promise<number> {
     if (cancelled) {
       expired++;
       notifications.inBackground(
-        notifications.notifyStatusChange(
-          id,
-          "cancelled",
-          "We cancelled this order because the payment wasn't completed in time, and released the items. You're welcome to order again.",
-        ),
+        notifications.notifyStatusChange(id, "cancelled", "expired"),
         { orderId: id },
       );
     }

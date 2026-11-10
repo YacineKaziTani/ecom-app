@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { EntityManager } from "typeorm";
 import { AppDataSource } from "../config/data-source";
+import { COUNTED_SALE_SQL } from "../entities/Order";
 import { Product } from "../entities/Product";
 import { Review } from "../entities/Review";
 import { User } from "../entities/User";
@@ -22,7 +23,7 @@ async function hasBought(userId: string, productId: string): Promise<boolean> {
     `SELECT EXISTS (
        SELECT 1 FROM orders o JOIN order_items oi ON oi."orderId" = o.id
        WHERE o."userId" = $1 AND oi."productId" = $2
-         AND o."paymentStatus" = 'paid' AND o.status <> 'cancelled'
+         AND ${COUNTED_SALE_SQL}
      ) AS bought`,
     [userId, productId],
   );

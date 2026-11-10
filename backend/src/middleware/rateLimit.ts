@@ -44,6 +44,13 @@ export const forgotPasswordLimiter = limiter(
   "Too many password reset requests — please try again later.",
 );
 
+// Each request can send a paid SMS — keep it tight.
+export const phoneCodeLimiter = limiter(
+  15 * MINUTE,
+  5,
+  "Too many code requests — please try again in a few minutes.",
+);
+
 export const resetPasswordLimiter = limiter(
   15 * MINUTE,
   15,

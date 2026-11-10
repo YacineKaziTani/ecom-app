@@ -27,6 +27,6 @@ export const couponsApi = {
   update: (id: string, data: Partial<CouponInput>) => api.put<Coupon>(`/coupons/${id}`, data).then((r) => r.data),
   remove: (id: string) => api.delete(`/coupons/${id}`).then((r) => r.data),
   // Public: preview a coupon against the current cart before checkout.
-  validate: (code: string, items: { productId: string; quantity: number }[]) =>
+  validate: (code: string, items: { productId: string; variantId?: string | null; quantity: number }[]) =>
     api.post<CouponPreview>("/coupons/validate", { code, items }).then((r) => r.data),
 };

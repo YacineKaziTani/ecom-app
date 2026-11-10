@@ -1,36 +1,30 @@
 import { email, renderLayout } from "./layout";
+import { Locale, translator } from "./i18n";
 import type { RenderedEmail } from "./orderEmails";
 
 export interface PasswordResetEmailData {
   name: string;
   resetLink: string;
   expiresInMinutes: number;
+  locale?: Locale;
 }
 
 export function renderPasswordResetEmail(data: PasswordResetEmailData): RenderedEmail {
-  const { name, resetLink, expiresInMinutes } = data;
+  const { name, resetLink, expiresInMinutes, locale = "en" } = data;
+  const t = translator(locale);
+  const body = t("reset.body", { minutes: expiresInMinutes });
 
   const html = renderLayout({
-    title: "Reset your password",
+    title: t("reset.subject"),
     bodyHtml:
-      email.heading(`Hi ${name},`) +
-      email.paragraph(
-        `We received a request to reset your password. Click the button below to choose a new one. This link expires in ${expiresInMinutes} minutes.`,
-      ) +
-      email.muted(
-        "If you didn't request this, you can safely ignore this email — your password won't change unless you click the link and set a new one.",
-      ),
-    cta: { label: "Reset your password", url: resetLink },
+      email.heading(t("account.hi", { name })) +
+      email.paragraph(body) +
+      email.muted(t("reset.ignore")),
+    cta: { label: t("reset.subject"), url: resetLink },
+    locale,
   });
 
-  const text = [
-    `Hi ${name},`,
-    ``,
-    `We received a request to reset your password. This link expires in ${expiresInMinutes} minutes:`,
-    resetLink,
-    ``,
-    `If you didn't request this, you can safely ignore this email.`,
-  ].join("\n");
+  const text = [t("account.hi", { name }), "", body, resetLink, "", t("reset.ignore")].join("\n");
 
-  return { subject: "Reset your password", html, text };
+  return { subject: t("reset.subject"), html, text };
 }

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { AppDataSource } from "../config/data-source";
+import { COUNTED_SALE_SQL } from "../entities/Order";
 import { requireAuth, requireAnyAdmin, attachShop } from "../middleware/auth";
 import { clampInt } from "../utils/validators";
 
@@ -29,7 +30,7 @@ router.get(
               SUM(o.total) as revenue,
               COUNT(*) as orders
        FROM orders o
-       WHERE o."paymentStatus" = 'paid' AND o."createdAt" >= $1
+       WHERE ${COUNTED_SALE_SQL} AND o."createdAt" >= $1
        GROUP BY date
        ORDER BY date ASC`,
         [since],
@@ -41,7 +42,7 @@ router.get(
               SUM(oi.price * oi.quantity) as revenue
        FROM order_items oi
        JOIN orders o ON o.id = oi."orderId"
-       WHERE o."paymentStatus" = 'paid' AND o."createdAt" >= $1
+       WHERE ${COUNTED_SALE_SQL} AND o."createdAt" >= $1
        GROUP BY oi."productName"
        ORDER BY revenue DESC
        LIMIT 5`,
@@ -51,7 +52,7 @@ router.get(
       const totalsRows = await AppDataSource.query(
         `SELECT SUM(o.total) as "totalRevenue", COUNT(*) as "totalOrders"
        FROM orders o
-       WHERE o."paymentStatus" = 'paid' AND o."createdAt" >= $1`,
+       WHERE ${COUNTED_SALE_SQL} AND o."createdAt" >= $1`,
         [since],
       );
       totals = totalsRows[0];
@@ -64,7 +65,7 @@ router.get(
               COUNT(DISTINCT o.id) as orders
        FROM order_items oi
        JOIN orders o ON o.id = oi."orderId"
-       WHERE o."paymentStatus" = 'paid' AND o."createdAt" >= $1 AND oi."shopId" = $2
+       WHERE ${COUNTED_SALE_SQL} AND o."createdAt" >= $1 AND oi."shopId" = $2
        GROUP BY date
        ORDER BY date ASC`,
         [since, shopId],
@@ -76,7 +77,7 @@ router.get(
               SUM(oi.price * oi.quantity) as revenue
        FROM order_items oi
        JOIN orders o ON o.id = oi."orderId"
-       WHERE o."paymentStatus" = 'paid' AND o."createdAt" >= $1 AND oi."shopId" = $2
+       WHERE ${COUNTED_SALE_SQL} AND o."createdAt" >= $1 AND oi."shopId" = $2
        GROUP BY oi."productName"
        ORDER BY revenue DESC
        LIMIT 5`,
@@ -87,7 +88,7 @@ router.get(
         `SELECT SUM(oi.price * oi.quantity) as "totalRevenue", COUNT(DISTINCT o.id) as "totalOrders"
        FROM order_items oi
        JOIN orders o ON o.id = oi."orderId"
-       WHERE o."paymentStatus" = 'paid' AND o."createdAt" >= $1 AND oi."shopId" = $2`,
+       WHERE ${COUNTED_SALE_SQL} AND o."createdAt" >= $1 AND oi."shopId" = $2`,
         [since, shopId],
       );
       totals = totalsRows[0];

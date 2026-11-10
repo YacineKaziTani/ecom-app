@@ -39,6 +39,7 @@ const ShippingAdmin = lazy(() => import("./pages/dashboard/ShippingAdmin"));
 const PayoutsAdmin = lazy(() => import("./pages/dashboard/PayoutsAdmin"));
 const ApplicationsAdmin = lazy(() => import("./pages/dashboard/ApplicationsAdmin"));
 const ActivityAdmin = lazy(() => import("./pages/dashboard/ActivityAdmin"));
+const BlockedPhonesAdmin = lazy(() => import("./pages/dashboard/BlockedPhonesAdmin"));
 
 export default function App() {
   return (
@@ -85,6 +86,7 @@ export default function App() {
             <Route path="payouts" element={<PayoutsAdmin />} />
             <Route path="applications" element={<ApplicationsAdmin />} />
             <Route path="activity" element={<ActivityAdmin />} />
+            <Route path="blocked-numbers" element={<BlockedPhonesAdmin />} />
             <Route path="profile" element={<Profile />} />
           </Route>
         </Route>

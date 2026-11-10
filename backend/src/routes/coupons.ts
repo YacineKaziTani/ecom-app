@@ -4,9 +4,11 @@ import { FindOptionsWhere, In, IsNull } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Coupon } from "../entities/Coupon";
 import { Product } from "../entities/Product";
+import { ProductVariant } from "../entities/ProductVariant";
 import { requireAuth, requireAnyAdmin, attachShop } from "../middleware/auth";
 import { validateUuidParam } from "../middleware/validateUuid";
 import { previewCoupon } from "../services/coupons";
+import { unitPrice } from "../services/inventory";
 import { audit } from "../services/audit";
 
 const router = Router();
@@ -171,6 +173,7 @@ const previewSchema = z.object({
     .array(
       z.object({
         productId: z.string().uuid(),
+        variantId: z.string().uuid().nullish(),
         quantity: z.number().int().positive().max(1000),
       }),
     )
@@ -185,20 +188,27 @@ router.post("/validate", async (req, res) => {
   if (!parsed.success)
     return res.status(400).json({ message: "Invalid input" });
 
-  const products = await AppDataSource.getRepository(Product).findBy({
-    id: In(parsed.data.items.map((i) => i.productId)),
-  });
+  const { items } = parsed.data;
+  const variantIds = items.map((i) => i.variantId).filter((id): id is string => !!id);
+  const [products, variants] = await Promise.all([
+    AppDataSource.getRepository(Product).findBy({ id: In(items.map((i) => i.productId)) }),
+    variantIds.length
+      ? AppDataSource.getRepository(ProductVariant).findBy({ id: In(variantIds) })
+      : Promise.resolve([]),
+  ]);
   const productMap = new Map(products.map((p) => [p.id, p]));
+  const variantMap = new Map(variants.map((v) => [v.id, v]));
 
   let subtotal = 0;
   const shopIds: string[] = [];
-  for (const item of parsed.data.items) {
+  for (const item of items) {
     const product = productMap.get(item.productId);
-    if (!product)
+    const variant = item.variantId ? variantMap.get(item.variantId) : null;
+    if (!product || (item.variantId && variant?.productId !== product.id))
       return res
         .status(400)
         .json({ message: "One or more items in your cart no longer exist" });
-    subtotal += Number(product.price) * item.quantity;
+    subtotal += unitPrice(product, variant) * item.quantity;
     shopIds.push(product.shopId);
   }
 

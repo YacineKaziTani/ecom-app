@@ -108,7 +108,7 @@ describe("who gets notified", () => {
     const notify = jest.spyOn(notifications, "notifyStatusChange").mockResolvedValue();
 
     await expireUnpaidOrders();
-    expect(notify).toHaveBeenCalledWith(order.body.id, "cancelled", expect.stringMatching(/payment wasn't completed/));
+    expect(notify).toHaveBeenCalledWith(order.body.id, "cancelled", "expired");
   });
 
   it("doesn't email for statuses without a message (back to pending)", async () => {

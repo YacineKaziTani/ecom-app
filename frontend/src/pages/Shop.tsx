@@ -18,12 +18,22 @@ const SORT_OPTIONS: { value: ProductSort; labelKey: MessageKey }[] = [
   { value: "price_asc", labelKey: "sort.priceAsc" },
   { value: "price_desc", labelKey: "sort.priceDesc" },
   { value: "name_asc", labelKey: "sort.nameAsc" },
+  { value: "rating_desc", labelKey: "sort.ratingDesc" },
 ];
+
+// "" → no bound; anything else must be a non-negative number.
+const priceBound = (raw: string) => {
+  const n = Number(raw.replace(",", "."));
+  return raw.trim() !== "" && Number.isFinite(n) && n >= 0 ? n : undefined;
+};
 
 export default function Shop() {
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [sort, setSort] = useState<ProductSort>("newest");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [inStock, setInStock] = useState(false);
   const [page, setPage] = useState(1);
   const { t, tp } = useI18n();
 
@@ -34,25 +44,33 @@ export default function Shop() {
 
   // Don't fire a request (and burn rate limit) on every keystroke.
   const debouncedSearch = useDebouncedValue(search.trim());
+  const min = priceBound(useDebouncedValue(minPrice));
+  const max = priceBound(useDebouncedValue(maxPrice));
 
   const { data, isLoading } = useQuery({
-    queryKey: ["products", { search: debouncedSearch, categoryId, sort, page }],
+    queryKey: ["products", { search: debouncedSearch, categoryId, sort, page, min, max, inStock }],
     queryFn: () =>
       productsApi.list({
         search: debouncedSearch,
         categoryId,
         sort,
+        minPrice: min,
+        maxPrice: max,
+        inStock: inStock || undefined,
         page,
         limit: 12,
       }),
   });
 
   const activeCategory = categories?.find((c) => c.id === categoryId);
-  const hasFilters = Boolean(search || categoryId);
+  const hasFilters = Boolean(search || categoryId || minPrice || maxPrice || inStock);
 
   function resetFilters() {
     setSearch("");
     setCategoryId("");
+    setMinPrice("");
+    setMaxPrice("");
+    setInStock(false);
     setPage(1);
   }
 
@@ -120,6 +138,44 @@ export default function Shop() {
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                value={minPrice}
+                onChange={(e) => {
+                  setMinPrice(e.target.value);
+                  setPage(1);
+                }}
+                inputMode="decimal"
+                placeholder={t("home.minPrice")}
+                aria-label={t("home.minPrice")}
+                className="input w-24"
+              />
+              <span className="text-muted-foreground" aria-hidden>–</span>
+              <input
+                value={maxPrice}
+                onChange={(e) => {
+                  setMaxPrice(e.target.value);
+                  setPage(1);
+                }}
+                inputMode="decimal"
+                placeholder={t("home.maxPrice")}
+                aria-label={t("home.maxPrice")}
+                className="input w-24"
+              />
+              <label className="flex cursor-pointer items-center gap-2 whitespace-nowrap px-1 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  checked={inStock}
+                  onChange={(e) => {
+                    setInStock(e.target.checked);
+                    setPage(1);
+                  }}
+                  className="h-4 w-4 accent-primary"
+                />
+                {t("home.inStockOnly")}
+              </label>
             </div>
 
             <div className="flex items-center gap-2">

@@ -5,12 +5,14 @@ import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { authApi } from "../api/auth";
 import { useInvalidateAuth } from "../store/AuthContext";
 import { AuthLayout } from "../components/AuthLayout";
+import { useI18n } from "../i18n/I18nProvider";
 
 export default function VerifyEmail() {
   const [params] = useSearchParams();
   // Same defensive extraction as the reset link: always 64 hex chars.
   const token = params.get("token")?.match(/^[a-f0-9]{64}/)?.[0] ?? null;
   const invalidateAuth = useInvalidateAuth();
+  const { t } = useI18n();
   const started = useRef(false);
 
   const mutation = useMutation({
@@ -30,12 +32,12 @@ export default function VerifyEmail() {
 
   return (
     <AuthLayout
-      title={failed ? "Link not valid" : mutation.isSuccess ? "Email confirmed" : "Confirming…"}
+      title={failed ? t("verify.invalidTitle") : mutation.isSuccess ? t("verify.doneTitle") : t("verify.pendingTitle")}
       subtitle={
         failed
-          ? "This confirmation link is invalid or has expired. Sign in and ask for a new one from the banner at the top of the page."
+          ? t("verify.invalidBody")
           : mutation.isSuccess
-            ? "Thanks — your email address is confirmed."
+            ? t("verify.doneBody")
             : undefined
       }
     >
@@ -48,7 +50,7 @@ export default function VerifyEmail() {
           <Loader2 className="h-8 w-8 animate-spin text-accent" />
         )}
         <Link to="/" className="btn-primary">
-          Continue to the shop
+          {t("verify.continue")}
         </Link>
       </div>
     </AuthLayout>

@@ -9,11 +9,24 @@ export interface User {
   address?: string;
   wilayaCode?: number | null;
   commune?: string | null;
+  locale?: "en" | "fr" | "ar"; // language of this account's emails
   role: UserRole;
   emailVerifiedAt?: string | null;
   totpEnabledAt?: string | null; // two-factor sign-in on
   createdAt: string;
   updatedAt: string;
+}
+
+// A saved delivery address from the customer's address book.
+export interface Address {
+  id: string;
+  label: string; // "Maison", "Travail"...
+  phone: string;
+  wilayaCode: number;
+  commune: string;
+  address: string;
+  isDefault: boolean;
+  createdAt: string;
 }
 
 export interface Shop {
@@ -36,6 +49,18 @@ export interface Category {
   updatedAt: string;
 }
 
+// One purchasable option of a product ("M", "Bleu / L") with its own stock
+// and, optionally, its own price (null = the product's price).
+export interface ProductVariant {
+  id: string;
+  productId: string;
+  name: string;
+  sku?: string | null;
+  price?: number | string | null; // decimal from the API
+  stock: number;
+  position: number;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -50,6 +75,10 @@ export interface Product {
   category?: Category;
   shopId: string;
   shop?: Shop;
+  // Product page only; ordered for display.
+  variants?: ProductVariant[];
+  // Listings only: how many options must be chosen from.
+  variantCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -65,7 +94,38 @@ export interface Paginated<T> {
 
 export type ProductListResponse = Paginated<Product>;
 
-export type OrderStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+export type OrderStatus =
+  | "pending"
+  | "processing"
+  | "shipped"
+  | "delivered"
+  | "cancelled"
+  | "returned"; // parcel came back (refused, unreachable…)
+
+export type CallOutcome = "confirmed" | "no_answer" | "declined" | "wrong_number";
+
+export interface OrderCall {
+  id: string;
+  outcome: CallOutcome;
+  note?: string | null;
+  createdAt: string;
+}
+
+// A phone number's delivery history across the platform (admin only).
+export interface CustomerRisk {
+  orders: number;
+  delivered: number;
+  returned: number;
+  refused: number;
+  blocked: boolean;
+  level: "low" | "medium" | "high" | "blocked";
+}
+
+export interface BlockedPhone {
+  phone: string;
+  reason?: string | null;
+  createdAt: string;
+}
 export type PaymentStatus = "unpaid" | "paid" | "failed";
 // card = online via Chargily; cod = cash to the courier on delivery.
 export type PaymentMethod = "card" | "cod";
@@ -102,6 +162,8 @@ export interface OrderItem {
   productId?: string;
   shopId?: string;
   productName: string;
+  variantId?: string | null;
+  variantName?: string | null; // the option bought, e.g. "M"
   price: number;
   quantity: number;
 }
@@ -213,6 +275,16 @@ export interface Order {
   user?: User;
   // Unpaid orders hold their stock until this moment, then get cancelled.
   reservedUntil?: string | null;
+  // Pay-on-delivery confirmation and returns (admin views).
+  confirmedAt?: string | null;
+  callAttempts?: number;
+  calls?: OrderCall[];
+  returnedAt?: string | null;
+  returnReason?: string | null;
+  returnCost?: number | string;
+  customerRisk?: CustomerRisk | null;
+  // "customer" when the customer cancelled it themselves.
+  cancelledBy?: "customer" | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -10,6 +10,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { CardListSkeleton } from "../../components/ui/Skeleton";
 import { Pagination } from "../../components/Pagination";
 import toast from "react-hot-toast";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const STATUS_BADGE: Record<ApplicationStatus, string> = {
   pending: "badge-warning",
@@ -20,6 +21,7 @@ const STATUS_BADGE: Record<ApplicationStatus, string> = {
 export default function ApplicationsAdmin() {
   const { isSuperAdmin } = useAuth();
   const qc = useQueryClient();
+  const { t } = useI18n();
   const [status, setStatus] = useState<ApplicationStatus | "">("pending");
   const [page, setPage] = useState(1);
 
@@ -36,28 +38,28 @@ export default function ApplicationsAdmin() {
     onSuccess: (app) => {
       qc.invalidateQueries({ queryKey: ["seller-applications"] });
       qc.invalidateQueries({ queryKey: ["shops"] });
-      toast.success(app.status === "approved" ? `${app.shopName} is now open` : "Application rejected");
+      toast.success(app.status === "approved" ? t("dash.apps.opened", { shop: app.shopName }) : t("dash.apps.rejected"));
     },
     onError: (err: any) => toast.error(String(err)),
   });
 
   if (!isSuperAdmin) {
-    return <EmptyState icon={ShieldAlert} title="Restricted area" description="Only super admins review seller applications." />;
+    return <EmptyState icon={ShieldAlert} title={t("dash.restricted")} description={t("dash.apps.restrictedBody")} />;
   }
 
   return (
     <div>
       <PageHeader
-        eyebrow="Marketplace"
-        title="Seller applications"
-        description="Approving creates the shop and gives the applicant a seller dashboard."
+        eyebrow={t("dash.payouts.marketplace")}
+        title={t("dash.apps.title")}
+        description={t("dash.apps.description")}
         actions={
           <select value={status} onChange={(e) => { setStatus(e.target.value as ApplicationStatus | ""); setPage(1); }}
-            className="select" aria-label="Filter by status">
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="">All</option>
+            className="select" aria-label={t("dash.apps.filter")}>
+            <option value="pending">{t("dash.apps.pending")}</option>
+            <option value="approved">{t("dash.apps.approved")}</option>
+            <option value="rejected">{t("dash.apps.rejectedStatus")}</option>
+            <option value="">{t("dash.apps.all")}</option>
           </select>
         }
       />
@@ -75,26 +77,26 @@ export default function ApplicationsAdmin() {
                     {a.user ? `${a.user.firstName} ${a.user.lastName} · ${a.user.email}` : "—"} · {a.phone} · {formatDate(a.createdAt)}
                   </p>
                 </div>
-                <span className={STATUS_BADGE[a.status]}>{a.status}</span>
+                <span className={STATUS_BADGE[a.status]}>{t(a.status === "pending" ? "dash.apps.pending" : a.status === "approved" ? "dash.apps.approved" : "dash.apps.rejectedStatus")}</span>
               </div>
               {a.description && <p className="mt-3 text-sm text-foreground">{a.description}</p>}
               {a.message && <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">{a.message}</p>}
-              {a.reviewNote && <p className="mt-2 text-sm italic text-muted-foreground">Note: {a.reviewNote}</p>}
+              {a.reviewNote && <p className="mt-2 text-sm italic text-muted-foreground">{t("dash.apps.note", { note: a.reviewNote })}</p>}
               {a.status === "pending" && (
                 <div className="mt-4 flex gap-2">
                   <button
-                    onClick={() => confirm(`Approve "${a.shopName}"? This creates the shop and makes the applicant its admin.`) &&
+                    onClick={() => confirm(t("dash.apps.confirmApprove", { shop: a.shopName })) &&
                       decide.mutate({ id: a.id, approve: true })}
                     disabled={decide.isPending} className="btn-primary btn-sm">
-                    <Check className="h-4 w-4" /> Approve
+                    <Check className="h-4 w-4" /> {t("dash.apps.approve")}
                   </button>
                   <button
                     onClick={() => {
-                      const note = prompt("Reason (sent to the applicant):");
+                      const note = prompt(t("dash.apps.reasonPrompt"));
                       if (note !== null) decide.mutate({ id: a.id, approve: false, note: note || undefined });
                     }}
                     disabled={decide.isPending} className="btn-outline btn-sm">
-                    <X className="h-4 w-4" /> Reject
+                    <X className="h-4 w-4" /> {t("dash.apps.reject")}
                   </button>
                 </div>
               )}
@@ -103,7 +105,7 @@ export default function ApplicationsAdmin() {
           <Pagination page={data.page} totalPages={data.totalPages} total={data.total} limit={data.limit} onPageChange={setPage} />
         </div>
       ) : (
-        <EmptyState icon={Inbox} title="Nothing here" description="New applications will show up in this list." />
+        <EmptyState icon={Inbox} title={t("dash.apps.emptyTitle")} description={t("dash.apps.emptyBody")} />
       )}
     </div>
   );

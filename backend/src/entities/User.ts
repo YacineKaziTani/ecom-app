@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, OneToOne } from "typeorm";
+import type { Locale } from "../emails/i18n";
 import { Order } from "./Order";
 import { Shop } from "./Shop";
 
@@ -35,6 +36,11 @@ export class User {
 
   @Column({ type: "varchar", nullable: true })
   commune?: string | null;
+
+  // Language for this person's emails (account, shop notifications), kept in
+  // step with the storefront language they use.
+  @Column({ type: "varchar", length: 2, default: "en" })
+  locale!: Locale;
 
   @Column({ type: "varchar", default: "customer" })
   role!: UserRole;

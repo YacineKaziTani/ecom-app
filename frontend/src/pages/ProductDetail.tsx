@@ -3,7 +3,7 @@ import type { MessageKey } from "../i18n/messages";
 import { useI18n } from "../i18n/I18nProvider";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   Minus,
@@ -15,6 +15,10 @@ import {
   ImageOff,
 } from "lucide-react";
 import { productsApi } from "../api/products";
+import { Product } from "../api/types";
+import { unitPrice } from "../lib/cart";
+import { recentlyViewed, rememberViewed } from "../lib/recentlyViewed";
+import { ProductCard } from "../components/ProductCard";
 import { useCart } from "../hooks/useCart";
 import { formatPrice } from "../lib/status";
 import { Skeleton } from "../components/ui/Skeleton";
@@ -37,6 +41,7 @@ export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const [qty, setQty] = useState(1);
   const [activeImage, setActiveImage] = useState<string | null>(null);
+  const [variantId, setVariantId] = useState<string | null>(null);
   const { addItem } = useCart();
   const { t, tp } = useI18n();
 
@@ -45,6 +50,18 @@ export default function ProductDetail() {
     queryFn: () => productsApi.get(id!),
     enabled: !!id,
   });
+
+  // What was viewed before this page (so it isn't listed on its own page).
+  const [previouslyViewed, setPreviouslyViewed] = useState<string[]>([]);
+  useEffect(() => {
+    setQty(1);
+    setVariantId(null);
+    setActiveImage(null);
+    setPreviouslyViewed(recentlyViewed().filter((x) => x !== id));
+  }, [id]);
+  useEffect(() => {
+    if (product) rememberViewed(product.id);
+  }, [product]);
 
   useDocumentMeta(
     product?.name,
@@ -110,7 +127,22 @@ export default function ProductDetail() {
     );
   }
 
-  const soldOut = product.stock === 0;
+  const variants = product.variants ?? [];
+  const hasOptions = variants.length > 0;
+  // A lone option is picked for the customer.
+  const variant =
+    variants.find((v) => v.id === variantId) ?? (variants.length === 1 ? variants[0] : null);
+  const needsChoice = hasOptions && !variant;
+  const price = unitPrice(product, variant);
+  const stock = variant ? variant.stock : product.stock;
+  const soldOut = product.stock === 0 || (variant !== null && variant.stock === 0);
+
+  function addToCart() {
+    // Keep the cart snapshot small: the option list isn't needed there.
+    const { variants: _options, ...base } = product!;
+    addItem(base as Product, qty, variant);
+    toast.success(t("product.added", { name: variant ? `${product!.name} — ${variant.name}` : product!.name }));
+  }
 
   return (
     <div className="container-page py-8 sm:py-10">
@@ -211,7 +243,7 @@ export default function ProductDetail() {
             <Link
               to={`/shops/${product.shop.slug}`}
               className="mt-3 inline-flex items-center gap-2 rounded-full border border-border
-                         bg-card py-1.5 pl-1.5 pr-3.5 text-sm transition-colors hover:border-accent/50"
+                         bg-card py-1.5 ps-1.5 pe-3.5 text-sm transition-colors hover:border-accent/50"
             >
               <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-accent-soft">
                 {product.shop.logoUrl ? (
@@ -225,15 +257,55 @@ export default function ProductDetail() {
                 )}
               </span>
               <span className="font-medium text-muted-foreground">
-                by{" "}
-                <span className="text-foreground">{product.shop.name}</span>
+                {t("product.by", { shop: product.shop.name })}
               </span>
             </Link>
           )}
 
           <p className="mt-6 font-serif text-4xl font-bold text-foreground">
-            {formatPrice(product.price)}
+            {formatPrice(price)}
           </p>
+
+          {hasOptions && (
+            <fieldset className="mt-6">
+              <legend className="mb-2 text-sm font-semibold text-foreground">
+                {variant ? t("product.option", { name: variant.name }) : t("product.chooseOption")}
+              </legend>
+              <div className="flex flex-wrap gap-2">
+                {variants.map((v) => {
+                  const selected = variant?.id === v.id;
+                  const out = v.stock === 0;
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => {
+                        setVariantId(v.id);
+                        setQty(1);
+                      }}
+                      disabled={out}
+                      aria-pressed={selected}
+                      className={cn(
+                        "min-w-12 rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors",
+                        selected
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-card text-foreground hover:border-accent/60",
+                        out && "cursor-not-allowed text-muted-foreground line-through opacity-60 hover:border-border",
+                      )}
+                      title={out ? t("product.soldOut") : undefined}
+                    >
+                      {v.name}
+                      {v.price != null && Number(v.price) !== Number(product.price) && (
+                        <span className={cn("ms-1.5 text-xs", selected ? "opacity-80" : "text-muted-foreground")}>
+                          {formatPrice(Number(v.price))}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          )}
 
           <div className="mt-3 flex items-center gap-2 text-sm">
             <span
@@ -241,7 +313,7 @@ export default function ProductDetail() {
                 "h-2 w-2 rounded-full",
                 soldOut
                   ? "bg-destructive"
-                  : product.stock <= 5
+                  : stock <= 5
                     ? "bg-warning"
                     : "bg-success",
               )}
@@ -253,9 +325,11 @@ export default function ProductDetail() {
             >
               {soldOut
                 ? t("product.outOfStock")
-                : product.stock <= 5
-                  ? t("product.onlyLeftInStock", { count: product.stock })
-                  : t("product.inStock", { count: product.stock })}
+                : needsChoice
+                  ? t("product.inStockOptions")
+                  : stock <= 5
+                    ? t("product.onlyLeftInStock", { count: stock })
+                    : t("product.inStock", { count: stock })}
             </span>
           </div>
 
@@ -289,8 +363,8 @@ export default function ProductDetail() {
                 {qty}
               </span>
               <button
-                onClick={() => setQty((q) => Math.min(product.stock, q + 1))}
-                disabled={qty >= product.stock}
+                onClick={() => setQty((q) => Math.min(stock, q + 1))}
+                disabled={qty >= stock}
                 className="icon-btn h-9 w-9"
                 aria-label={t("product.increase")}
               >
@@ -299,15 +373,16 @@ export default function ProductDetail() {
             </div>
 
             <button
-              onClick={() => {
-                addItem(product, qty);
-                toast.success(t("product.added", { name: product.name }));
-              }}
-              disabled={soldOut}
+              onClick={addToCart}
+              disabled={soldOut || needsChoice}
               className="btn-primary btn-lg flex-1"
             >
               <ShoppingBag className="h-4 w-4" />
-              {soldOut ? t("product.outOfStock") : t("product.addToCart")}
+              {soldOut
+                ? t("product.outOfStock")
+                : needsChoice
+                  ? t("product.chooseOption")
+                  : t("product.addToCart")}
             </button>
           </div>
 
@@ -315,7 +390,7 @@ export default function ProductDetail() {
             <p className="mt-3 text-center text-xs text-muted-foreground sm:text-start">
               {tp("product.subtotalFor", qty)}{" "}
               <span className="font-semibold text-foreground">
-                {formatPrice(Number(product.price) * qty)}
+                {formatPrice(price * qty)}
               </span>
             </p>
           )}
@@ -323,6 +398,48 @@ export default function ProductDetail() {
       </div>
 
       <ReviewsSection productId={product.id} />
+      <RelatedProducts productId={product.id} />
+      <RecentlyViewed ids={previouslyViewed} />
     </div>
   );
+}
+
+function ProductRow({ title, products }: { title: string; products: Product[] }) {
+  return (
+    <section className="mt-16">
+      <h2 className="mb-5 text-2xl font-bold text-foreground">{title}</h2>
+      <div className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4">
+        {products.map((p) => (
+          <ProductCard key={p.id} product={p} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RelatedProducts({ productId }: { productId: string }) {
+  const { t } = useI18n();
+  const { data } = useQuery({
+    queryKey: ["product", productId, "related"],
+    queryFn: () => productsApi.related(productId),
+    staleTime: 5 * 60 * 1000,
+  });
+  if (!data?.length) return null;
+  return <ProductRow title={t("product.related")} products={data.slice(0, 4)} />;
+}
+
+function RecentlyViewed({ ids }: { ids: string[] }) {
+  const { t } = useI18n();
+  const shown = ids.slice(0, 4);
+  const { data } = useQuery({
+    queryKey: ["products", "recently-viewed", shown],
+    queryFn: () => productsApi.list({ ids: shown.join(","), limit: shown.length }),
+    enabled: shown.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+  if (!data?.items.length) return null;
+  // Keep the order they were viewed in.
+  const byId = new Map(data.items.map((p) => [p.id, p]));
+  const products = shown.map((id) => byId.get(id)).filter((p): p is Product => !!p);
+  return <ProductRow title={t("product.recentlyViewed")} products={products} />;
 }

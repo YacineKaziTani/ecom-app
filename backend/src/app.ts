@@ -30,6 +30,10 @@ import auditLogRoutes from "./routes/auditLogs";
 import reviewRoutes from "./routes/reviews";
 import wishlistRoutes from "./routes/wishlist";
 import seoRoutes from "./routes/seo";
+import blockedPhoneRoutes from "./routes/blockedPhones";
+import phoneVerificationRoutes from "./routes/phoneVerifications";
+import addressRoutes from "./routes/addresses";
+import { codOtpMinTotal } from "./services/sms";
 import { availablePaymentMethods } from "./services/shipping";
 import { RESERVATION_MINUTES } from "./services/orderLifecycle";
 
@@ -124,6 +128,9 @@ app.use("/api/seller-applications", sellerApplicationRoutes);
 app.use("/api/audit-logs", auditLogRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/seo", seoRoutes);
+app.use("/api/blocked-phones", blockedPhoneRoutes);
+app.use("/api/phone-verifications", phoneVerificationRoutes);
+app.use("/api/addresses", addressRoutes);
 app.use("/api", reviewRoutes); // /products/:id/reviews, /reviews/:id
 
 // Public storefront configuration the checkout needs.
@@ -131,6 +138,8 @@ app.get("/api/config", (_req, res) => {
   res.json({
     paymentMethods: availablePaymentMethods(),
     reservationMinutes: RESERVATION_MINUTES,
+    // Pay-on-delivery orders at or above this total need an SMS code (null = off).
+    codOtpMinTotal: codOtpMinTotal(),
   });
 });
 

@@ -12,6 +12,7 @@ import {
 import { Category } from "./Category";
 import { OrderItem } from "./OrderItem";
 import { Shop } from "./Shop";
+import { ProductVariant } from "./ProductVariant";
 
 @Entity("products")
 // Trigram indexes so the storefront's ILIKE '%term%' search doesn't scan the
@@ -69,6 +70,13 @@ export class Product {
 
   @OneToMany(() => OrderItem, (item) => item.product)
   orderItems!: OrderItem[];
+
+  @OneToMany(() => ProductVariant, (variant) => variant.product)
+  variants?: ProductVariant[];
+
+  // Not a column: filled by listings (loadRelationCountAndMap) so a product
+  // card knows whether an option has to be chosen first.
+  variantCount?: number;
 
   @Index("IDX_products_createdAt")
   @CreateDateColumn()

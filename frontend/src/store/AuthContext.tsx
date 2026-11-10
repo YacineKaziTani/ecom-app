@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, ReactNode } from "react";
+import { useI18n } from "../i18n/I18nProvider";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { authApi } from "../api/auth";
 import { setSessionExpiredHandler } from "../api/client";
@@ -28,6 +29,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [qc]);
 
   const user = data?.user ?? null;
+
+  // Switching language while signed in also switches the language of this
+  // account's emails (signing in already records it server-side).
+  const { lang } = useI18n();
+  const previousLang = useRef(lang);
+  useEffect(() => {
+    if (previousLang.current === lang) return;
+    previousLang.current = lang;
+    if (user) authApi.updateProfile({ locale: lang }).catch(() => undefined);
+  }, [lang, user]);
+
   const isSuperAdmin = user?.role === "super_admin";
   const isAdmin = user?.role === "admin" || isSuperAdmin;
 

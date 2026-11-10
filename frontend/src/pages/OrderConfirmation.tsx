@@ -25,6 +25,8 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
 import { OrderTotals, DeliveryDetails, ShipmentList } from "../components/OrderTotals";
 import toast from "react-hot-toast";
+import { itemLabel } from "../lib/cart";
+import { CancelOrder } from "../components/CancelOrder";
 
 export default function OrderConfirmation() {
   const { id } = useParams<{ id: string }>();
@@ -32,6 +34,8 @@ export default function OrderConfirmation() {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
+  // Set once the customer cancels here, so the page reflects it right away.
+  const [updated, setUpdated] = useState<Order | null>(null);
   const { t } = useI18n();
 
   // Prefer the order handed off via navigation state (right after checkout) so we
@@ -49,7 +53,7 @@ export default function OrderConfirmation() {
     enabled: !stateOrder && !!id && (!!user || !!emailFromUrl),
   });
 
-  const order = stateOrder || fetchedOrder;
+  const order = updated || stateOrder || fetchedOrder;
   const guestEmail = order?.guestEmail || emailFromUrl || undefined;
 
   const payMutation = useMutation({
@@ -202,7 +206,7 @@ export default function OrderConfirmation() {
               className="flex items-center justify-between gap-4 py-3 text-sm"
             >
               <span className="min-w-0 flex-1 text-foreground">
-                {item.productName}
+                {itemLabel(item.productName, item.variantName)}
                 <span className="text-muted-foreground"> × {item.quantity}</span>
               </span>
               <span className="font-medium tabular-nums text-foreground">
@@ -216,6 +220,14 @@ export default function OrderConfirmation() {
         <ShipmentList order={order} />
 
         <DeliveryDetails order={order} />
+
+        {order.status === "cancelled" && order.cancelledBy === "customer" ? (
+          <p className="border-t border-border px-5 py-3 text-xs text-muted-foreground">{t("order.cancelledByYou")}</p>
+        ) : (
+          <div className="flex justify-end border-t border-border px-5 py-2 empty:hidden">
+            <CancelOrder order={order} email={user ? undefined : guestEmail} onCancelled={setUpdated} />
+          </div>
+        )}
       </div>
 
       {user ? (

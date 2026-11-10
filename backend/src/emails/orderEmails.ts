@@ -1,5 +1,6 @@
-import { email, renderLayout } from "./layout";
+import { email, itemLabel, renderLayout } from "./layout";
 import { formatDzd } from "../utils/money";
+import { Locale, Translate, translator } from "./i18n";
 import type { Order, OrderStatus } from "../entities/Order";
 import type { OrderItem } from "../entities/OrderItem";
 
@@ -9,90 +10,78 @@ export interface RenderedEmail {
   text: string;
 }
 
+// Why an order was cancelled, when the customer should be told.
+export type CancelReason = "expired" | "declined" | "wrongNumber" | "customer";
+
 const shortId = (order: Pick<Order, "id">) => `#${order.id.slice(0, 8)}`;
 
-function deliveryText(order: Order): string {
+function deliveryText(order: Order, t: Translate): string {
   const where = [order.wilayaName, order.commune].filter(Boolean).join(", ");
-  const how = order.deliveryType === "desk" ? " (stop desk pick-up)" : "";
+  const how = order.deliveryType === "desk" ? t("order.stopDesk") : "";
   return [order.shippingAddress, where].filter(Boolean).join(" — ") + how;
 }
 
-function totalsRows(order: Order) {
+function totalsRows(order: Order, t: Translate) {
   const rows: [string, number, ("discount" | "strong")?][] = [];
   const discount = Number(order.discountAmount);
   const shipping = Number(order.shippingFee);
-  if (discount > 0 || shipping > 0) rows.push(["Subtotal", Number(order.subtotal)]);
+  if (discount > 0 || shipping > 0) rows.push([t("order.subtotal"), Number(order.subtotal)]);
   if (discount > 0)
-    rows.push([`Discount${order.couponCode ? ` (${order.couponCode})` : ""}`, discount, "discount"]);
-  if (order.wilayaName) rows.push(["Delivery", shipping]);
-  rows.push(["Total", Number(order.total), "strong"]);
+    rows.push([`${t("order.discount")}${order.couponCode ? ` (${order.couponCode})` : ""}`, discount, "discount"]);
+  if (order.wilayaName) rows.push([t("order.delivery"), shipping]);
+  rows.push([t("order.total"), Number(order.total), "strong"]);
   return rows;
 }
 
 function itemsText(items: OrderItem[]) {
   return items.map(
-    (i) => `${i.productName} x${i.quantity} — ${formatDzd(Number(i.price) * i.quantity)}`,
+    (i) => `${itemLabel(i)} x${i.quantity} — ${formatDzd(Number(i.price) * i.quantity)}`,
   );
 }
 
-// Sent to the customer right after checkout.
+// Sent to the customer right after checkout, in the language they ordered in.
 export function orderPlacedEmail(order: Order, name: string, link: string): RenderedEmail {
+  const locale = order.locale;
+  const t = translator(locale);
   const cod = order.paymentMethod === "cod";
   const paymentNote = cod
-    ? `You'll pay ${formatDzd(order.total)} in cash on delivery. We'll call ${order.phone ?? "you"} to confirm your order before it ships.`
+    ? t("placed.cod", { total: formatDzd(order.total), phone: order.phone ?? "—" })
     : order.paymentStatus === "paid"
-      ? "Your payment has been received."
-      : "Complete your payment to confirm the order — unpaid orders are released after a short while.";
+      ? t("placed.paid")
+      : t("placed.unpaid");
+  const shipping = t("order.shippingTo", { address: deliveryText(order, t) });
+  const cta = { label: cod ? t("order.view") : t("order.viewOrPay"), url: link };
 
   const html = renderLayout({
-    title: "Order received",
+    title: t("placed.title"),
     bodyHtml:
-      email.heading(`Thanks, ${name}!`) +
-      email.paragraph(`We've received your order ${shortId(order)}.`) +
-      email.lines(order.items, totalsRows(order)) +
-      email.muted(`Shipping to: ${deliveryText(order)}`) +
+      email.heading(t("placed.heading", { name })) +
+      email.paragraph(t("placed.received", { id: shortId(order) })) +
+      email.lines(order.items, totalsRows(order, t), locale) +
+      email.muted(shipping) +
       email.paragraph(paymentNote),
-    cta: { label: cod ? "View your order" : "View or pay for your order", url: link },
+    cta,
+    locale,
   });
   const text = [
-    `Thanks, ${name}!`,
-    `We've received your order ${shortId(order)}.`,
+    t("placed.heading", { name }),
+    t("placed.received", { id: shortId(order) }),
     "",
     ...itemsText(order.items),
-    ...totalsRows(order).map(([label, amount, tone]) => `${label}: ${tone === "discount" ? "-" : ""}${formatDzd(amount)}`),
-    `Shipping to: ${deliveryText(order)}`,
+    ...totalsRows(order, t).map(([label, amount, tone]) => `${label}: ${tone === "discount" ? "-" : ""}${formatDzd(amount)}`),
+    shipping,
     "",
     paymentNote,
-    `View your order: ${link}`,
+    `${cta.label}: ${link}`,
   ].join("\n");
-  return { subject: `Order received — ${shortId(order)}`, html, text };
+  return { subject: t("placed.subject", { id: shortId(order) }), html, text };
 }
 
-const STATUS_COPY: Partial<Record<OrderStatus, { subject: string; heading: string; body: string }>> = {
-  processing: {
-    subject: "Your order is confirmed",
-    heading: "Your order is confirmed",
-    body: "The makers are preparing your items. We'll email you again when it ships.",
-  },
-  shipped: {
-    subject: "Your order is on its way",
-    heading: "Your order has shipped",
-    body: "It's with the courier now — keep your phone nearby, they'll call before delivery.",
-  },
-  delivered: {
-    subject: "Your order was delivered",
-    heading: "Delivered — enjoy!",
-    body: "Your order has been delivered. Thank you for supporting independent makers.",
-  },
-  cancelled: {
-    subject: "Your order was cancelled",
-    heading: "Your order was cancelled",
-    body: "This order has been cancelled. If you think this is a mistake, reply to this email.",
-  },
-};
+const STATUS_EMAILS = ["processing", "shipped", "delivered", "cancelled"] as const;
+type EmailedStatus = (typeof STATUS_EMAILS)[number];
 
-export function hasStatusEmail(status: OrderStatus): boolean {
-  return status in STATUS_COPY;
+export function hasStatusEmail(status: OrderStatus): status is EmailedStatus {
+  return (STATUS_EMAILS as readonly string[]).includes(status);
 }
 
 // Sent to the customer when their order moves forward (or is cancelled).
@@ -101,70 +90,102 @@ export function orderStatusEmail(
   status: OrderStatus,
   name: string,
   link: string,
-  reason?: string,
+  reason?: CancelReason,
 ): RenderedEmail {
-  const copy = STATUS_COPY[status]!;
+  if (!hasStatusEmail(status)) throw new Error(`No email for status "${status}"`);
+  const locale = order.locale;
+  const t = translator(locale);
+  const subject = t(`status.${status}.subject`);
+  const heading = t(`status.${status}.heading`);
   const paid =
     status === "processing" && order.paymentMethod === "card" && order.paymentStatus === "paid"
-      ? `Payment of ${formatDzd(order.total)} received. `
+      ? `${t("status.paymentReceived", { total: formatDzd(order.total) })} `
       : "";
-  const body = `${paid}${reason ?? copy.body}`;
+  const body = `${paid}${reason ? t(`reason.${reason}`) : t(`status.${status}.body`)}`;
+  const greeting = t("status.update", { name, id: shortId(order) });
+
   const html = renderLayout({
-    title: copy.subject,
+    title: subject,
     bodyHtml:
-      email.heading(copy.heading) +
-      email.paragraph(`Hi ${name}, an update on order ${shortId(order)}.`) +
+      email.heading(heading) +
+      email.paragraph(greeting) +
       email.paragraph(body) +
-      email.lines(order.items, [["Total", Number(order.total), "strong"]]),
-    cta: { label: "View your order", url: link },
+      email.lines(order.items, [[t("order.total"), Number(order.total), "strong"]], locale),
+    cta: { label: t("order.view"), url: link },
+    locale,
   });
   const text = [
-    `Hi ${name},`,
-    `${copy.heading} — order ${shortId(order)}.`,
+    greeting,
+    `${heading} — ${shortId(order)}.`,
     body,
     "",
     ...itemsText(order.items),
-    `Total: ${formatDzd(order.total)}`,
+    `${t("order.total")}: ${formatDzd(order.total)}`,
     "",
-    `View your order: ${link}`,
+    `${t("order.view")}: ${link}`,
   ].join("\n");
-  return { subject: `${copy.subject} — ${shortId(order)}`, html, text };
+  return { subject: `${subject} — ${shortId(order)}`, html, text };
 }
 
-// Sent to a shop owner when an order containing their items is ready to fulfil.
+// Sent to a shop owner (in their language) when an order containing their
+// items is ready to fulfil.
 export function newShopOrderEmail(
   order: Order,
   shopItems: OrderItem[],
   shopName: string,
   customerName: string,
   dashboardLink: string,
+  locale: Locale = "en",
 ): RenderedEmail {
+  const t = translator(locale);
   const shopTotal = shopItems.reduce((s, i) => s + Number(i.price) * i.quantity, 0);
-  const payment =
-    order.paymentMethod === "cod"
-      ? "Payment: cash on delivery — confirm the order with the customer by phone."
-      : "Payment: paid online.";
+  const payment = order.paymentMethod === "cod" ? t("shopOrder.cod") : t("shopOrder.card");
+  const customer = t("shopOrder.customer", { customer: `${customerName}${order.phone ? ` — ${order.phone}` : ""}` });
+  const deliverTo = t("shopOrder.deliverTo", { address: deliveryText(order, t) });
   const html = renderLayout({
-    title: "New order",
+    title: t("shopOrder.title"),
     bodyHtml:
-      email.heading(`New order for ${shopName}`) +
-      email.paragraph(`Order ${shortId(order)} includes items from your shop.`) +
-      email.lines(shopItems, [["Your items", shopTotal, "strong"]]) +
-      email.muted(`Customer: ${customerName}${order.phone ? ` — ${order.phone}` : ""}`) +
-      email.muted(`Deliver to: ${deliveryText(order)}`) +
+      email.heading(t("shopOrder.heading", { shop: shopName })) +
+      email.paragraph(t("shopOrder.includes", { id: shortId(order) })) +
+      email.lines(shopItems, [[t("shopOrder.yourItems"), shopTotal, "strong"]], locale) +
+      email.muted(customer) +
+      email.muted(deliverTo) +
       email.paragraph(payment),
-    cta: { label: "Open your orders", url: dashboardLink },
+    cta: { label: t("shopOrder.cta"), url: dashboardLink },
+    locale,
   });
   const text = [
-    `New order for ${shopName} — ${shortId(order)}`,
+    `${t("shopOrder.heading", { shop: shopName })} — ${shortId(order)}`,
     "",
     ...itemsText(shopItems),
-    `Your items: ${formatDzd(shopTotal)}`,
-    `Customer: ${customerName}${order.phone ? ` — ${order.phone}` : ""}`,
-    `Deliver to: ${deliveryText(order)}`,
+    `${t("shopOrder.yourItems")}: ${formatDzd(shopTotal)}`,
+    customer,
+    deliverTo,
     payment,
     "",
-    `Open your orders: ${dashboardLink}`,
+    `${t("shopOrder.cta")}: ${dashboardLink}`,
   ].join("\n");
-  return { subject: `New order ${shortId(order)} — ${shopName}`, html, text };
+  return { subject: t("shopOrder.subject", { id: shortId(order), shop: shopName }), html, text };
+}
+
+// Sent to a shop owner when the customer cancels before anything shipped.
+export function shopOrderCancelledEmail(
+  order: Order,
+  shopItems: OrderItem[],
+  dashboardLink: string,
+  locale: Locale = "en",
+): RenderedEmail {
+  const t = translator(locale);
+  const body = t("shopCancel.body", { id: shortId(order) });
+  const html = renderLayout({
+    title: t("shopCancel.heading"),
+    bodyHtml:
+      email.heading(t("shopCancel.heading")) +
+      email.paragraph(body) +
+      email.lines(shopItems, [], locale),
+    cta: { label: t("shopOrder.cta"), url: dashboardLink },
+    locale,
+  });
+  const text = [t("shopCancel.heading"), "", body, "", ...itemsText(shopItems), "", `${t("shopOrder.cta")}: ${dashboardLink}`].join("\n");
+  return { subject: t("shopCancel.subject", { id: shortId(order) }), html, text };
 }

@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import { useI18n } from "../i18n/I18nProvider";
-import { Plus, ImageOff } from "lucide-react";
+import { Plus, ImageOff, ChevronRight } from "lucide-react";
 import { Product } from "../api/types";
 import { useCart } from "../hooks/useCart";
 import { formatPrice } from "../lib/status";
@@ -13,7 +13,11 @@ export function ProductCard({ product }: { product: Product }) {
   const { addItem } = useCart();
   const { t } = useI18n();
   const soldOut = product.stock === 0;
-  const lowStock = product.stock > 0 && product.stock <= 5;
+  // Products with options (size, colour...) are added from their own page.
+  const hasOptions = (product.variantCount ?? product.variants?.length ?? 0) > 0;
+  const lowStock = !hasOptions && product.stock > 0 && product.stock <= 5;
+  const roundButton =
+    "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs transition-all duration-200 hover:scale-110 hover:shadow-md active:scale-95";
 
   return (
     <article className="card-interactive group flex flex-col overflow-hidden">
@@ -89,21 +93,29 @@ export function ProductCard({ product }: { product: Product }) {
             {formatPrice(product.price)}
           </span>
 
-          <button
-            onClick={() => {
-              addItem(product, 1);
-              toast.success(t("product.added", { name: product.name }));
-            }}
-            disabled={soldOut}
-            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary
-                       text-primary-foreground shadow-xs transition-all duration-200
-                       hover:scale-110 hover:shadow-md active:scale-95
-                       disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
-            aria-label={t("product.addNamed", { name: product.name })}
-            title={t("product.addToCart")}
-          >
-            <Plus className="h-4 w-4" strokeWidth={2.5} />
-          </button>
+          {hasOptions && !soldOut ? (
+            <Link
+              to={`/products/${product.id}`}
+              className={roundButton}
+              aria-label={t("product.chooseOptionsNamed", { name: product.name })}
+              title={t("product.chooseOptions")}
+            >
+              <ChevronRight className="h-4 w-4 rtl:-scale-x-100" strokeWidth={2.5} />
+            </Link>
+          ) : (
+            <button
+              onClick={() => {
+                addItem(product, 1);
+                toast.success(t("product.added", { name: product.name }));
+              }}
+              disabled={soldOut}
+              className={`${roundButton} disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100`}
+              aria-label={t("product.addNamed", { name: product.name })}
+              title={t("product.addToCart")}
+            >
+              <Plus className="h-4 w-4" strokeWidth={2.5} />
+            </button>
+          )}
         </div>
       </div>
     </article>

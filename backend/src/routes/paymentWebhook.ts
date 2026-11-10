@@ -50,6 +50,11 @@ router.post("/", async (req, res) => {
 
       if (order.status === "pending") {
         await setOrderStatus(manager, order, "processing");
+      } else if (order.status === "cancelled" && order.cancelledBy === "customer") {
+        // The customer cancelled it themselves: never ship it because a
+        // payment page left open went through. The money is recorded as
+        // received, so staff can refund it.
+        logger.warn({ orderId: order.id }, "Payment received for an order the customer cancelled — refund needed");
       } else if (order.status === "cancelled") {
         // Paid after the reservation expired (or after an admin cancelled it).
         // Re-reserve the stock if it's still there; otherwise the money came

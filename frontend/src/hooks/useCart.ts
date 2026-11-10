@@ -1,14 +1,17 @@
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAuth } from "../store/AuthContext";
 import { useCartStore } from "../store/cartStore";
-import { cartApi, CartLine } from "../api/cart";
-import { Product } from "../api/types";
+import { cartApi, CartResponse } from "../api/cart";
+import { Product, ProductVariant } from "../api/types";
+import { CartLine, linePrice, parseLineKey } from "../lib/cart";
 
 // Presents one interface over two backends: a server-persisted cart for
 // logged-in users, and the localStorage-backed zustand store for guests.
 // This is what keeps a cart from leaking between accounts on a shared
 // browser — a guest's cart lives only in their own browser until it's
 // explicitly merged into their account on login.
+//
+// Lines are addressed by their key (lib/cart.ts lineKey: product + option).
 export function useCart() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -21,33 +24,21 @@ export function useCart() {
     staleTime: 30 * 1000,
   });
 
-  const setCart = (data: { lines: CartLine[] }) =>
-    qc.setQueryData(["cart"], data);
+  const setCart = (data: CartResponse) => qc.setQueryData(["cart"], data);
 
   const addMutation = useMutation({
-    mutationFn: ({
-      productId,
-      quantity,
-    }: {
-      productId: string;
-      quantity?: number;
-    }) => cartApi.addItem(productId, quantity),
+    mutationFn: (v: { productId: string; quantity: number; variantId?: string | null }) =>
+      cartApi.addItem(v.productId, v.quantity, v.variantId),
     onSuccess: setCart,
   });
 
   const setQuantityMutation = useMutation({
-    mutationFn: ({
-      productId,
-      quantity,
-    }: {
-      productId: string;
-      quantity: number;
-    }) => cartApi.setQuantity(productId, quantity),
+    mutationFn: (v: { key: string; quantity: number }) => cartApi.setQuantity(parseLineKey(v.key), v.quantity),
     onSuccess: setCart,
   });
 
   const removeMutation = useMutation({
-    mutationFn: (productId: string) => cartApi.removeItem(productId),
+    mutationFn: (key: string) => cartApi.removeItem(parseLineKey(key)),
     onSuccess: setCart,
   });
 
@@ -57,18 +48,20 @@ export function useCart() {
   });
 
   if (user) {
-    const lines = serverCart.data?.lines ?? [];
+    const lines: CartLine[] = (serverCart.data?.lines ?? []).map((l) => ({
+      product: l.product,
+      variant: l.variant,
+      quantity: l.quantity,
+    }));
     return {
-      lines: lines.map((l) => ({ product: l.product, quantity: l.quantity })),
+      lines,
       isLoading: serverCart.isLoading,
-      addItem: (product: Product, quantity = 1) =>
-        addMutation.mutate({ productId: product.id, quantity }),
-      removeItem: (productId: string) => removeMutation.mutate(productId),
-      setQuantity: (productId: string, quantity: number) =>
-        setQuantityMutation.mutate({ productId, quantity }),
+      addItem: (product: Product, quantity = 1, variant: ProductVariant | null = null) =>
+        addMutation.mutate({ productId: product.id, quantity, variantId: variant?.id }),
+      removeItem: (key: string) => removeMutation.mutate(key),
+      setQuantity: (key: string, quantity: number) => setQuantityMutation.mutate({ key, quantity }),
       clear: () => clearMutation.mutate(),
-      total: () =>
-        lines.reduce((sum, l) => sum + Number(l.product.price) * l.quantity, 0),
+      total: () => lines.reduce((sum, l) => sum + linePrice(l) * l.quantity, 0),
       count: () => lines.reduce((sum, l) => sum + l.quantity, 0),
     };
   }
@@ -98,6 +91,7 @@ export async function mergeGuestCartIntoAccount(
       await cartApi.merge(
         guestLines.map((l) => ({
           productId: l.product.id,
+          variantId: l.variant?.id ?? null,
           quantity: l.quantity,
         })),
       );

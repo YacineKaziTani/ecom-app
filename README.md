@@ -65,8 +65,10 @@ The axios client always calls a relative `/api`, so the frontend must be served 
   | `CHARGILY_API_KEY`, `CHARGILY_MODE` | `live` key + `CHARGILY_MODE=live` for real payments |
   | `RESEND_API_KEY`, `MAIL_FROM` | Sender must be on a domain verified in Resend |
   | `CLOUDINARY_*` | Image uploads |
-  | `SENTRY_DSN` (optional) | Error tracking |
+  | `SENTRY_DSN` (optional) | Error tracking — see *Monitoring in production* |
   | `ORDER_RESERVATION_MINUTES` (optional) | Default 30 |
+  | `SMS_PROVIDER=twilio`, `TWILIO_*`, `COD_OTP_MIN_TOTAL` (optional) | Text a code to confirm the phone on large pay-on-delivery orders |
+  | `LOW_STOCK_THRESHOLD` (optional) | Default 3 |
 
 - If you're on Render's free tier, the service sleeps when idle and takes ~50s to wake — the first visitor (or a Chargily webhook) waits for that. Use a paid instance for a real store.
 
@@ -333,16 +335,28 @@ Real integration tests using Jest + Supertest against an actual Postgres databas
 - **`tests/platform.test.ts`** — the production configuration checks, `/api/health`, request ids and JSON 404s.
 
 ### CI
-`.github/workflows/ci.yml` runs on every push and pull request: backend type-check, build, migrations against a real Postgres 17, a **schema drift check** (fails if an entity changed without a migration), the full test suite, and the frontend type-check + build.
+`.github/workflows/ci.yml` runs on every push and pull request: backend type-check, build, migrations against a real Postgres 17, a **schema drift check** (fails if an entity changed without a migration), the full test suite, the frontend type-check + build, an `npm audit` of production dependencies on both sides (fails on high/critical), and — once both pass — the **Playwright end-to-end tests** (see below). Dependabot (`.github/dependabot.yml`) opens weekly grouped update PRs for both apps and monthly ones for the GitHub Actions.
 
 - **`tests/delivery.test.ts`** — wilaya prices, stop desk, phone validation, pay on delivery (no expiry, paid when delivered).
 - **`tests/notifications.test.ts`** — who receives which email, and when.
 - **`tests/fulfilment.test.ts`** — per-shop shipments, status roll-up, payouts and balances.
 - **`tests/security.test.ts`** — TOTP (RFC 6238 vectors), 2FA login / replay / recovery codes, email verification, seller applications, audit log.
 - **`tests/catalog.test.ts`** / **`tests/seo.test.ts`** — reviews, wishlist, galleries; sitemap, robots, link previews.
+- **`tests/codProtection.test.ts`** — confirmation calls, customer risk, blocked numbers, SMS codes, returns.
+- **`tests/variants.test.ts`** — product options (stock, prices, cart lines, checkout, cancel/reactivate), filters, related products, low-stock emails, CSV import.
+- **`tests/customerExperience.test.ts`** — emails in the customer's language, customers cancelling their own orders, the address book.
+
+### End-to-end tests (Playwright)
+`frontend/e2e/` drives a real Chromium through the storefront against the real API and a disposable database: a guest buys a product and a size option with **pay on delivery**, checks the totals and stock, then cancels from the confirmation page; a second run does the checkout in **Arabic** (right-to-left) and checks the order kept the language. `pages.spec.ts` then opens every page — as a visitor, a customer, a shop admin and a super admin — in French and Arabic, and fails on a crash, the error screen, or an untranslated key left on screen.
+```bash
+cd frontend
+npx playwright install chromium        # once
+DB_HOST=localhost DB_PORT=5432 npm run test:e2e
+```
+The run seeds the test database (`npm run e2e:seed` in `backend`, which refuses to run unless `NODE_ENV=test` and wipes every table), starts the API on port 4100 and the storefront on 5180 — its own ports, never reusing a server you have running, so it can't land on a dev backend connected to a real database. Emails, SMS and payments stay off.
 
 ### What isn't covered yet
-The success path of starting a Chargily checkout (would need mocking Chargily's API), and frontend/browser tests (e.g. Playwright for the checkout flow).
+The success path of starting a Chargily checkout (would need mocking Chargily's API), and card payments end to end.
 
 > Local test database: create it as UTF-8 (`createdb -E UTF8 -T template0 ecom_test`) — on Windows, Postgres often defaults to WIN1252, which can't store the Arabic wilaya names.
 
@@ -389,10 +403,11 @@ Checkout offers **Pay on delivery** next to online card payment (card appears on
 ## Delivery: wilayas, stop desk and prices
 - Checkout asks for a mobile number (validated and normalised to `0XXXXXXXXX`), wilaya, commune and address, plus **home delivery** or **stop desk** pick-up.
 - **Dashboard → Shipping** (super admin): a price per wilaya for home and stop-desk delivery, an on/off switch per wilaya, and "apply to all". All 58 wilayas start active and free, so nothing changes until you set prices.
-- The fee is computed server-side and added to the total (coupons never discount delivery). Customers can save their wilaya/commune on their profile to pre-fill checkout.
+- The fee is computed server-side and added to the total (coupons never discount delivery). Signed-in customers pick from their saved addresses (see *Customer accounts*).
 
 ## Email notifications
-- Customer: order received (with pay-on-delivery or payment instructions), confirmed / shipped / delivered / cancelled — including "cancelled because payment wasn't completed in time".
+- Customer: order received (with pay-on-delivery or payment instructions), confirmed / shipped / delivered / cancelled — including "cancelled because payment wasn't completed in time". Sent in the language the order was placed in (French, Arabic right-to-left, or English).
+- Account emails (email confirmation, password reset, seller decisions) and shop emails (new order, low stock, customer cancelled) use each person's own language, remembered from the storefront language they use.
 - Shop owners: a new order with their items — immediately for pay-on-delivery, once paid for card orders — listing only their own lines and the customer's delivery details.
 - All sent after the response, never blocking or failing the request (`services/notifications.ts`).
 
@@ -408,7 +423,6 @@ Checkout offers **Pay on delivery** next to online card payment (card appears on
 - **Reviews**: only customers with a paid (or COD-delivered), non-cancelled order for the product, and a confirmed email. One review per person (posting again updates it); names shown as "Amina B.". Products keep `ratingAverage` / `ratingCount` in sync for fast listings. Authors or super admins can delete reviews.
 - **Wishlist**: heart button on product cards and pages, `/wishlist` page.
 - **Gallery**: up to 8 extra photos per product (Dashboard → Products), with thumbnails on the product page.
-- Not done yet: product **variants** (size/colour with their own stock) — they touch every stock path (cart, checkout, reservations, cancellations) and deserve their own change.
 
 ## Account security
 - **Email verification**: new accounts get a confirmation link (24h); a banner offers to resend it. Opening a shop and writing reviews require a confirmed email. Accounts that existed before this are treated as verified.
@@ -422,6 +436,35 @@ Checkout offers **Pay on delivery** next to online card payment (card appears on
 
 ## Languages: Français, العربية, English
 - Language switcher in the navbar (remembered per browser; first visit follows the browser language). Arabic switches the layout to right-to-left and uses the Tajawal font.
-- Translated: navbar, footer, home, product pages, cart & checkout, order confirmation, my orders, order tracking, payment pages, sign in / register, reviews, wishlist. Translations live in `frontend/src/i18n/messages.ts`; French and Arabic are type-checked against English, so a missing key fails the build.
-- Still English: the admin dashboard (kept left-to-right), and the profile, sell, shop directory/shop pages, password and verification pages — next candidates.
-- Emails are still sent in English.
+- Everything is translated: the storefront, account pages and the whole admin dashboard (which also turns right-to-left in Arabic and has its own language switcher). Translations live in `frontend/src/i18n/` — `messages.ts` (storefront), `dashboardMessages.ts`, and `pageMessages.ts` (one line per key with all three languages). French and Arabic are type-checked against English, so a missing key fails the build.
+- The storefront sends its language with every API call (`Accept-Language`), so orders and accounts remember it and emails follow it (`backend/src/emails/i18n.ts`).
+
+## Pay-on-delivery protection
+Cash-on-delivery orders that are refused at the door cost the shop two delivery fees. To keep that down:
+- **Confirmation calls** — new COD orders wait for a phone confirmation. *Dashboard → Orders → Confirm by phone* records each call: confirmed (→ processing), no answer (counted, try again), declined or wrong number (→ cancelled and restocked, customer emailed).
+- **Customer history** — next to every COD order: how many orders that phone number placed, delivered, returned and refused, with a risk badge.
+- **Returns** — "returned" (from shipped or delivered) restocks the items and records why and what the return delivery cost.
+- **Blocked numbers** — *Dashboard → Blocked numbers* (super admin): those numbers can still order, but must pay online.
+- **SMS code** (optional) — with `SMS_PROVIDER=twilio` and `COD_OTP_MIN_TOTAL`, larger COD orders must confirm the phone number with a texted code.
+
+## Product options, filters and CSV import
+- **Options** (size, colour…): each with its own stock and, optionally, its own price, edited in *Dashboard → Products*. The product's stock is the total of its options; every stock path (cart, checkout, reservations, cancel/reactivate, returns) works per option, and orders keep the option's name. Product cards show "choose options" instead of a one-click add.
+- **Shop filters**: price range, in stock only, sort by best rated.
+- **Product page**: "You may also like" (same category first, then same shop, in stock only) and "Recently viewed" (kept in the browser).
+- **Low-stock emails**: when a checkout leaves a product or option at or below `LOW_STOCK_THRESHOLD` (default 3), the shop owner is emailed once.
+- **CSV import** (*Dashboard → Products → Import CSV*): columns `name`, `price` (required), `stock`, `description`, `category` (a category name), `imageUrl` — Excel/Google Sheets exports with commas or semicolons and French decimals (`1 200,50`) work. A row whose name matches one of the shop's products updates it; others create products. The file is checked first and nothing is saved unless every line is valid; errors list their line numbers. Up to 500 rows.
+
+## Customer accounts
+- **Address book** (*Profile*): several saved delivery addresses, one default. Checkout pre-selects the default, offers the others, and can save a new address after ordering. An address saved on the profile before this existed becomes the first saved address.
+- **Cancelling an order**: customers (and guests, with their checkout email) can cancel until any shop ships its part. Stock and coupon use are released and the shops are told not to send it. An order already paid online needs a refund, so the customer is asked to contact the shop instead.
+
+## Installable app (PWA)
+The storefront can be installed on a phone's home screen (`frontend/public/manifest.webmanifest`, icons in `public/icons`). A small service worker (`frontend/sw.js`, built to `dist/sw.js` with a fresh id per build) keeps the app shell and the built assets so the store opens even offline; API calls are never cached. `vercel.json` serves `sw.js` uncached and the hashed assets as immutable.
+
+## Monitoring in production
+- **Error tracking** — create a Sentry project (free tier is enough to start) and set `SENTRY_DSN` on Render and `VITE_SENTRY_DSN` on Vercel. Unexpected server errors and browser crashes then arrive with the request id, without cookies, headers or bodies.
+- **Uptime** — point an uptime monitor (UptimeRobot, Better Stack…) at `https://<your-frontend>/api/health` every 1–5 minutes, alerting by email/SMS. It checks the whole path: Vercel → Render → the database (`503` when the database is down).
+- **Render plan** — the free tier sleeps after ~15 minutes idle and the first request then waits ~50 seconds (a pinging monitor doesn't fully hide this, and it uses up free hours). A paid instance keeps the API warm, which also matters for Chargily webhooks.
+- **Database** — on Neon, check the point-in-time-restore window of your plan and practise a restore into a branch once.
+- **Logs** — Render keeps the JSON request logs; search them by the `X-Request-Id` a user reports (it's in every `500` response).
+

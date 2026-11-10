@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { AppDataSource } from "../config/data-source";
-import { Order } from "../entities/Order";
+import { CLOSED_STATUSES, Order } from "../entities/Order";
 import { optionalAuth } from "../middleware/auth";
 import { createChargilyCheckout } from "../services/chargily";
 import { reservationDeadline } from "../services/orderLifecycle";
@@ -57,7 +57,7 @@ router.post("/create-checkout", optionalAuth, async (req, res) => {
       .status(400)
       .json({ message: "This order has already been paid" });
   }
-  if (order.status === "cancelled") {
+  if (CLOSED_STATUSES.includes(order.status)) {
     return res
       .status(400)
       .json({ message: "This order was cancelled and can't be paid" });

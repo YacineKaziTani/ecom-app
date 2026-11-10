@@ -8,6 +8,7 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { TableSkeleton } from "../../components/ui/Skeleton";
 import toast from "react-hot-toast";
+import { useI18n } from "../../i18n/I18nProvider";
 
 // "" in a price field means "not set": for stop desk that's "not offered".
 const toPrice = (v: string) => (v.trim() === "" ? null : Number(v));
@@ -15,6 +16,7 @@ const toPrice = (v: string) => (v.trim() === "" ? null : Number(v));
 export default function ShippingAdmin() {
   const { isSuperAdmin } = useAuth();
   const qc = useQueryClient();
+  const { t, lang } = useI18n();
   const [allHome, setAllHome] = useState("");
   const [allDesk, setAllDesk] = useState("");
 
@@ -27,7 +29,7 @@ export default function ShippingAdmin() {
     mutationFn: (data: ShippingZoneUpdate) => shippingApi.updateAll(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["shipping-zones"] });
-      toast.success("Prices applied to every wilaya");
+      toast.success(t("dash.shipping.applied"));
       setAllHome("");
       setAllDesk("");
     },
@@ -38,8 +40,8 @@ export default function ShippingAdmin() {
     return (
       <EmptyState
         icon={ShieldAlert}
-        title="Restricted area"
-        description="Only super admins can change delivery prices."
+        title={t("dash.restricted")}
+        description={t("dash.shipping.restrictedBody")}
       />
     );
   }
@@ -50,7 +52,7 @@ export default function ShippingAdmin() {
     if (allHome.trim() !== "") data.homePrice = Number(allHome);
     if (allDesk.trim() !== "") data.deskPrice = Number(allDesk);
     if (Object.keys(data).length === 0) return;
-    if (confirm("Apply these prices to all 58 wilayas? Individual prices will be overwritten.")) {
+    if (confirm(t("dash.shipping.confirmBulk"))) {
       bulkMutation.mutate(data);
     }
   }
@@ -58,24 +60,24 @@ export default function ShippingAdmin() {
   return (
     <div>
       <PageHeader
-        eyebrow="Delivery"
-        title="Shipping"
-        description="What customers pay for delivery to each wilaya. 0 means free; leave stop desk empty where pick-up points aren't offered."
+        eyebrow={t("dash.shipping.eyebrow")}
+        title={t("dash.nav.shipping")}
+        description={t("dash.shipping.description")}
       />
 
       <form onSubmit={handleBulk} className="card mb-6 flex flex-wrap items-end gap-3 p-4">
         <div>
-          <label htmlFor="allHome" className="label">Home delivery — all wilayas (DA)</label>
+          <label htmlFor="allHome" className="label">{t("dash.shipping.allHome")}</label>
           <input id="allHome" type="number" min="0" step="1" value={allHome}
-            onChange={(e) => setAllHome(e.target.value)} className="input w-48" placeholder="e.g. 600" />
+            onChange={(e) => setAllHome(e.target.value)} className="input w-48" placeholder={t("dash.shipping.example", { amount: 600 })} />
         </div>
         <div>
-          <label htmlFor="allDesk" className="label">Stop desk — all wilayas (DA)</label>
+          <label htmlFor="allDesk" className="label">{t("dash.shipping.allDesk")}</label>
           <input id="allDesk" type="number" min="0" step="1" value={allDesk}
-            onChange={(e) => setAllDesk(e.target.value)} className="input w-48" placeholder="e.g. 400" />
+            onChange={(e) => setAllDesk(e.target.value)} className="input w-48" placeholder={t("dash.shipping.example", { amount: 400 })} />
         </div>
         <button type="submit" disabled={bulkMutation.isPending || (!allHome && !allDesk)} className="btn-outline">
-          Apply to all
+          {t("dash.shipping.applyAll")}
         </button>
       </form>
 
@@ -84,11 +86,11 @@ export default function ShippingAdmin() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Wilaya</th>
-                <th>Home delivery (DA)</th>
-                <th>Stop desk (DA)</th>
-                <th>Delivered</th>
-                <th className="text-right" />
+                <th>{t("dash.shipping.wilaya")}</th>
+                <th>{t("dash.shipping.home")}</th>
+                <th>{t("dash.shipping.desk")}</th>
+                <th>{t("dash.shipping.delivered")}</th>
+                <th className="text-end" />
               </tr>
             </thead>
             {isLoading ? (
@@ -96,11 +98,11 @@ export default function ShippingAdmin() {
             ) : (
               <tbody>
                 {zones?.length ? (
-                  zones.map((z) => <ZoneRow key={`${z.code}-${z.homePrice}-${z.deskPrice}-${z.isActive}`} zone={z} />)
+                  zones.map((z) => <ZoneRow key={`${z.code}-${z.homePrice}-${z.deskPrice}-${z.isActive}`} zone={z} arabic={lang === "ar"} />)
                 ) : (
                   <tr>
                     <td colSpan={5} className="p-0">
-                      <EmptyState icon={Truck} title="No wilayas" description="Run the database migrations to load them." className="rounded-none border-0" />
+                      <EmptyState icon={Truck} title={t("dash.shipping.noWilayas")} description={t("dash.shipping.noWilayasBody")} className="rounded-none border-0" />
                     </td>
                   </tr>
                 )}
@@ -113,8 +115,11 @@ export default function ShippingAdmin() {
   );
 }
 
-function ZoneRow({ zone }: { zone: ShippingZone }) {
+function ZoneRow({ zone, arabic }: { zone: ShippingZone; arabic: boolean }) {
   const qc = useQueryClient();
+  const { t } = useI18n();
+  // Arabic speakers read the Arabic wilaya name first.
+  const name = arabic && zone.nameAr ? zone.nameAr : zone.name;
   const [home, setHome] = useState(String(zone.homePrice));
   const [desk, setDesk] = useState(zone.deskPrice == null ? "" : String(zone.deskPrice));
   const [active, setActive] = useState(zone.isActive);
@@ -133,7 +138,7 @@ function ZoneRow({ zone }: { zone: ShippingZone }) {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["shipping-zones"] });
-      toast.success(`${zone.name} updated`);
+      toast.success(t("dash.shipping.zoneUpdated", { name }));
     },
     onError: (err: any) => toast.error(String(err)),
   });
@@ -142,25 +147,25 @@ function ZoneRow({ zone }: { zone: ShippingZone }) {
     <tr className={active ? undefined : "opacity-60"}>
       <td>
         <span className="font-medium text-foreground">
-          {String(zone.code).padStart(2, "0")} — {zone.name}
+          {String(zone.code).padStart(2, "0")} — {name}
         </span>
-        <span className="ml-2 text-xs text-muted-foreground" dir="rtl">{zone.nameAr}</span>
+        {!arabic && <span className="ms-2 text-xs text-muted-foreground" dir="rtl">{zone.nameAr}</span>}
       </td>
       <td>
         <input type="number" min="0" step="1" value={home} onChange={(e) => setHome(e.target.value)}
-          className="input h-9 w-28" aria-label={`Home delivery price for ${zone.name}`} />
+          className="input h-9 w-28" aria-label={t("dash.shipping.homeFor", { name })} />
       </td>
       <td>
         <input type="number" min="0" step="1" value={desk} onChange={(e) => setDesk(e.target.value)}
-          className="input h-9 w-28" placeholder="Not offered" aria-label={`Stop desk price for ${zone.name}`} />
+          className="input h-9 w-28" placeholder={t("dash.shipping.notOffered")} aria-label={t("dash.shipping.deskFor", { name })} />
       </td>
       <td>
         <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)}
-          className="h-4 w-4 accent-[var(--accent)]" aria-label={`Deliver to ${zone.name}`} />
+          className="h-4 w-4 accent-[var(--accent)]" aria-label={t("dash.shipping.deliverTo", { name })} />
       </td>
-      <td className="text-right">
+      <td className="text-end">
         <button onClick={() => mutation.mutate()} disabled={!dirty || mutation.isPending} className="btn-primary btn-sm">
-          Save
+          {t("dash.save")}
         </button>
       </td>
     </tr>

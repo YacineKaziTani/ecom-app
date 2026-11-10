@@ -62,15 +62,15 @@ const shopSchema = z.object({
 router.post("/", requireAuth, requireAnyAdmin, async (req, res) => {
   // A super_admin creates a shop on behalf of an owner; an admin creates their own.
   const isSuperAdmin = req.user!.role === "super_admin";
-  const parsed = shopSchema
-    .extend({ ownerId: isSuperAdmin ? z.string().uuid() : z.any() })
-    .safeParse(req.body);
+  const parsed = shopSchema.extend({ ownerId: z.string().uuid().optional() }).safeParse(req.body);
   if (!parsed.success)
     return res
       .status(400)
       .json({ message: "Invalid input", errors: parsed.error.flatten() });
 
-  const ownerId: string = isSuperAdmin ? parsed.data.ownerId : req.user!.id;
+  if (isSuperAdmin && !parsed.data.ownerId)
+    return res.status(400).json({ message: "Choose the shop owner" });
+  const ownerId = isSuperAdmin ? parsed.data.ownerId! : req.user!.id;
 
   const existing = await repo().findOne({ where: { ownerId } });
   if (existing)

@@ -25,6 +25,7 @@ import { paymentsApi } from "../api/payments";
 import { couponsApi, CouponPreview } from "../api/coupons";
 import { shippingApi } from "../api/shipping";
 import { configApi } from "../api/config";
+import { phoneVerificationApi } from "../api/phoneVerification";
 import { ApiError } from "../api/client";
 import { DeliveryType, PaymentMethod } from "../api/types";
 import { formatPrice } from "../lib/status";
@@ -32,13 +33,31 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 import { optimizedImage } from "../lib/images";
+import { keyOf, lineKey, linePrice } from "../lib/cart";
+import { addressesApi } from "../api/addresses";
+import { Address } from "../api/types";
+import { useAddresses } from "../components/AddressBook";
+
+// "+213 550 12-34-56" and "0550123456" are the same number.
+const samePhone = (a: string, b: string) => {
+  const norm = (v: string) => v.replace(/[\s.-]/g, "").replace(/^(?:\+213|00213)/, "0");
+  return norm(a) === norm(b);
+};
 
 interface StockIssue {
   productId: string;
   productName?: string;
+  variantId?: string | null;
+  variantName?: string | null;
   availableStock: number;
   requestedQuantity: number;
 }
+
+const toItem = (l: { product: { id: string }; variant?: { id: string } | null; quantity: number }) => ({
+  productId: l.product.id,
+  variantId: l.variant?.id ?? null,
+  quantity: l.quantity,
+});
 
 export default function Cart() {
   const { lines, removeItem, setQuantity, total, clear } = useCart();
@@ -52,6 +71,16 @@ export default function Cart() {
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("home");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
   const [stockIssues, setStockIssues] = useState<Record<string, StockIssue>>({});
+  // Optional SMS check for larger pay-on-delivery orders (store setting).
+  const [phoneCode, setPhoneCode] = useState("");
+  const [codeSentTo, setCodeSentTo] = useState<string | null>(null);
+  // The server's total decides; if it asks for a code the cart's own estimate
+  // (e.g. a stale guest-cart price) missed, show the code box anyway.
+  const [codeRequiredByServer, setCodeRequiredByServer] = useState(false);
+  // Signed-in customers pick from their address book (default pre-selected),
+  // and can save a new address after ordering.
+  const [addressId, setAddressId] = useState("");
+  const [saveAddress, setSaveAddress] = useState(false);
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<CouponPreview | null>(null);
   const navigate = useNavigate();
@@ -69,6 +98,32 @@ export default function Cart() {
     setCommune((v) => v || user.commune || "");
     setAddress((v) => v || user.address || "");
   }, [user]);
+
+  const { data: savedAddresses } = useAddresses(!!user);
+  function applySaved(a: Address) {
+    setAddressId(a.id);
+    setPhone(a.phone);
+    setWilayaCode(a.wilayaCode);
+    setCommune(a.commune);
+    setAddress(a.address);
+  }
+  const defaultAddress = savedAddresses?.find((a) => a.isDefault) ?? savedAddresses?.[0];
+  useEffect(() => {
+    // Only fill an untouched form.
+    if (defaultAddress && !addressId && !commune && !address) applySaved(defaultAddress);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultAddress?.id]);
+  // The saved address the form currently shows, if any.
+  const matchedId =
+    savedAddresses?.find(
+      (a) =>
+        a.wilayaCode === wilayaCode &&
+        a.commune.trim() === commune.trim() &&
+        a.address.trim() === address.trim() &&
+        samePhone(a.phone, phone),
+    )?.id ?? "";
+  const matchesSaved = matchedId !== "";
+  const canSaveAddress = !!user && !matchesSaved && (savedAddresses?.length ?? 0) < 10;
 
   const { data: zones } = useQuery({
     queryKey: ["shipping-zones"],
@@ -92,11 +147,17 @@ export default function Cart() {
       : zone.homePrice
     : null;
 
+  const sendCode = useMutation({
+    mutationFn: () => phoneVerificationApi.request(phone),
+    onSuccess: () => setCodeSentTo(phone),
+    onError: (err: any) => toast.error(String(err)),
+  });
+
   const couponMutation = useMutation({
     mutationFn: () =>
       couponsApi.validate(
         couponInput,
-        lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
+        lines.map(toItem),
       ),
     onSuccess: (preview) => {
       setAppliedCoupon(preview);
@@ -130,6 +191,13 @@ export default function Cart() {
       setStockIssues({});
       setAppliedCoupon(null);
       qc.invalidateQueries({ queryKey: ["orders"] });
+      if (canSaveAddress && saveAddress && wilayaCode !== "") {
+        // Best effort: the order is placed either way.
+        addressesApi
+          .create({ label: commune.trim().slice(0, 40), phone, wilayaCode, commune, address })
+          .then(() => qc.invalidateQueries({ queryKey: ["addresses"] }))
+          .catch(() => undefined);
+      }
 
       if (order.paymentMethod === "cod") {
         toast.success(t("cart.placedCod"));
@@ -159,17 +227,31 @@ export default function Cart() {
         // or drop the line entirely if a product vanished or sold out completely.
         const issueMap: Record<string, StockIssue> = {};
         for (const issue of issues) {
-          issueMap[issue.productId] = issue;
+          const key = lineKey(issue.productId, issue.variantId);
+          issueMap[key] = issue;
           if (issue.availableStock > 0) {
-            setQuantity(issue.productId, issue.availableStock);
+            setQuantity(key, issue.availableStock);
           } else {
-            removeItem(issue.productId);
+            removeItem(key);
           }
         }
         setStockIssues(issueMap);
         setAppliedCoupon(null); // cart contents changed — the discount preview is now stale, re-apply if desired
 
         toast.error(t("cart.stockChanged"), { duration: 6000 });
+      } else if (err?.data?.code === "VARIANT_REQUIRED") {
+        // A product gained options after it was put in the cart.
+        toast.error(t("cart.chooseOption"), { duration: 6000 });
+        const productId: string | undefined = err.data.productId;
+        if (productId) navigate(`/products/${productId}`);
+      } else if (err?.data?.code === "COD_BLOCKED") {
+        toast.error(t("cart.codBlocked"), { duration: 6000 });
+        if (cardAvailable) setPaymentMethod("card");
+      } else if (err?.data?.code === "PHONE_CODE_REQUIRED") {
+        setCodeRequiredByServer(true);
+        toast.error(t("cart.codeRequired"));
+      } else if (err?.data?.code === "PHONE_CODE_INVALID") {
+        toast.error(t("cart.codeInvalid"));
       } else {
         toast.error(String(err));
       }
@@ -193,10 +275,8 @@ export default function Cart() {
       guestEmail: user ? undefined : guestEmail,
       guestName: user ? undefined : guestName,
       couponCode: appliedCoupon?.code,
-      items: lines.map((l) => ({
-        productId: l.product.id,
-        quantity: l.quantity,
-      })),
+      phoneCode: needsCode && phoneCode ? phoneCode.trim() : undefined,
+      items: lines.map(toItem),
     });
   }
 
@@ -221,6 +301,8 @@ export default function Cart() {
   const subtotal = total();
   const discount = appliedCoupon?.discountAmount ?? 0;
   const grandTotal = Math.max(subtotal - discount, 0) + (shippingFee ?? 0);
+  const otpMin = config?.codOtpMinTotal ?? null;
+  const needsCode = method === "cod" && otpMin !== null && (grandTotal >= otpMin || codeRequiredByServer);
   const itemCount = lines.reduce((n, l) => n + l.quantity, 0);
 
   return (
@@ -235,11 +317,14 @@ export default function Cart() {
       <div className="grid gap-8 lg:grid-cols-[1fr_420px] lg:items-start">
         {/* Line items -------------------------------------------- */}
         <div className="space-y-3">
-          {lines.map(({ product, quantity }) => {
-            const issue = stockIssues[product.id];
+          {lines.map((line) => {
+            const { product, variant, quantity } = line;
+            const key = keyOf(line);
+            const issue = stockIssues[key];
+            const price = linePrice(line);
             return (
               <div
-                key={product.id}
+                key={key}
                 className={cn(
                   "flex flex-wrap items-center gap-4 rounded-xl border p-4 transition-colors sm:flex-nowrap",
                   issue
@@ -267,8 +352,13 @@ export default function Cart() {
                   >
                     {product.name}
                   </Link>
+                  {variant && (
+                    <p className="mt-0.5 text-sm font-medium text-foreground">
+                      {t("product.option", { name: variant.name })}
+                    </p>
+                  )}
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    {t("cart.each", { price: formatPrice(product.price) })}
+                    {t("cart.each", { price: formatPrice(price) })}
                   </p>
                   {issue && (
                     <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-warning">
@@ -281,7 +371,7 @@ export default function Cart() {
                 <div className="flex items-center rounded-lg border border-border bg-background p-0.5">
                   <button
                     onClick={() =>
-                      setQuantity(product.id, Math.max(1, quantity - 1))
+                      setQuantity(key, Math.max(1, quantity - 1))
                     }
                     className="icon-btn h-7 w-7 p-0"
                     aria-label={t("product.decrease")}
@@ -292,7 +382,7 @@ export default function Cart() {
                     {quantity}
                   </span>
                   <button
-                    onClick={() => setQuantity(product.id, quantity + 1)}
+                    onClick={() => setQuantity(key, quantity + 1)}
                     className="icon-btn h-7 w-7 p-0"
                     aria-label={t("product.increase")}
                   >
@@ -301,11 +391,11 @@ export default function Cart() {
                 </div>
 
                 <p className="w-28 text-end font-serif text-lg font-bold text-foreground">
-                  {formatPrice(Number(product.price) * quantity)}
+                  {formatPrice(price * quantity)}
                 </p>
 
                 <button
-                  onClick={() => removeItem(product.id)}
+                  onClick={() => removeItem(key)}
                   className="icon-btn-danger"
                   aria-label={t("cart.remove", { name: product.name })}
                 >
@@ -448,6 +538,31 @@ export default function Cart() {
               </>
             )}
 
+            {user && !!savedAddresses?.length && (
+              <div>
+                <label htmlFor="savedAddress" className="label">
+                  {t("cart.savedAddress")}
+                </label>
+                <select
+                  id="savedAddress"
+                  value={matchedId}
+                  onChange={(e) => {
+                    const chosen = savedAddresses.find((a) => a.id === e.target.value);
+                    if (chosen) applySaved(chosen);
+                    else setAddressId("");
+                  }}
+                  className="select"
+                >
+                  {savedAddresses.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.label} — {a.commune}
+                    </option>
+                  ))}
+                  <option value="">{t("cart.newAddress")}</option>
+                </select>
+              </div>
+            )}
+
             <div>
               <label htmlFor="phone" className="label">
                 {t("cart.phone")}
@@ -467,6 +582,34 @@ export default function Cart() {
                 {t("cart.phoneHint")}
               </p>
             </div>
+
+            {needsCode && (
+              <div className="rounded-lg border border-info/30 bg-info-soft p-3">
+                <p className="text-xs text-info">{t("cart.codeHint", { amount: formatPrice(otpMin!) })}</p>
+                <div className="mt-2 flex gap-2">
+                  <input
+                    id="phoneCode"
+                    value={phoneCode}
+                    onChange={(e) => setPhoneCode(e.target.value)}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    placeholder="123456"
+                    aria-label={t("cart.phoneCode")}
+                    className="input flex-1 font-mono tracking-widest"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => (phone.trim() ? sendCode.mutate() : toast.error(t("cart.enterPhoneFirst")))}
+                    disabled={sendCode.isPending}
+                    className="btn-outline whitespace-nowrap"
+                  >
+                    {codeSentTo ? t("cart.resendCode") : t("cart.sendCode")}
+                  </button>
+                </div>
+                {codeSentTo && <p className="mt-1.5 text-xs text-muted-foreground">{t("cart.codeSent", { phone: codeSentTo })}</p>}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -520,6 +663,17 @@ export default function Cart() {
                 placeholder={t("cart.addressPlaceholder")}
                 autoComplete="street-address"
               />
+              {canSaveAddress && (
+                <label className="mt-2 flex items-center gap-2 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={saveAddress}
+                    onChange={(e) => setSaveAddress(e.target.checked)}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  {t("cart.saveAddress")}
+                </label>
+              )}
             </div>
 
             {zone && (

@@ -10,18 +10,22 @@ import { Pagination } from "../components/Pagination";
 import { ProductGridSkeleton, Skeleton } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
 import { optimizedImage } from "../lib/images";
+import { useI18n } from "../i18n/I18nProvider";
+import type { MessageKey } from "../i18n/messages";
 
-const SORT_OPTIONS: { value: ProductSort; label: string }[] = [
-  { value: "newest", label: "Newest" },
-  { value: "price_asc", label: "Price: Low to High" },
-  { value: "price_desc", label: "Price: High to Low" },
-  { value: "name_asc", label: "Name: A–Z" },
+const SORT_OPTIONS: { value: ProductSort; labelKey: MessageKey }[] = [
+  { value: "newest", labelKey: "sort.newest" },
+  { value: "price_asc", labelKey: "sort.priceAsc" },
+  { value: "price_desc", labelKey: "sort.priceDesc" },
+  { value: "name_asc", labelKey: "sort.nameAsc" },
+  { value: "rating_desc", labelKey: "sort.ratingDesc" },
 ];
 
 export default function ShopPage() {
   const { slug } = useParams<{ slug: string }>();
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<ProductSort>("newest");
+  const { t } = useI18n();
 
   const { data: shop, isLoading: shopLoading } = useQuery({
     queryKey: ["shop", slug],
@@ -51,11 +55,11 @@ export default function ShopPage() {
       <div className="container-page py-16">
         <EmptyState
           icon={Store}
-          title="Shop not found"
-          description="This shop may have closed or the link is out of date."
+          title={t("shopPage.notFoundTitle")}
+          description={t("shopPage.notFoundBody")}
           action={
             <Link to="/shops" className="btn-primary">
-              Browse all shops
+              {t("shopPage.browseAll")}
             </Link>
           }
         />
@@ -69,7 +73,7 @@ export default function ShopPage() {
         to="/shops"
         className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-accent"
       >
-        <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" /> All shops
+        <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" /> {t("shopPage.allShops")}
       </Link>
 
       {/* Shop banner ------------------------------------------- */}
@@ -88,12 +92,12 @@ export default function ShopPage() {
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="eyebrow">Artisan shop</p>
+            <p className="eyebrow">{t("shopPage.eyebrow")}</p>
             <h1 className="mt-1.5 text-3xl font-bold text-foreground sm:text-4xl">
               {shop.name}
             </h1>
             <p className="mt-2.5 max-w-xl leading-relaxed text-muted-foreground">
-              {shop.description || "Independent artisan shop"}
+              {shop.description || t("shops.defaultDescription")}
             </p>
           </div>
 
@@ -103,7 +107,7 @@ export default function ShopPage() {
                 {data.total}
               </p>
               <p className="mt-0.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                {data.total === 1 ? "Product" : "Products"}
+                {t("shopPage.productsLabel")}
               </p>
             </div>
           )}
@@ -117,12 +121,7 @@ export default function ShopPage() {
         <>
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
-              Showing{" "}
-              <span className="font-semibold text-foreground">
-                {data.items.length}
-              </span>{" "}
-              of{" "}
-              <span className="font-semibold text-foreground">{data.total}</span>
+              {t("shopPage.showing", { shown: data.items.length, total: data.total })}
             </p>
             <select
               value={sort}
@@ -130,12 +129,12 @@ export default function ShopPage() {
                 setSort(e.target.value as ProductSort);
                 setPage(1);
               }}
-              aria-label="Sort products"
+              aria-label={t("shopPage.sortLabel")}
               className="select w-52"
             >
               {SORT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
-                  {o.label}
+                  {t(o.labelKey)}
                 </option>
               ))}
             </select>
@@ -158,11 +157,11 @@ export default function ShopPage() {
       ) : (
         <EmptyState
           icon={PackageSearch}
-          title="No products listed yet"
-          description={`${shop.name} hasn't added any products so far. Check back soon.`}
+          title={t("shopPage.emptyTitle")}
+          description={t("shopPage.emptyBody", { shop: shop.name })}
           action={
             <Link to="/" className="btn-outline">
-              Browse other products
+              {t("shopPage.browseOther")}
             </Link>
           }
         />

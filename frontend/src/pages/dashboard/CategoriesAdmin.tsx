@@ -10,11 +10,13 @@ import { Modal } from "../../components/ui/Modal";
 import { Skeleton } from "../../components/ui/Skeleton";
 import toast from "react-hot-toast";
 import { optimizedImage } from "../../lib/images";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const emptyForm: CategoryInput = { name: "", description: "", imageUrl: "" };
 
 export default function CategoriesAdmin() {
   const qc = useQueryClient();
+  const { t } = useI18n();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
   const [form, setForm] = useState<CategoryInput>(emptyForm);
@@ -30,7 +32,7 @@ export default function CategoriesAdmin() {
     mutationFn: categoriesApi.create,
     onSuccess: () => {
       invalidate();
-      toast.success("Category created");
+      toast.success(t("dash.categories.created"));
       closeModal();
     },
     onError: (err: any) => toast.error(String(err)),
@@ -41,7 +43,7 @@ export default function CategoriesAdmin() {
       categoriesApi.update(id, data),
     onSuccess: () => {
       invalidate();
-      toast.success("Category updated");
+      toast.success(t("dash.categories.updated"));
       closeModal();
     },
     onError: (err: any) => toast.error(String(err)),
@@ -51,7 +53,7 @@ export default function CategoriesAdmin() {
     mutationFn: categoriesApi.remove,
     onSuccess: () => {
       invalidate();
-      toast.success("Category deleted");
+      toast.success(t("dash.categories.deleted"));
     },
     onError: (err: any) => toast.error(String(err)),
   });
@@ -86,13 +88,13 @@ export default function CategoriesAdmin() {
   return (
     <div>
       <PageHeader
-        eyebrow="Taxonomy"
-        title="Categories"
-        description="Group products so shoppers can filter the catalogue."
+        eyebrow={t("dash.categories.eyebrow")}
+        title={t("dash.nav.categories")}
+        description={t("dash.categories.description")}
         actions={
           <button onClick={openCreate} className="btn-primary">
             <Plus className="h-4 w-4" />
-            Add category
+            {t("dash.categories.add")}
           </button>
         }
       />
@@ -128,7 +130,7 @@ export default function CategoriesAdmin() {
               <div className="min-w-0 flex-1">
                 <h3 className="font-semibold text-foreground">{c.name}</h3>
                 <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-                  {c.description || "No description"}
+                  {c.description || t("dash.categories.noDescription")}
                 </p>
               </div>
 
@@ -136,17 +138,17 @@ export default function CategoriesAdmin() {
                 <button
                   onClick={() => openEdit(c)}
                   className="icon-btn p-1.5"
-                  aria-label={`Edit ${c.name}`}
+                  aria-label={t("dash.products.edit", { name: c.name })}
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => {
-                    if (confirm(`Delete "${c.name}"?`))
+                    if (confirm(t("dash.products.confirmDelete", { name: c.name })))
                       deleteMutation.mutate(c.id);
                   }}
                   className="icon-btn-danger p-1.5"
-                  aria-label={`Delete ${c.name}`}
+                  aria-label={t("dash.products.delete", { name: c.name })}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -157,12 +159,12 @@ export default function CategoriesAdmin() {
       ) : (
         <EmptyState
           icon={Tags}
-          title="No categories yet"
-          description="Create your first category to help shoppers navigate the catalogue."
+          title={t("dash.categories.emptyTitle")}
+          description={t("dash.categories.emptyBody")}
           action={
             <button onClick={openCreate} className="btn-primary">
               <Plus className="h-4 w-4" />
-              Add category
+              {t("dash.categories.add")}
             </button>
           }
         />
@@ -171,12 +173,12 @@ export default function CategoriesAdmin() {
       <Modal
         open={modalOpen}
         onClose={closeModal}
-        title={editing ? "Edit category" : "New category"}
+        title={editing ? t("dash.categories.editTitle") : t("dash.categories.newTitle")}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="name" className="label">
-              Name
+              {t("dash.products.name")}
             </label>
             <input
               id="name"
@@ -184,13 +186,13 @@ export default function CategoriesAdmin() {
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               className="input"
-              placeholder="Ceramics"
+              placeholder={t("dash.categories.namePlaceholder")}
             />
           </div>
 
           <div>
             <label htmlFor="description" className="label">
-              Description
+              {t("dash.products.descriptionLabel")}
             </label>
             <textarea
               id="description"
@@ -200,7 +202,7 @@ export default function CategoriesAdmin() {
               }
               rows={3}
               className="textarea"
-              placeholder="What belongs in this category?"
+              placeholder={t("dash.categories.descriptionPlaceholder")}
             />
           </div>
 
@@ -208,7 +210,7 @@ export default function CategoriesAdmin() {
             value={form.imageUrl}
             onChange={(url) => setForm({ ...form, imageUrl: url })}
             folder="categories"
-            label="Category image"
+            label={t("dash.categories.image")}
           />
 
           <div className="flex gap-3 border-t border-border pt-4">
@@ -217,14 +219,14 @@ export default function CategoriesAdmin() {
               onClick={closeModal}
               className="btn-outline flex-1"
             >
-              Cancel
+              {t("dash.cancel")}
             </button>
             <button
               type="submit"
               disabled={createMutation.isPending || updateMutation.isPending}
               className="btn-primary flex-1"
             >
-              {editing ? "Save changes" : "Create category"}
+              {editing ? t("dash.products.save") : t("dash.categories.create")}
             </button>
           </div>
         </form>

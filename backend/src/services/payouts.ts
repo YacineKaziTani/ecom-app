@@ -1,4 +1,5 @@
 import { AppDataSource } from "../config/data-source";
+import { COUNTED_SALE_SQL } from "../entities/Order";
 
 // Platform commission on every sale, as a percentage of the item price.
 // Snapshotted onto each order line at checkout.
@@ -37,13 +38,13 @@ export async function shopBalances(shopId?: string): Promise<ShopBalance[]> {
               SUM(oi.price * oi.quantity * oi."commissionRate" / 100) AS commission
        FROM order_items oi
        JOIN orders o ON o.id = oi."orderId"
-       WHERE o."paymentStatus" = 'paid' AND o.status <> 'cancelled'
+       WHERE ${COUNTED_SALE_SQL}
        GROUP BY oi."shopId"
      ) e ON e.shop_id = s.id::text
      LEFT JOIN (
        SELECT o."couponShopId" AS shop_id, SUM(o."discountAmount") AS discounts
        FROM orders o
-       WHERE o."paymentStatus" = 'paid' AND o.status <> 'cancelled' AND o."couponShopId" IS NOT NULL
+       WHERE ${COUNTED_SALE_SQL} AND o."couponShopId" IS NOT NULL
        GROUP BY o."couponShopId"
      ) d ON d.shop_id = s.id
      LEFT JOIN (

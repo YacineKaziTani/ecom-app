@@ -14,6 +14,9 @@ export class HttpError extends Error {
 export interface StockIssue {
   productId: string;
   productName?: string;
+  // Set when the line is a product option ("M", "Bleu / L").
+  variantId?: string | null;
+  variantName?: string | null;
   availableStock: number;
   requestedQuantity: number;
 }

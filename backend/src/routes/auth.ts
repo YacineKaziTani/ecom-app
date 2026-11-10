@@ -32,6 +32,8 @@ import { paginated, parsePagination } from "../utils/pagination";
 import { consumeVerificationToken, sendVerificationEmail } from "../services/emailVerification";
 import { inBackground } from "../services/notifications";
 import { audit } from "../services/audit";
+import { requestLocale } from "../utils/locale";
+import { isLocale, localeFromHeader } from "../emails/i18n";
 import { checkSecondFactor, loadWithTotp } from "./twoFactor";
 
 const router = Router();
@@ -80,6 +82,16 @@ const loginSchema = z.object({
   password: z.string().min(1).max(128),
 });
 
+// Emails follow the storefront language a person uses: remembered whenever
+// they sign in (and when they switch language, via PATCH /me).
+async function rememberLocale(req: Parameters<typeof requestLocale>[0], user: User) {
+  const locale = localeFromHeader(req.header("accept-language"));
+  if (locale && locale !== user.locale) {
+    user.locale = locale;
+    await userRepo().update(user.id, { locale });
+  }
+}
+
 router.post("/register", registerLimiter, async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success)
@@ -101,6 +113,7 @@ router.post("/register", registerLimiter, async (req, res) => {
     firstName,
     lastName,
     role: "customer",
+    locale: requestLocale(req),
   });
   await repo.save(user);
 
@@ -134,6 +147,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     return res.json({ twoFactorRequired: true, challenge });
   }
 
+  await rememberLocale(req, user);
   await issueSession(res, user);
   res.json({ user: toPublicUser(user) });
 });
@@ -166,6 +180,7 @@ router.post("/login/2fa", loginLimiter, async (req, res) => {
     return res.status(401).json({ message: "That code didn't match" });
   }
 
+  await rememberLocale(req, user);
   await issueSession(res, user);
   res.json({ user: toPublicUser(user) });
 });
@@ -255,6 +270,7 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
     name: user.firstName,
     resetLink,
     expiresInMinutes: RESET_TOKEN_TTL_MINUTES,
+    locale: localeFromHeader(req.header("accept-language")) ?? user.locale,
   });
 
   res.json(GENERIC_RESPONSE);
@@ -321,6 +337,7 @@ const updateProfileSchema = z.object({
   address: z.string().trim().max(500).optional(),
   wilayaCode: z.number().int().min(1).max(99).nullable().optional(),
   commune: z.string().trim().max(100).nullable().optional(),
+  locale: z.string().refine(isLocale).optional(),
 });
 
 router.patch("/me", requireAuth, async (req, res) => {

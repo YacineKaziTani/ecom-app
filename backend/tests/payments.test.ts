@@ -6,6 +6,8 @@ import { loginAs, createShop, createProduct, placeGuestOrder, DELIVERY } from ".
 import { AppDataSource } from "../src/config/data-source";
 import { Order } from "../src/entities/Order";
 import { Product } from "../src/entities/Product";
+import * as chargily from "../src/services/chargily";
+import { settleBackgroundTasks } from "../src/utils/background";
 
 beforeAll(initTestDb);
 afterEach(clearDatabase);
@@ -151,6 +153,24 @@ describe("POST /api/payments/webhook", () => {
     expect(order.paymentStatus).toBe("paid");
     expect(order.status).toBe("cancelled");
     expect(await stockOf(product.id)).toBe(0);
+  });
+
+  it("never revives an order the customer cancelled, even if its payment page went through", async () => {
+    const expire = jest.spyOn(chargily, "expireChargilyCheckout").mockResolvedValue(true);
+    const { product, orderId, checkoutId } = await orderAwaitingPayment(5, 2);
+    const email = (await orders().findOneByOrFail({ id: orderId })).guestEmail!;
+
+    await request(app).post(`/api/orders/${orderId}/cancel`).send({ email }).expect(200);
+    await settleBackgroundTasks();
+    expect(expire).toHaveBeenCalledWith(checkoutId); // the open payment page is closed
+    expect(await stockOf(product.id)).toBe(5);
+
+    // ...and if a payment lands anyway, the order stays cancelled for a refund.
+    await sendWebhook("checkout.paid", checkoutId).expect(200);
+    const order = await orders().findOneByOrFail({ id: orderId });
+    expect(order).toMatchObject({ status: "cancelled", paymentStatus: "paid", cancelledBy: "customer" });
+    expect(await stockOf(product.id)).toBe(5);
+    expire.mockRestore();
   });
 
   it("acknowledges events for unknown checkouts", async () => {

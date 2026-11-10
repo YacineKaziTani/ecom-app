@@ -17,9 +17,11 @@ import { orderStatusBadge, formatPrice, formatDate } from "../../lib/status";
 import { StatCard } from "../../components/StatCard";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export default function Overview() {
   const { isSuperAdmin } = useAuth();
+  const { t } = useI18n();
 
   const { data: myShop, isLoading: shopLoading } = useQuery({
     queryKey: ["myShop"],
@@ -64,12 +66,12 @@ export default function Overview() {
     return (
       <EmptyState
         icon={Store}
-        title="Create your shop to get started"
-        description="Your dashboard fills up with stats, orders and revenue once your shop exists."
+        title={t("dash.overview.noShopTitle")}
+        description={t("dash.overview.noShopBody")}
         action={
           <Link to="/dashboard/my-shop" className="btn-primary">
-            Create my shop
-            <ArrowRight className="h-4 w-4" />
+            {t("dash.products.createShop")}
+            <ArrowRight className="h-4 w-4 rtl:-scale-x-100" />
           </Link>
         }
       />
@@ -79,43 +81,43 @@ export default function Overview() {
   return (
     <div>
       <PageHeader
-        eyebrow={isSuperAdmin ? "Platform" : "Your shop"}
-        title={isSuperAdmin ? "Overview" : `${myShop?.name}`}
-        description="A snapshot of your catalogue, orders and revenue."
+        eyebrow={isSuperAdmin ? t("dash.overview.platform") : t("dash.overview.yourShop")}
+        title={isSuperAdmin ? t("dash.nav.overview") : `${myShop?.name}`}
+        description={t("dash.overview.description")}
         actions={
           <Link to="/dashboard/analytics" className="btn-outline">
-            View analytics
-            <ArrowRight className="h-4 w-4" />
+            {t("dash.overview.viewAnalytics")}
+            <ArrowRight className="h-4 w-4 rtl:-scale-x-100" />
           </Link>
         }
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label={isSuperAdmin ? "Total products" : "My products"}
+          label={isSuperAdmin ? t("dash.overview.totalProducts") : t("dash.overview.myProducts")}
           value={products?.total ?? 0}
           icon={Package}
           accent="brand"
         />
         <StatCard
-          label="Categories"
+          label={t("dash.overview.categories")}
           value={categories?.length ?? 0}
           icon={Tags}
           accent="blue"
         />
         <StatCard
-          label={isSuperAdmin ? "Total orders" : "Orders with my items"}
+          label={isSuperAdmin ? t("dash.overview.totalOrders") : t("dash.overview.myOrders")}
           value={summary?.totalOrders ?? 0}
           icon={ClipboardList}
           accent="amber"
-          hint={`${summary?.pendingOrders ?? 0} pending`}
+          hint={t("dash.overview.pending", { count: summary?.pendingOrders ?? 0 })}
         />
         <StatCard
-          label="Revenue"
+          label={t("dash.overview.revenue")}
           value={formatPrice(summary?.revenue ?? 0)}
           icon={Banknote}
           accent="green"
-          hint="Paid orders"
+          hint={t("dash.overview.paidOrders")}
         />
       </div>
 
@@ -123,14 +125,14 @@ export default function Overview() {
       <section className="mt-8">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-serif text-xl font-bold text-foreground">
-            Recent orders
+            {t("dash.overview.recent")}
           </h2>
           <Link
             to="/dashboard/orders"
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent transition-opacity hover:opacity-80"
           >
-            View all
-            <ArrowRight className="h-3.5 w-3.5" />
+            {t("dash.overview.viewAll")}
+            <ArrowRight className="h-3.5 w-3.5 rtl:-scale-x-100" />
           </Link>
         </div>
 
@@ -140,11 +142,11 @@ export default function Overview() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Order</th>
-                    <th>Customer</th>
-                    <th>Date</th>
-                    <th>Status</th>
-                    <th className="text-right">Total</th>
+                    <th>{t("dash.col.order")}</th>
+                    <th>{t("dash.col.customer")}</th>
+                    <th>{t("dash.col.date")}</th>
+                    <th>{t("dash.col.status")}</th>
+                    <th className="text-end">{t("dash.col.total")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -157,7 +159,7 @@ export default function Overview() {
                         {o.user
                           ? `${o.user.firstName} ${o.user.lastName}`
                           : o.guestEmail
-                            ? `${o.guestEmail} (guest)`
+                            ? `${o.guestEmail} ${t("dash.orders.guest")}`
                             : "—"}
                       </td>
                       <td className="whitespace-nowrap text-muted-foreground">
@@ -165,10 +167,10 @@ export default function Overview() {
                       </td>
                       <td>
                         <span className={orderStatusBadge[o.status]}>
-                          {o.status}
+                          {t(`status.${o.status}`)}
                         </span>
                       </td>
-                      <td className="text-right font-medium tabular-nums text-foreground">
+                      <td className="text-end font-medium tabular-nums text-foreground">
                         {formatPrice(
                           isSuperAdmin
                             ? Number(o.total)
@@ -187,8 +189,8 @@ export default function Overview() {
         ) : (
           <EmptyState
             icon={ClipboardList}
-            title="No orders yet"
-            description="Orders containing your products will show up here as soon as they come in."
+            title={t("dash.overview.emptyTitle")}
+            description={t("dash.overview.emptyBody")}
           />
         )}
       </section>

@@ -1,5 +1,5 @@
 import { api } from "./client";
-import { DeliveryType, Order, OrderStatus, Paginated, PaymentMethod, Shipment } from "./types";
+import { CallOutcome, DeliveryType, Order, OrderCall, OrderStatus, Paginated, PaymentMethod, Shipment } from "./types";
 
 export interface CreateOrderInput {
   paymentMethod: PaymentMethod;
@@ -8,10 +8,11 @@ export interface CreateOrderInput {
   commune: string;
   deliveryType: DeliveryType;
   shippingAddress: string;
+  phoneCode?: string; // SMS code, when the store requires one
   guestEmail?: string; // required if the caller isn't logged in
   guestName?: string; // used to personalize the confirmation email
   couponCode?: string;
-  items: { productId: string; quantity: number }[];
+  items: { productId: string; variantId?: string | null; quantity: number }[];
 }
 
 export interface OrderListQuery {
@@ -49,8 +50,22 @@ export const ordersApi = {
         data,
       )
       .then((r) => r.data),
-  updateStatus: (id: string, status: OrderStatus) =>
-    api.patch<Order>(`/orders/${id}/status`, { status }).then((r) => r.data),
+  updateStatus: (
+    id: string,
+    status: OrderStatus,
+    extra?: { returnReason?: string; returnCost?: number },
+  ) => api.patch<Order>(`/orders/${id}/status`, { status, ...extra }).then((r) => r.data),
+  // Pay-on-delivery confirmation call.
+  logCall: (id: string, outcome: CallOutcome, note?: string) =>
+    api
+      .post<{ call: OrderCall; order: Pick<Order, "id" | "status" | "callAttempts" | "confirmedAt"> }>(
+        `/orders/${id}/calls`,
+        { outcome, note },
+      )
+      .then((r) => r.data),
+  // The customer cancels before anything ships (guests pass their checkout email).
+  cancel: (id: string, email?: string) =>
+    api.post<Order>(`/orders/${id}/cancel`, email ? { email } : {}).then((r) => r.data),
   // Guest order lookup — no auth required, just the order id + the email used at checkout.
   track: (id: string, email: string) =>
     api.get<Order>(`/orders/track/${id}`, { params: { email } }).then((r) => r.data),

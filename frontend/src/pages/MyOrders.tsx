@@ -19,6 +19,8 @@ import { CardListSkeleton } from "../components/ui/Skeleton";
 import { Pagination } from "../components/Pagination";
 import { OrderTotals, ShipmentList } from "../components/OrderTotals";
 import toast from "react-hot-toast";
+import { itemLabel } from "../lib/cart";
+import { CancelOrder } from "../components/CancelOrder";
 
 export default function MyOrders() {
   const [page, setPage] = useState(1);
@@ -81,7 +83,7 @@ export default function MyOrders() {
                       className="flex items-center justify-between gap-4 py-3 text-sm"
                     >
                       <span className="min-w-0 flex-1 text-foreground">
-                        {item.productName}
+                        {itemLabel(item.productName, item.variantName)}
                         <span className="text-muted-foreground">
                           {" "}
                           × {item.quantity}
@@ -112,6 +114,16 @@ export default function MyOrders() {
                         {t("order.heldUntil", { time: formatTime(order.reservedUntil) })}
                       </p>
                     )}
+                  </div>
+                )}
+
+                {order.cancelledBy === "customer" && order.status === "cancelled" ? (
+                  <p className="border-t border-border px-5 py-3 text-xs text-muted-foreground">
+                    {t("order.cancelledByYou")}
+                  </p>
+                ) : (
+                  <div className="flex justify-end border-t border-border px-5 py-2 empty:hidden">
+                    <CancelOrder order={order} />
                   </div>
                 )}
               </article>

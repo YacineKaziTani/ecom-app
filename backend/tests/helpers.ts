@@ -15,7 +15,9 @@ export async function createUser(overrides: Partial<User> & { password?: string 
   const plainPassword = overrides.password || "Password123";
   const hashed = await bcrypt.hash(plainPassword, 10);
 
+  const { password: _plain, ...extra } = overrides;
   const user = repo.create({
+    ...extra,
     email: overrides.email || `user-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`,
     password: hashed,
     firstName: overrides.firstName || "Test",

@@ -7,21 +7,23 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
 import { optimizedImage } from "../lib/images";
+import { useI18n } from "../i18n/I18nProvider";
 
 export default function ShopsDirectory() {
   const { data: shops, isLoading } = useQuery({
     queryKey: ["shops"],
     queryFn: shopsApi.list,
   });
-  useDocumentMeta("Shops", "Meet the independent makers selling on ArtisanShop.");
+  const { t } = useI18n();
+  useDocumentMeta(t("shops.metaTitle"), t("shops.metaDescription"));
 
   return (
     <div>
       <PageHeader
         variant="hero"
-        eyebrow="The makers"
-        title="Browse independent shops"
-        description="Every shop here is run by the person who makes the goods. Find one whose work you love and follow it."
+        eyebrow={t("shops.eyebrow")}
+        title={t("shops.title")}
+        description={t("shops.description")}
       />
 
       <div className="container-page py-12 sm:py-16">
@@ -67,11 +69,11 @@ export default function ShopsDirectory() {
                     {shop.name}
                   </h2>
                   <p className="mt-2 line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">
-                    {shop.description || "Independent artisan shop"}
+                    {shop.description || t("shops.defaultDescription")}
                   </p>
 
                   <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-accent">
-                    Visit shop
+                    {t("shops.visit")}
                     <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1 rtl:group-hover:-translate-x-1" />
                   </span>
                 </div>
@@ -81,8 +83,8 @@ export default function ShopsDirectory() {
         ) : (
           <EmptyState
             icon={Store}
-            title="No shops yet"
-            description="Nobody has opened a shop on the platform so far. Check back soon."
+            title={t("shops.emptyTitle")}
+            description={t("shops.emptyBody")}
           />
         )}
       </div>

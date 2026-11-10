@@ -64,12 +64,18 @@ router.post("/", requireAuth, async (req, res) => {
   inBackground(
     (async () => {
       const superAdmins = await AppDataSource.getRepository(User).find({ where: { role: "super_admin" } });
-      const message = sellerApplicationForAdminEmail(
-        `${user.firstName} ${user.lastName}`,
-        application.shopName,
-        `${clientUrl()}/dashboard/applications`,
-      );
-      for (const admin of superAdmins) await mailer.sendEmail("seller-application", admin.email, message);
+      for (const admin of superAdmins) {
+        await mailer.sendEmail(
+          "seller-application",
+          admin.email,
+          sellerApplicationForAdminEmail(
+            `${user.firstName} ${user.lastName}`,
+            application.shopName,
+            `${clientUrl()}/dashboard/applications`,
+            admin.locale,
+          ),
+        );
+      }
     })(),
     { applicationId: application.id },
   );
@@ -156,7 +162,7 @@ const decide = (approve: boolean) => async (req: Request<{ id: string }>, res: R
       mailer.sendEmail(
         "seller-application-decision",
         user.email,
-        sellerApplicationDecisionEmail(approve, user.firstName, application.shopName, `${clientUrl()}/login`, note),
+        sellerApplicationDecisionEmail(approve, user.firstName, application.shopName, `${clientUrl()}/login`, note, user.locale),
       ),
       { applicationId: application.id },
     );

@@ -6,6 +6,7 @@ import { authApi } from "../api/auth";
 import { AuthLayout } from "../components/AuthLayout";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
+import { useI18n } from "../i18n/I18nProvider";
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -16,6 +17,7 @@ export default function ResetPassword() {
   // got appended after it.
   const token = rawToken?.match(/^[a-f0-9]{64}/)?.[0] ?? null;
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -24,7 +26,7 @@ export default function ResetPassword() {
   const mutation = useMutation({
     mutationFn: () => authApi.resetPassword(token!, password),
     onSuccess: () => {
-      toast.success("Password reset — please sign in");
+      toast.success(t("reset.done"));
       navigate("/login");
     },
     onError: (err: any) => toast.error(String(err)),
@@ -33,7 +35,7 @@ export default function ResetPassword() {
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (password !== confirmPassword) {
-      toast.error("Passwords don't match");
+      toast.error(t("reset.mismatch"));
       return;
     }
     mutation.mutate();
@@ -42,19 +44,18 @@ export default function ResetPassword() {
   if (!token) {
     return (
       <AuthLayout
-        title="Link is incomplete"
-        subtitle="This reset link is missing its token."
+        title={t("reset.incompleteTitle")}
+        subtitle={t("reset.incompleteSubtitle")}
       >
         <div className="card p-6 text-center">
           <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive-soft">
             <AlertCircle className="h-6 w-6 text-destructive" />
           </span>
           <p className="mt-5 text-sm leading-relaxed text-muted-foreground">
-            Your email client may have cut the link short. Request a fresh one
-            and open it directly from your inbox.
+            {t("reset.incompleteBody")}
           </p>
           <Link to="/forgot-password" className="btn-primary mt-6 w-full">
-            Request a new link
+            {t("reset.requestNew")}
           </Link>
         </div>
       </AuthLayout>
@@ -62,23 +63,23 @@ export default function ResetPassword() {
   }
 
   const rules = [
-    { label: "At least 8 characters", ok: password.length >= 8 },
-    { label: "Contains a letter", ok: /[a-zA-Z]/.test(password) },
-    { label: "Contains a number", ok: /\d/.test(password) },
+    { label: t("reset.rule8"), ok: password.length >= 8 },
+    { label: t("reset.ruleLetter"), ok: /[a-zA-Z]/.test(password) },
+    { label: t("reset.ruleNumber"), ok: /\d/.test(password) },
     {
-      label: "Both entries match",
+      label: t("reset.ruleMatch"),
       ok: password.length > 0 && password === confirmPassword,
     },
   ];
 
   return (
     <AuthLayout
-      title="Choose a new password"
-      subtitle="Pick something you haven't used elsewhere."
+      title={t("reset.title")}
+      subtitle={t("reset.subtitle")}
       footer={
         <p className="text-center text-sm text-muted-foreground">
           <Link to="/login" className="link-accent">
-            Back to sign in
+            {t("forgot.backToSignIn")}
           </Link>
         </p>
       }
@@ -86,7 +87,7 @@ export default function ResetPassword() {
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label htmlFor="password" className="label">
-            New password
+            {t("reset.newPassword")}
           </label>
           <div className="relative">
             <input
@@ -105,7 +106,7 @@ export default function ResetPassword() {
               onClick={() => setShowPassword((s) => !s)}
               className="absolute end-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5
                          text-muted-foreground transition-colors hover:text-foreground"
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-label={showPassword ? t("reset.hide") : t("reset.show")}
             >
               {showPassword ? (
                 <EyeOff className="h-4 w-4" />
@@ -118,7 +119,7 @@ export default function ResetPassword() {
 
         <div>
           <label htmlFor="confirmPassword" className="label">
-            Confirm new password
+            {t("reset.confirm")}
           </label>
           <input
             id="confirmPassword"
@@ -161,7 +162,7 @@ export default function ResetPassword() {
           className="btn-primary btn-lg w-full"
         >
           {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-          {mutation.isPending ? "Resetting…" : "Reset password"}
+          {mutation.isPending ? t("reset.resetting") : t("reset.submit")}
         </button>
       </form>
     </AuthLayout>
