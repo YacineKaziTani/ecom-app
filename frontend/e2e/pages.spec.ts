@@ -30,7 +30,7 @@ const SUPER_ADMIN_PAGES = [
   "/dashboard/profile",
 ];
 
-const KEY_ON_SCREEN = /\b(?:common|nav|home|sort|product|cart|order|orders|status|dash|profile|addresses|role|shops?|shopPage|sell|forgot|reset|verify|notFound|stars|error|gallery|session|upload|twofa)\.[a-z][A-Za-z_.]*\b/;
+const KEY_ON_SCREEN = /\b(?:common|nav|home|sort|product|cart|order|orders|status|dash|profile|addresses|role|shops?|shopPage|sell|forgot|reset|verify|notFound|stars|error|gallery|session|upload|twofa|search)\.[a-z][A-Za-z_.]*\b/;
 
 async function signIn(page: Page, email: string) {
   // Through the dev server's /api proxy, so the session cookies are the page's.

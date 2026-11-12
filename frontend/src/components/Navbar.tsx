@@ -14,6 +14,7 @@ import {
   Package,
   Heart,
   ChevronDown,
+  Search,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../store/AuthContext";
@@ -21,6 +22,7 @@ import { useTheme } from "../store/ThemeContext";
 import { useCart } from "../hooks/useCart";
 import { authApi } from "../api/auth";
 import { cn } from "@/lib/utils";
+import { SearchBox } from "./SearchBox";
 
 export function Navbar() {
   const { user, isAdmin } = useAuth();
@@ -34,6 +36,8 @@ export function Navbar() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Below xl the search box opens as a row under the bar.
+  const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -41,6 +45,7 @@ export function Navbar() {
   useEffect(() => {
     setMobileOpen(false);
     setMenuOpen(false);
+    setSearchOpen(false);
   }, [location.pathname]);
 
   // Solidify the header once the page scrolls under it.
@@ -137,8 +142,21 @@ export function Navbar() {
             ))}
           </nav>
 
+          <SearchBox className="hidden w-72 xl:block" />
+
           {/* Actions */}
           <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => {
+                setSearchOpen((o) => !o);
+                setMobileOpen(false);
+              }}
+              className="icon-btn xl:hidden"
+              aria-label={t("search.open")}
+              aria-expanded={searchOpen}
+            >
+              <Search className="h-5 w-5" />
+            </button>
             <select
               value={lang}
               onChange={(e) => setLang(e.target.value as Lang)}
@@ -259,7 +277,7 @@ export function Navbar() {
             <button
               onClick={() => setMobileOpen((o) => !o)}
               className="icon-btn md:hidden"
-              aria-label="Toggle menu"
+              aria-label={t("nav.toggleMenu")}
               aria-expanded={mobileOpen}
             >
               {mobileOpen ? (
@@ -271,6 +289,14 @@ export function Navbar() {
           </div>
         </div>
       </div>
+
+      {searchOpen && (
+        <div className="animate-fade-in border-t border-border bg-card py-3 xl:hidden">
+          <div className="container-page">
+            <SearchBox autoFocus onDone={() => setSearchOpen(false)} />
+          </div>
+        </div>
+      )}
 
       {/* Mobile drawer */}
       {mobileOpen && (

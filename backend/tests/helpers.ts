@@ -85,6 +85,7 @@ export function placeGuestOrder(
     guestEmail?: string;
     paymentMethod?: "card" | "cod";
     wilayaCode?: number;
+    commune?: string; // must belong to the wilaya — defaults to DELIVERY's (Alger)
     deliveryType?: "home" | "desk";
   } = {},
 ) {
@@ -96,6 +97,7 @@ export function placeGuestOrder(
       couponCode: extra.couponCode,
       paymentMethod: extra.paymentMethod,
       ...(extra.wilayaCode ? { wilayaCode: extra.wilayaCode } : {}),
+      ...(extra.commune ? { commune: extra.commune } : {}),
       deliveryType: extra.deliveryType,
       items: [{ productId, quantity }],
     });

@@ -7,6 +7,7 @@ import { Address, ShippingZone } from "../api/types";
 import { useI18n } from "../i18n/I18nProvider";
 import { Modal } from "./ui/Modal";
 import toast from "react-hot-toast";
+import { CommuneSelect } from "./CommuneSelect";
 
 export const wilayaLabel = (zones: ShippingZone[] | undefined, code: number) => {
   const zone = zones?.find((z) => z.code === code);
@@ -130,7 +131,7 @@ function AddressFormModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [form, setForm] = useState({
     label: address?.label ?? "",
     phone: address?.phone ?? "",
@@ -189,26 +190,25 @@ function AddressFormModal({
               id="addr-wilaya"
               required
               value={form.wilayaCode}
-              onChange={(e) => setForm({ ...form, wilayaCode: e.target.value ? Number(e.target.value) : "" })}
+              onChange={(e) => setForm({ ...form, wilayaCode: e.target.value ? Number(e.target.value) : "", commune: "" })}
               className="select"
             >
               <option value="">{t("cart.choose")}</option>
               {zones?.map((z) => (
                 <option key={z.code} value={z.code}>
-                  {String(z.code).padStart(2, "0")} — {z.name}
+                  {String(z.code).padStart(2, "0")} — {lang === "ar" && z.nameAr ? z.nameAr : z.name}
                 </option>
               ))}
             </select>
           </div>
           <div>
             <label htmlFor="addr-commune" className="label">{t("cart.commune")}</label>
-            <input
+            <CommuneSelect
               id="addr-commune"
               required
-              maxLength={100}
+              wilayaCode={form.wilayaCode}
               value={form.commune}
-              onChange={(e) => setForm({ ...form, commune: e.target.value })}
-              className="input"
+              onChange={(commune) => setForm((f) => ({ ...f, commune }))}
             />
           </div>
         </div>

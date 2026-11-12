@@ -21,6 +21,11 @@ export interface StockIssue {
   requestedQuantity: number;
 }
 
+// The commune isn't one of the wilaya's (services/communes.ts).
+export function invalidCommune() {
+  return new HttpError(400, "Choose the commune from the list for this wilaya", { code: "COMMUNE_INVALID" });
+}
+
 export function stockConflict(message: string, issues: StockIssue[]) {
   return new HttpError(409, message, { issues });
 }

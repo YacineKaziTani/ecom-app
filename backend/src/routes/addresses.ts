@@ -9,7 +9,8 @@ import type { Locale } from "../emails/i18n";
 import { requireAuth } from "../middleware/auth";
 import { validateUuidParam } from "../middleware/validateUuid";
 import { addressSchema, algerianPhoneSchema } from "../utils/validators";
-import { HttpError } from "../utils/httpError";
+import { HttpError, invalidCommune } from "../utils/httpError";
+import { findCommune } from "../services/communes";
 
 // The signed-in customer's address book. Checkout fills its delivery form
 // from one of these; the default one is pre-selected.
@@ -67,7 +68,9 @@ async function seedFromProfile(userId: string, locale: Locale) {
         label: HOME_LABEL[locale],
         phone: phone.data,
         wilayaCode: user.wilayaCode,
-        commune: user.commune,
+        // Old profiles held free text: keep the official spelling when it
+        // matches; otherwise checkout asks to pick the commune from the list.
+        commune: findCommune(user.wilayaCode, user.commune)?.name ?? user.commune,
         address: user.address,
         isDefault: true,
       }),
@@ -96,6 +99,9 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ message: "Invalid input", errors: parsed.error.flatten() });
 
   const userId = req.user!.id;
+  const commune = findCommune(parsed.data.wilayaCode, parsed.data.commune);
+  if (!commune) throw invalidCommune();
+  parsed.data.commune = commune.name;
   const created = await AppDataSource.transaction(async (manager) => {
     const addresses = manager.getRepository(Address);
     const count = await addresses.count({ where: { userId } });
@@ -121,6 +127,12 @@ router.put("/:id", validateUuidParam(), async (req, res) => {
     // Only "make default" is meaningful; unsetting happens by choosing another.
     const { isDefault, ...fields } = parsed.data;
     Object.assign(address, fields);
+    // A new wilaya or commune must still make a valid pair.
+    if (fields.wilayaCode !== undefined || fields.commune !== undefined) {
+      const commune = findCommune(address.wilayaCode, address.commune);
+      if (!commune) throw invalidCommune();
+      address.commune = commune.name;
+    }
     if (isDefault) address.isDefault = true;
     await manager.getRepository(Address).save(address);
     if (isDefault) await clearDefault(manager, userId, address.id);

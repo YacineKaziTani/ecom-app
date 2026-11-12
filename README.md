@@ -291,10 +291,12 @@ Admins can create coupons (percentage or fixed-amount) that customers apply at c
 - **Checkout** applies the coupon for real inside the same database transaction as stock validation (`services/coupons.ts` → `applyCouponWithLock`), using a **pessimistic row lock** on the coupon during that transaction — so two customers racing for the last use of a limited coupon can't both succeed; whichever transaction commits first "wins" the usage slot, and the second gets a clean "usage limit reached" error rather than an inconsistent `usedCount`.
 - `Order` gained `subtotal`, `couponCode`, `discountAmount` — `total` is what's actually charged (`subtotal - discountAmount`). The confirmation email and every order-summary view (cart, confirmation page, `/orders`, admin orders table) show the subtotal/discount breakdown whenever a discount was applied, and just the total otherwise.
 
-## Better search
-- Product search now matches **name OR description** (case-insensitive) — previously only the name was searched, so a product only findable via a term in its description (e.g. "handmade in Oran") never showed up.
-- Added a **sort** control (`Newest`, `Price: Low to High`, `Price: High to Low`, `Name: A-Z`) on the storefront (`/`) and each shop's page (`/shops/:slug`), backed by `GET /api/products?sort=`.
-- The backend switched from a plain `findAndCount` to a TypeORM query builder for this endpoint, since combining an OR (name/description) with AND filters (category, shop) and dynamic sorting isn't expressible with a plain `where` object.
+## Search
+- **Search box in the navbar** (a search icon on phones and tablets): suggestions appear as you type — matching products with photo and price, categories and shops — with full keyboard support (↑ ↓ Enter Esc). Enter searches the whole catalogue; an empty box shows the last searches (kept in the browser, with a *Clear* link).
+- **Smarter matching** (`backend/src/services/productSearch.ts`): case, accents (`theiere` finds *Théière*), hyphens and Arabic letter variants (أ/إ/آ, ة/ه, ى/ي, short vowels) don't matter; every word must match, in any order, in the product name, its description, its category or its shop name; a small typo in a product name is forgiven (`tajin` finds *Tajine*). Results are ranked by relevance (names starting with the query first) unless another sort is chosen.
+- **"Did you mean …?"**: a search with no results offers the closest product name.
+- **Shareable results**: search, category, price range, in-stock and sort live in the URL (`/?search=tajine&min=1000&stock=1`), so links can be shared and the Back button works. While searching or browsing a category, the home banner steps aside so results come first.
+- All of it runs in Postgres: the `search_normalize()` function and trigram indexes on the normalized name and description (migration `AddSmartSearch`). `GET /api/search/suggest?q=` serves the suggestions.
 
 ## Analytics dashboard
 **Dashboard → Analytics** — revenue over time (line chart), top 5 products by revenue, and summary stats (total revenue, paid order count, average order value), with a 7/30/90-day range picker.
@@ -402,6 +404,7 @@ Checkout offers **Pay on delivery** next to online card payment (card appears on
 
 ## Delivery: wilayas, stop desk and prices
 - Checkout asks for a mobile number (validated and normalised to `0XXXXXXXXX`), wilaya, commune and address, plus **home delivery** or **stop desk** pick-up.
+- **Communes come from a dropdown** of the chosen wilaya's communes (Arabic names for Arabic readers), so couriers always get an exact name. The list is the official division — 1,541 communes in `backend/src/data/communes.ts` — served by `GET /api/shipping/zones/:code/communes`. Checkout and saved addresses refuse a commune that isn't one of the wilaya's (`COMMUNE_INVALID`) and store its official Latin spelling, whether the Latin or Arabic name was sent. A saved address typed by hand before this simply asks for the commune again.
 - **Dashboard → Shipping** (super admin): a price per wilaya for home and stop-desk delivery, an on/off switch per wilaya, and "apply to all". All 58 wilayas start active and free, so nothing changes until you set prices.
 - The fee is computed server-side and added to the total (coupons never discount delivery). Signed-in customers pick from their saved addresses (see *Customer accounts*).
 

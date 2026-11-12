@@ -20,7 +20,8 @@ import { addressSchema, algerianPhoneSchema } from "../utils/validators";
 import type { CancelReason } from "../emails/orderEmails";
 import { requestLocale } from "../utils/locale";
 import { availablePaymentMethods, quoteShipping } from "../services/shipping";
-import { HttpError, StockIssue, stockConflict } from "../utils/httpError";
+import { HttpError, invalidCommune, StockIssue, stockConflict } from "../utils/httpError";
+import { findCommune } from "../services/communes";
 import { applyStockChanges, LowStockAlert, lockStock, mergeLines, unitPrice } from "../services/inventory";
 import { paginated, parsePagination } from "../utils/pagination";
 import * as notifications from "../services/notifications";
@@ -222,6 +223,10 @@ router.post("/", optionalAuth, async (req, res) => {
   } = parsed.data;
   const userId = req.user?.id;
 
+  // Couriers need an exact commune; it's stored with its official spelling.
+  const matchedCommune = findCommune(wilayaCode, commune);
+  if (!matchedCommune) throw invalidCommune();
+
   if (!availablePaymentMethods().includes(paymentMethod)) {
     return res
       .status(400)
@@ -353,7 +358,7 @@ router.post("/", optionalAuth, async (req, res) => {
         phone,
         wilayaCode,
         wilayaName: shipping.zone.name,
-        commune,
+        commune: matchedCommune.name,
         deliveryType,
         paymentMethod,
         subtotal,

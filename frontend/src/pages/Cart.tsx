@@ -37,6 +37,7 @@ import { keyOf, lineKey, linePrice } from "../lib/cart";
 import { addressesApi } from "../api/addresses";
 import { Address } from "../api/types";
 import { useAddresses } from "../components/AddressBook";
+import { CommuneSelect } from "../components/CommuneSelect";
 
 // "+213 550 12-34-56" and "0550123456" are the same number.
 const samePhone = (a: string, b: string) => {
@@ -85,7 +86,7 @@ export default function Cart() {
   const [appliedCoupon, setAppliedCoupon] = useState<CouponPreview | null>(null);
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { t, tp } = useI18n();
+  const { t, tp, lang } = useI18n();
   useDocumentMeta(t("cart.title"));
 
   // The session can finish loading after the first render — pre-fill the
@@ -252,6 +253,9 @@ export default function Cart() {
         toast.error(t("cart.codeRequired"));
       } else if (err?.data?.code === "PHONE_CODE_INVALID") {
         toast.error(t("cart.codeInvalid"));
+      } else if (err?.data?.code === "COMMUNE_INVALID") {
+        setCommune("");
+        toast.error(t("cart.communeInvalid"));
       } else {
         toast.error(String(err));
       }
@@ -621,14 +625,17 @@ export default function Cart() {
                   required
                   value={wilayaCode}
                   onChange={(e) =>
-                    setWilayaCode(e.target.value ? Number(e.target.value) : "")
+                  {
+                    setWilayaCode(e.target.value ? Number(e.target.value) : "");
+                    setCommune(""); // communes belong to a wilaya
+                  }
                   }
                   className="select"
                 >
                   <option value="">{t("cart.choose")}</option>
                   {zones?.map((z) => (
                     <option key={z.code} value={z.code} disabled={!z.isActive}>
-                      {String(z.code).padStart(2, "0")} — {z.name}
+                      {String(z.code).padStart(2, "0")} — {lang === "ar" && z.nameAr ? z.nameAr : z.name}
                       {!z.isActive ? ` ${t("cart.notDelivered")}` : ""}
                     </option>
                   ))}
@@ -638,14 +645,7 @@ export default function Cart() {
                 <label htmlFor="commune" className="label">
                   {t("cart.commune")}
                 </label>
-                <input
-                  id="commune"
-                  required
-                  value={commune}
-                  onChange={(e) => setCommune(e.target.value)}
-                  className="input"
-                  placeholder="Bab Ezzouar"
-                />
+                <CommuneSelect id="commune" required wilayaCode={wilayaCode} value={commune} onChange={setCommune} />
               </div>
             </div>
 

@@ -92,7 +92,21 @@ export interface Paginated<T> {
   totalPages: number;
 }
 
-export type ProductListResponse = Paginated<Product>;
+// `suggestion`: the closest product name when a search found nothing.
+export type ProductListResponse = Paginated<Product> & { suggestion?: string | null };
+
+// A commune of a wilaya (Latin name is the value stored with orders).
+export interface Commune {
+  name: string;
+  nameAr: string;
+}
+
+// Live suggestions for the search box.
+export interface SearchSuggestions {
+  products: Pick<Product, "id" | "name" | "price" | "imageUrl" | "stock">[];
+  categories: { id: string; name: string }[];
+  shops: { id: string; name: string; slug: string; logoUrl?: string | null }[];
+}
 
 export type OrderStatus =
   | "pending"

@@ -79,7 +79,7 @@ describe("checkout with delivery details", () => {
   it("refuses inactive wilayas", async () => {
     const { product } = await shopAdminWithProduct();
     await zones().update(37, { isActive: false });
-    const res = await placeGuestOrder(product.id, 1, { wilayaCode: 37 });
+    const res = await placeGuestOrder(product.id, 1, { wilayaCode: 37, commune: "Tindouf" });
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/don't deliver/);
   });

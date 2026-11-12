@@ -14,11 +14,13 @@ import { HttpError } from "../utils/httpError";
 import { parseCsv } from "../utils/csv";
 import { audit } from "../services/audit";
 import { lockStock } from "../services/inventory";
+import { applySearch, orderByRelevance, suggestionFor } from "../services/productSearch";
 
 const router = Router();
 const repo = () => AppDataSource.getRepository(Product);
 
 const SORT_OPTIONS = [
+  "relevance", // best matches first — the default when searching
   "newest",
   "oldest",
   "price_asc",
@@ -57,14 +59,8 @@ router.get("/", async (req, res) => {
     .leftJoinAndSelect("product.shop", "shop")
     .loadRelationCountAndMap("product.variantCount", "product.variants");
 
-  if (search) {
-    qb.andWhere(
-      "(product.name ILIKE :search OR product.description ILIKE :search)",
-      {
-        search: `%${search.slice(0, 200)}%`,
-      },
-    );
-  }
+  // Smart search (services/productSearch.ts): every word must match.
+  const searching = typeof search === "string" && applySearch(qb, search.slice(0, 200));
   if (categoryId && z.string().uuid().safeParse(categoryId).success) {
     qb.andWhere("product.categoryId = :categoryId", { categoryId });
   }
@@ -85,8 +81,12 @@ router.get("/", async (req, res) => {
     else qb.andWhere("1 = 0");
   }
 
-  const sortOption: SortOption = isSortOption(sort) ? sort : "newest";
+  const sortOption: SortOption = isSortOption(sort) ? sort : searching ? "relevance" : "newest";
   switch (sortOption) {
+    case "relevance":
+      if (searching) orderByRelevance(qb, search);
+      else qb.orderBy("product.createdAt", "DESC");
+      break;
     case "price_asc":
       qb.orderBy("product.price", "ASC");
       break;
@@ -110,10 +110,14 @@ router.get("/", async (req, res) => {
       break;
   }
 
-  qb.take(pageParams.limit).skip(pageParams.skip);
+  // limit/offset rather than take/skip: every join here is many-to-one (no
+  // duplicated rows), and TypeORM's take/skip can't page by a computed order.
+  qb.limit(pageParams.limit).offset(pageParams.skip);
 
   const [items, total] = await qb.getManyAndCount();
-  res.json(paginated(items, total, pageParams));
+  // No results: offer the closest product name ("Did you mean …?").
+  const suggestion = searching && total === 0 ? await suggestionFor(search) : null;
+  res.json({ ...paginated(items, total, pageParams), suggestion });
 });
 
 function loadProduct(id: string, manager: EntityManager = AppDataSource.manager) {

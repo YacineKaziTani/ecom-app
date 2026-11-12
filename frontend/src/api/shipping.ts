@@ -1,5 +1,5 @@
 import { api } from "./client";
-import { ShippingZone } from "./types";
+import { Commune, ShippingZone } from "./types";
 
 export interface ShippingZoneUpdate {
   homePrice?: number;
@@ -10,6 +10,9 @@ export interface ShippingZoneUpdate {
 export const shippingApi = {
   // Every wilaya with its delivery prices (inactive ones included).
   zones: () => api.get<ShippingZone[]>("/shipping/zones").then((r) => r.data),
+  // The wilaya's communes (alphabetical), for the address dropdowns.
+  communes: (wilayaCode: number) =>
+    api.get<Commune[]>(`/shipping/zones/${wilayaCode}/communes`).then((r) => r.data),
   // Super admin only.
   updateZone: (code: number, data: ShippingZoneUpdate) =>
     api.patch<ShippingZone>(`/shipping/zones/${code}`, data).then((r) => r.data),

@@ -1,7 +1,7 @@
 import { api } from "./client";
 import { Product, ProductListResponse } from "./types";
 
-export type ProductSort = "newest" | "oldest" | "price_asc" | "price_desc" | "name_asc" | "rating_desc";
+export type ProductSort = "relevance" | "newest" | "oldest" | "price_asc" | "price_desc" | "name_asc" | "rating_desc";
 
 export interface ProductQuery {
   search?: string;

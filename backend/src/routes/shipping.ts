@@ -4,6 +4,7 @@ import { AppDataSource } from "../config/data-source";
 import { ShippingZone } from "../entities/ShippingZone";
 import { requireAuth, requireSuperAdmin } from "../middleware/auth";
 import { audit } from "../services/audit";
+import { communesOf } from "../services/communes";
 
 const router = Router();
 const repo = () => AppDataSource.getRepository(ShippingZone);
@@ -24,6 +25,17 @@ router.get("/zones", async (_req, res) => {
       isActive: z.isActive,
     })),
   );
+});
+
+// Public: the wilaya's communes, for the checkout and address dropdowns.
+// Static data, so browsers and the CDN may keep it for a day.
+router.get("/zones/:code/communes", (req, res) => {
+  const code = Number(req.params.code);
+  if (!Number.isInteger(code) || code < 1 || code > 99) {
+    return res.status(400).json({ message: "Invalid wilaya code" });
+  }
+  res.set("Cache-Control", "public, max-age=86400");
+  res.json(communesOf(code));
 });
 
 const zoneUpdateSchema = z.object({

@@ -441,6 +441,26 @@ const table = {
   "dash.action.auth.2fa_disable": ["Two-factor sign-in turned off", "Double authentification désactivée", "إيقاف التحقق بخطوتين"],
   "dash.action.phone.block": ["Phone number blocked", "Numéro bloqué", "حظر رقم هاتف"],
   "dash.action.phone.unblock": ["Phone number unblocked", "Numéro débloqué", "إلغاء حظر رقم هاتف"],
+
+  // Communes
+  "cart.chooseCommune": ["Choose a commune", "Choisissez une commune", "اختر البلدية"],
+  "cart.chooseWilayaFirst": ["Choose the wilaya first", "Choisissez d'abord la wilaya", "اختر الولاية أولاً"],
+  "cart.communeInvalid": ["Choose your commune from the list.", "Choisissez votre commune dans la liste.", "اختر بلديتك من القائمة."],
+
+  // Search
+  "search.label": ["Search", "Rechercher", "بحث"],
+  "search.placeholder": ["Search products, shops…", "Rechercher un produit, une boutique…", "ابحث عن منتج أو متجر…"],
+  "search.open": ["Search", "Rechercher", "بحث"],
+  "search.searchFor": ["Search for “{q}”", "Rechercher « {q} »", "البحث عن «{q}»"],
+  "search.products": ["Products", "Produits", "المنتجات"],
+  "search.categories": ["Categories", "Catégories", "الفئات"],
+  "search.shops": ["Shops", "Boutiques", "المتاجر"],
+  "search.recent": ["Recent searches", "Recherches récentes", "عمليات البحث الأخيرة"],
+  "search.clearRecent": ["Clear", "Effacer", "مسح"],
+  "search.noSuggestions": ["No quick match — press Enter to search the whole catalogue.", "Aucune suggestion — appuyez sur Entrée pour chercher dans tout le catalogue.", "لا توجد اقتراحات — اضغط Enter للبحث في كامل الكتالوج."],
+  "search.didYouMean": ["Did you mean", "Vouliez-vous dire", "هل تقصد"],
+  "search.questionMark": ["?", " ?", "؟"],
+  "sort.relevance": ["Best match", "Pertinence", "الأكثر صلة"],
 } satisfies Record<string, readonly [string, string, string]>;
 
 export type PagesKey = keyof typeof table;

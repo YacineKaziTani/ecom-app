@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { MessageKey } from "../i18n/messages";
 import { useI18n } from "../i18n/I18nProvider";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Search, X, SlidersHorizontal, Sparkles, PackageSearch } from "lucide-react";
 import { productsApi, ProductSort } from "../api/products";
@@ -11,9 +11,11 @@ import { Pagination } from "../components/Pagination";
 import { ProductGridSkeleton } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { rememberSearch } from "../lib/recentSearches";
 import { cn } from "@/lib/utils";
 
-const SORT_OPTIONS: { value: ProductSort; labelKey: MessageKey }[] = [
+const SORT_OPTIONS: { value: ProductSort; labelKey: MessageKey; searchOnly?: boolean }[] = [
+  { value: "relevance", labelKey: "sort.relevance", searchOnly: true },
   { value: "newest", labelKey: "sort.newest" },
   { value: "price_asc", labelKey: "sort.priceAsc" },
   { value: "price_desc", labelKey: "sort.priceDesc" },
@@ -28,32 +30,80 @@ const priceBound = (raw: string) => {
 };
 
 export default function Shop() {
-  const [search, setSearch] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [sort, setSort] = useState<ProductSort>("newest");
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
-  const [inStock, setInStock] = useState(false);
-  const [page, setPage] = useState(1);
   const { t, tp } = useI18n();
+
+  // Search and filters live in the URL (?search=&category=&min=&max=&stock=1
+  // &sort=&page=): the navbar search lands here, results can be shared or
+  // bookmarked, and the Back button works.
+  const [params, setParams] = useSearchParams();
+  const search = params.get("search") ?? "";
+  const categoryId = params.get("category") ?? "";
+  const minParam = params.get("min") ?? "";
+  const maxParam = params.get("max") ?? "";
+  const inStock = params.get("stock") === "1";
+  const page = Math.max(1, Math.trunc(Number(params.get("page"))) || 1);
+  const sortParam = SORT_OPTIONS.find((o) => o.value === params.get("sort"))?.value;
+  // Best matches first while searching, newest otherwise (same rule as the API).
+  const sort: ProductSort = sortParam ?? (search ? "relevance" : "newest");
+
+  // Changes a few parameters; any change other than the page goes back to page 1.
+  const update = useCallback(
+    (patch: Record<string, string | null>) => {
+      setParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          for (const [key, value] of Object.entries(patch)) {
+            if (value) next.set(key, value);
+            else next.delete(key);
+          }
+          if (!("page" in patch)) next.delete("page");
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setParams],
+  );
+  const setPage = (n: number) => update({ page: n > 1 ? String(n) : null });
+
+  // The text boxes write to the URL once typing pauses, and follow it when it
+  // changes from elsewhere (navbar search, Back button).
+  const [searchInput, setSearchInput] = useState(search);
+  const [minInput, setMinInput] = useState(minParam);
+  const [maxInput, setMaxInput] = useState(maxParam);
+  useEffect(() => setSearchInput(search), [search]);
+  useEffect(() => setMinInput(minParam), [minParam]);
+  useEffect(() => setMaxInput(maxParam), [maxParam]);
+  const typedSearch = useDebouncedValue(searchInput.trim(), 400);
+  const typedMin = useDebouncedValue(minInput.trim());
+  const typedMax = useDebouncedValue(maxInput.trim());
+  useEffect(() => {
+    if (typedSearch !== search) update({ search: typedSearch || null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typedSearch]);
+  useEffect(() => {
+    if (typedMin !== minParam) update({ min: typedMin || null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typedMin]);
+  useEffect(() => {
+    if (typedMax !== maxParam) update({ max: typedMax || null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typedMax]);
 
   const { data: categories } = useQuery({
     queryKey: ["categories"],
     queryFn: categoriesApi.list,
   });
 
-  // Don't fire a request (and burn rate limit) on every keystroke.
-  const debouncedSearch = useDebouncedValue(search.trim());
-  const min = priceBound(useDebouncedValue(minPrice));
-  const max = priceBound(useDebouncedValue(maxPrice));
-
+  const min = priceBound(minParam);
+  const max = priceBound(maxParam);
   const { data, isLoading } = useQuery({
-    queryKey: ["products", { search: debouncedSearch, categoryId, sort, page, min, max, inStock }],
+    queryKey: ["products", { search, categoryId, sort: sortParam, page, min, max, inStock }],
     queryFn: () =>
       productsApi.list({
-        search: debouncedSearch,
-        categoryId,
-        sort,
+        search: search || undefined,
+        categoryId: categoryId || undefined,
+        sort: sortParam,
         minPrice: min,
         maxPrice: max,
         inStock: inStock || undefined,
@@ -63,20 +113,23 @@ export default function Shop() {
   });
 
   const activeCategory = categories?.find((c) => c.id === categoryId);
-  const hasFilters = Boolean(search || categoryId || minPrice || maxPrice || inStock);
+  const hasFilters = Boolean(search || categoryId || minParam || maxParam || inStock);
+  // Searching or browsing a category: show the results first, without the banner.
+  const showHero = !search && !categoryId;
 
   function resetFilters() {
-    setSearch("");
-    setCategoryId("");
-    setMinPrice("");
-    setMaxPrice("");
-    setInStock(false);
-    setPage(1);
+    setParams({}, { replace: true });
+  }
+
+  function searchFor(query: string) {
+    rememberSearch(query);
+    update({ search: query });
   }
 
   return (
     <div>
       {/* Hero ---------------------------------------------------- */}
+      {showHero && (
       <section className="hero-wash relative overflow-hidden border-b border-border">
         <div className="container-page relative py-16 sm:py-24">
           <div className="max-w-2xl animate-fade-up">
@@ -105,6 +158,7 @@ export default function Shop() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Filter bar ---------------------------------------------- */}
       <div
@@ -116,20 +170,22 @@ export default function Shop() {
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
+                type="search"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && searchInput.trim()) searchFor(searchInput.trim());
                 }}
+                enterKeyHint="search"
                 placeholder={t("home.searchPlaceholder")}
                 aria-label={t("home.searchPlaceholder")}
                 className="input ps-10 pe-10"
               />
-              {search && (
+              {searchInput && (
                 <button
                   onClick={() => {
-                    setSearch("");
-                    setPage(1);
+                    setSearchInput("");
+                    update({ search: null });
                   }}
                   className="absolute end-2.5 top-1/2 -translate-y-1/2 rounded-full p-1
                              text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
@@ -142,11 +198,8 @@ export default function Shop() {
 
             <div className="flex flex-wrap items-center gap-2">
               <input
-                value={minPrice}
-                onChange={(e) => {
-                  setMinPrice(e.target.value);
-                  setPage(1);
-                }}
+                value={minInput}
+                onChange={(e) => setMinInput(e.target.value)}
                 inputMode="decimal"
                 placeholder={t("home.minPrice")}
                 aria-label={t("home.minPrice")}
@@ -154,11 +207,8 @@ export default function Shop() {
               />
               <span className="text-muted-foreground" aria-hidden>–</span>
               <input
-                value={maxPrice}
-                onChange={(e) => {
-                  setMaxPrice(e.target.value);
-                  setPage(1);
-                }}
+                value={maxInput}
+                onChange={(e) => setMaxInput(e.target.value)}
                 inputMode="decimal"
                 placeholder={t("home.maxPrice")}
                 aria-label={t("home.maxPrice")}
@@ -168,10 +218,7 @@ export default function Shop() {
                 <input
                   type="checkbox"
                   checked={inStock}
-                  onChange={(e) => {
-                    setInStock(e.target.checked);
-                    setPage(1);
-                  }}
+                  onChange={(e) => update({ stock: e.target.checked ? "1" : null })}
                   className="h-4 w-4 accent-primary"
                 />
                 {t("home.inStockOnly")}
@@ -182,14 +229,11 @@ export default function Shop() {
               <SlidersHorizontal className="hidden h-4 w-4 flex-shrink-0 text-muted-foreground sm:block" />
               <select
                 value={sort}
-                onChange={(e) => {
-                  setSort(e.target.value as ProductSort);
-                  setPage(1);
-                }}
+                onChange={(e) => update({ sort: e.target.value })}
                 aria-label={t("home.sortLabel")}
                 className="select lg:w-52"
               >
-                {SORT_OPTIONS.map((o) => (
+                {SORT_OPTIONS.filter((o) => !o.searchOnly || search).map((o) => (
                   <option key={o.value} value={o.value}>
                     {t(o.labelKey)}
                   </option>
@@ -202,10 +246,7 @@ export default function Shop() {
           <div className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
             <CategoryPill
               active={categoryId === ""}
-              onClick={() => {
-                setCategoryId("");
-                setPage(1);
-              }}
+              onClick={() => update({ category: null })}
             >
               {t("home.allProducts")}
             </CategoryPill>
@@ -214,10 +255,7 @@ export default function Shop() {
               <CategoryPill
                 key={c.id}
                 active={categoryId === c.id}
-                onClick={() => {
-                  setCategoryId(c.id);
-                  setPage(1);
-                }}
+                onClick={() => update({ category: c.id })}
               >
                 {c.name}
               </CategoryPill>
@@ -274,9 +312,20 @@ export default function Shop() {
             }
             action={
               hasFilters ? (
-                <button onClick={resetFilters} className="btn-primary">
-                  {t("home.clearFilters")}
-                </button>
+                <div className="flex flex-col items-center gap-3">
+                  {data?.suggestion && (
+                    <p className="text-sm text-foreground">
+                      {t("search.didYouMean")}{" "}
+                      <button onClick={() => searchFor(data.suggestion!)} className="link-accent font-semibold">
+                        {data.suggestion}
+                      </button>
+                      {t("search.questionMark")}
+                    </p>
+                  )}
+                  <button onClick={resetFilters} className="btn-primary">
+                    {t("home.clearFilters")}
+                  </button>
+                </div>
               ) : undefined
             }
           />

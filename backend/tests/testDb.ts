@@ -10,6 +10,9 @@ export async function initTestDb(): Promise<void> {
   if (!AppDataSource.isInitialized) {
     await AppDataSource.initialize();
   }
+  // Start from a clean slate too, not only between tests: the end-to-end
+  // seed (or an interrupted run) may have left data and delivery prices behind.
+  await clearDatabase();
 }
 
 export async function closeTestDb(): Promise<void> {

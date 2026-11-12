@@ -15,10 +15,10 @@ import { Shop } from "./Shop";
 import { ProductVariant } from "./ProductVariant";
 
 @Entity("products")
-// Trigram indexes so the storefront's ILIKE '%term%' search doesn't scan the
-// whole table (see migration AddIndexes); TypeORM can't express gin_trgm_ops.
-@Index("IDX_products_name_trgm", { synchronize: false })
-@Index("IDX_products_description_trgm", { synchronize: false })
+// Trigram indexes on search_normalize(name / description), used by the
+// storefront search (migration AddSmartSearch); TypeORM can't express them.
+@Index("IDX_products_name_search", { synchronize: false })
+@Index("IDX_products_description_search", { synchronize: false })
 export class Product {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

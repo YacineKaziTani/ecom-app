@@ -31,7 +31,8 @@ async function fillDelivery(page: Page, m: Record<string, string>, email: string
   await page.getByLabel(m["cart.email"], { exact: true }).fill(email);
   await page.getByLabel(m["cart.phone"], { exact: true }).fill("0550 12 34 56");
   await page.getByLabel(m["cart.wilaya"], { exact: true }).selectOption("16");
-  await page.getByLabel(m["cart.commune"], { exact: true }).fill("Alger Centre");
+  // A dropdown of the wilaya's communes; the value is the official Latin name.
+  await page.getByLabel(m["cart.commune"], { exact: true }).selectOption("Alger Centre");
   await page.getByLabel(m["cart.address"], { exact: true }).fill("12 Rue Didouche Mourad");
 }
 

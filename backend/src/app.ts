@@ -33,6 +33,7 @@ import seoRoutes from "./routes/seo";
 import blockedPhoneRoutes from "./routes/blockedPhones";
 import phoneVerificationRoutes from "./routes/phoneVerifications";
 import addressRoutes from "./routes/addresses";
+import searchRoutes from "./routes/search";
 import { codOtpMinTotal } from "./services/sms";
 import { availablePaymentMethods } from "./services/shipping";
 import { RESERVATION_MINUTES } from "./services/orderLifecycle";
@@ -131,6 +132,7 @@ app.use("/api/seo", seoRoutes);
 app.use("/api/blocked-phones", blockedPhoneRoutes);
 app.use("/api/phone-verifications", phoneVerificationRoutes);
 app.use("/api/addresses", addressRoutes);
+app.use("/api/search", searchRoutes);
 app.use("/api", reviewRoutes); // /products/:id/reviews, /reviews/:id
 
 // Public storefront configuration the checkout needs.
