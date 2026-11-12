@@ -414,6 +414,13 @@ Checkout offers **Pay on delivery** next to online card payment (card appears on
 - Shop owners: a new order with their items — immediately for pay-on-delivery, once paid for card orders — listing only their own lines and the customer's delivery details.
 - All sent after the response, never blocking or failing the request (`services/notifications.ts`).
 
+## Store info, contact and legal pages
+- **Dashboard → Store info** (super admin) holds the business details: name, RC or artisan card number, NIF, address, phone, WhatsApp, customer-service email, opening hours, social links, the usual delivery time and the exchange window (0 = no exchanges for a change of mind). Everything is optional; the page lists what's still missing. One row in `store_settings`, `GET /api/settings` (public) and `PUT /api/settings` (super admin, recorded in the activity log).
+- **`/contact`**: WhatsApp, phone, email, address and hours, quick links (track an order, delivery, cancelling, selling) and the legal information. Until a contact is saved it says the details are coming soon.
+- **WhatsApp button**: a floating button on every storefront page once a WhatsApp number is saved. On a product or shop page the prefilled message includes the link.
+- **`/terms`, `/privacy`, `/delivery-returns`**: Terms of sale, Privacy policy, Delivery and returns, in French, Arabic and English (`frontend/src/content/legal/`). Store details are filled in from Store info; one still empty shows as "[to be completed]", and a super admin sees a banner linking to the form. Checkout and sign-up link to the terms, and the footer has a *Help* column.
+- These texts are a starting point written from Laws 18-05 (e-commerce), 09-03 (consumer protection) and 18-07 (personal data). **Have them checked** before a public launch, and update the privacy policy if you add advertising pixels or new providers.
+
 ## Multi-shop fulfilment and payouts
 - Each order has one **shipment per shop**. A shop admin updates only their own (status, carrier, tracking number — the dashboard asks for the tracking number when marking it shipped). The order status follows the slowest shipment; customers see each shop's progress and tracking number.
 - Cancelling stays an order-level action (it restocks). A super admin changing the order status moves every shipment with it.
@@ -433,8 +440,8 @@ Checkout offers **Pay on delivery** next to online card payment (card appears on
 - **Audit log**: role changes, order and shipment updates, deletions, coupons, shipping prices, payouts, seller decisions and 2FA changes are recorded. **Dashboard → Activity** (super admin) lists and filters them.
 
 ## Search engines and link previews
-- `/sitemap.xml` and `/robots.txt` (served by the backend through Vercel rewrites).
-- Product and shop links shared on WhatsApp, Facebook, Telegram, X… show a proper title, price and image: `vercel.json` routes those crawlers (by user agent) to `/api/seo/...`, which returns a small HTML page with Open Graph tags. Everyone else gets the normal app.
+- `/sitemap.xml` (shops, products and the help pages) and `/robots.txt`, served by the backend through Vercel rewrites.
+- The home page, product and shop links shared on WhatsApp, Facebook, Telegram, X… show a proper title, price and image (the home page uses `frontend/public/og-image.png`, 1200×630): `vercel.json` routes those crawlers (by user agent) to `/api/seo/...`, which returns a small HTML page with Open Graph tags. Everyone else gets the normal app.
 - Every public page sets its own title and description, and product pages include schema.org `Product` data (price in DZD, stock, rating) for Google.
 
 ## Languages: Français, العربية, English

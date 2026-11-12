@@ -11,7 +11,7 @@ const ACCOUNTS = {
   superAdmin: "admin-e2e@example.com",
 };
 
-const PUBLIC_PAGES = ["/", "/shops", "/shops/atelier-e2e", "/cart", "/track-order", "/sell", "/login", "/register", "/forgot-password", "/reset-password", "/verify-email", "/no-such-page"];
+const PUBLIC_PAGES = ["/", "/shops", "/shops/atelier-e2e", "/cart", "/track-order", "/sell", "/contact", "/delivery-returns", "/terms", "/privacy", "/login", "/register", "/forgot-password", "/reset-password", "/verify-email", "/no-such-page"];
 const CUSTOMER_PAGES = ["/orders", "/profile", "/wishlist", "/sell"];
 const SHOP_ADMIN_PAGES = ["/dashboard", "/dashboard/analytics", "/dashboard/my-shop", "/dashboard/products", "/dashboard/orders", "/dashboard/coupons", "/dashboard/payouts", "/dashboard/profile"];
 const SUPER_ADMIN_PAGES = [
@@ -24,13 +24,14 @@ const SUPER_ADMIN_PAGES = [
   "/dashboard/payouts",
   "/dashboard/users",
   "/dashboard/shipping",
+  "/dashboard/store-info",
   "/dashboard/applications",
   "/dashboard/blocked-numbers",
   "/dashboard/activity",
   "/dashboard/profile",
 ];
 
-const KEY_ON_SCREEN = /\b(?:common|nav|home|sort|product|cart|order|orders|status|dash|profile|addresses|role|shops?|shopPage|sell|forgot|reset|verify|notFound|stars|error|gallery|session|upload|twofa|search)\.[a-z][A-Za-z_.]*\b/;
+const KEY_ON_SCREEN = /\b(?:common|nav|home|sort|product|cart|order|orders|status|dash|profile|addresses|role|shops?|shopPage|sell|forgot|reset|verify|notFound|stars|error|gallery|session|upload|twofa|search|footer|contact|legal|whatsapp|auth)\.[a-z][A-Za-z_.]*\b/;
 
 async function signIn(page: Page, email: string) {
   // Through the dev server's /api proxy, so the session cookies are the page's.

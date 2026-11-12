@@ -7,7 +7,7 @@ import { formatDzd } from "../utils/money";
 
 // Served through the frontend's domain via vercel.json rewrites:
 //   /sitemap.xml, /robots.txt            → always
-//   /products/:id, /shops/:slug          → only for link-preview crawlers
+//   /, /products/:id, /shops/:slug       → only for link-preview crawlers
 //     (WhatsApp, Facebook, Telegram, X…), which don't run JavaScript and
 //     would otherwise see an empty single-page app with no title or image.
 const router = Router();
@@ -55,6 +55,22 @@ ${image ? `<meta property="og:image" content="${image}" />\n<meta property="og:i
 </body>
 </html>`;
 }
+
+// The home page: the site's own preview image (frontend/public/og-image.png).
+router.get("/home", (_req, res) => {
+  res
+    .set("Cache-Control", "public, max-age=3600")
+    .type("html")
+    .send(
+      previewPage({
+        title: "Curated goods from independent makers",
+        description:
+          "Premium goods made by independent artisans, shipped from their workshops. Pay on delivery or by EDAHABIA / CIB card.",
+        path: "/",
+        image: `${siteUrl()}/og-image.png`,
+      }),
+    );
+});
 
 router.get("/products/:id", async (req, res) => {
   const product = /^[0-9a-f-]{36}$/i.test(req.params.id)
@@ -106,6 +122,10 @@ router.get("/sitemap.xml", async (_req, res) => {
     entry("/"),
     entry("/shops"),
     entry("/sell"),
+    entry("/contact"),
+    entry("/delivery-returns"),
+    entry("/terms"),
+    entry("/privacy"),
     ...shops.map((s) => entry(`/shops/${s.slug}`, s.updatedAt)),
     ...products.map((p) => entry(`/products/${p.id}`, p.updatedAt)),
     `</urlset>`,

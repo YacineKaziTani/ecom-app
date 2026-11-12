@@ -26,6 +26,8 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
 const Sell = lazy(() => import("./pages/Sell"));
 const Wishlist = lazy(() => import("./pages/Wishlist"));
+const Contact = lazy(() => import("./pages/Contact"));
+const LegalPage = lazy(() => import("./pages/LegalPage"));
 
 const Overview = lazy(() => import("./pages/dashboard/Overview"));
 const ProductsAdmin = lazy(() => import("./pages/dashboard/ProductsAdmin"));
@@ -40,6 +42,7 @@ const PayoutsAdmin = lazy(() => import("./pages/dashboard/PayoutsAdmin"));
 const ApplicationsAdmin = lazy(() => import("./pages/dashboard/ApplicationsAdmin"));
 const ActivityAdmin = lazy(() => import("./pages/dashboard/ActivityAdmin"));
 const BlockedPhonesAdmin = lazy(() => import("./pages/dashboard/BlockedPhonesAdmin"));
+const StoreInfo = lazy(() => import("./pages/dashboard/StoreInfo"));
 
 export default function App() {
   return (
@@ -64,6 +67,10 @@ export default function App() {
           <Route path="/payment/failure" element={<PaymentFailure />} />
           <Route path="/track-order" element={<TrackOrder />} />
           <Route path="/sell" element={<Sell />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/delivery-returns" element={<LegalPage doc="delivery" />} />
+          <Route path="/terms" element={<LegalPage doc="terms" />} />
+          <Route path="/privacy" element={<LegalPage doc="privacy" />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="/orders" element={<MyOrders />} />
@@ -83,6 +90,7 @@ export default function App() {
             <Route path="my-shop" element={<MyShop />} />
             <Route path="users" element={<UsersAdmin />} />
             <Route path="shipping" element={<ShippingAdmin />} />
+            <Route path="store-info" element={<StoreInfo />} />
             <Route path="payouts" element={<PayoutsAdmin />} />
             <Route path="applications" element={<ApplicationsAdmin />} />
             <Route path="activity" element={<ActivityAdmin />} />

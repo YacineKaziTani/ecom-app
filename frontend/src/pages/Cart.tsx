@@ -750,6 +750,14 @@ export default function Cart() {
                 ? t("cart.redirectNote")
                 : t("cart.codNote", { amount: formatPrice(grandTotal) })}
             </p>
+            <p className="text-center text-xs text-muted-foreground">
+              {t("cart.acceptTerms")}{" "}
+              {/* A new tab, so the filled-in form isn't lost. */}
+              <Link to="/terms" target="_blank" className="link-accent">
+                {t("footer.terms")}
+              </Link>
+              .
+            </p>
           </form>
         </div>
       </div>

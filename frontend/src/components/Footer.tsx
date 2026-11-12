@@ -23,6 +23,15 @@ const columns: { title: MessageKey; links: { to: string; label: MessageKey }[] }
     ],
   },
   {
+    title: "footer.help",
+    links: [
+      { to: "/contact", label: "footer.contact" },
+      { to: "/delivery-returns", label: "footer.deliveryReturns" },
+      { to: "/terms", label: "footer.terms" },
+      { to: "/privacy", label: "footer.privacy" },
+    ],
+  },
+  {
     title: "footer.access",
     links: [
       { to: "/login", label: "nav.signIn" },
@@ -37,7 +46,7 @@ export function Footer() {
   return (
     <footer className="mt-20 border-t border-border bg-surface">
       <div className="container-page py-14">
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div className="lg:pe-8">
             <Link to="/" className="flex items-center gap-2.5">
               <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">

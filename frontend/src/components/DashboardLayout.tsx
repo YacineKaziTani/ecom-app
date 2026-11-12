@@ -21,6 +21,7 @@ import {
   UserPlus,
   History,
   Ban,
+  Building2,
 } from "lucide-react";
 import { useAuth } from "../store/AuthContext";
 import { useTheme } from "../store/ThemeContext";
@@ -52,6 +53,7 @@ export function DashboardLayout() {
     { to: "/dashboard/payouts", label: t("dash.nav.payouts"), icon: Wallet, show: true },
     { to: "/dashboard/users", label: t("dash.nav.users"), icon: Users, show: isSuperAdmin },
     { to: "/dashboard/shipping", label: t("dash.nav.shipping"), icon: Truck, show: isSuperAdmin },
+    { to: "/dashboard/store-info", label: t("dash.nav.storeInfo"), icon: Building2, show: isSuperAdmin },
     { to: "/dashboard/applications", label: t("dash.nav.applications"), icon: UserPlus, show: isSuperAdmin },
     { to: "/dashboard/blocked-numbers", label: t("dash.nav.blocked"), icon: Ban, show: isSuperAdmin },
     { to: "/dashboard/activity", label: t("dash.nav.activity"), icon: History, show: isSuperAdmin },

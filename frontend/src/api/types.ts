@@ -302,3 +302,22 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
 }
+
+// The business behind the store (Dashboard → Store info). Empty fields are null.
+export interface StoreSettings {
+  legalName: string | null;
+  registerNumber: string | null;
+  taxId: string | null;
+  address: string | null;
+  phone: string | null; // "0XXXXXXXX(X)"
+  whatsapp: string | null; // international digits, e.g. "213550123456"
+  email: string | null;
+  openingHours: string | null;
+  facebookUrl: string | null;
+  instagramUrl: string | null;
+  tiktokUrl: string | null;
+  deliveryDaysMin: number;
+  deliveryDaysMax: number;
+  exchangeDays: number; // 0 = no exchanges for a change of mind
+  updatedAt: string | null; // null until first saved
+}

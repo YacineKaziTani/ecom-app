@@ -24,6 +24,7 @@ import { BlockedPhone } from "../entities/BlockedPhone";
 import { PhoneVerification } from "../entities/PhoneVerification";
 import { ProductVariant } from "../entities/ProductVariant";
 import { Address } from "../entities/Address";
+import { StoreSettings } from "../entities/StoreSettings";
 
 const isTest = process.env.NODE_ENV === "test";
 
@@ -76,6 +77,7 @@ export const AppDataSource = new DataSource({
     PhoneVerification,
     ProductVariant,
     Address,
+    StoreSettings,
   ],
   migrations: [__dirname + "/../migrations/*{.ts,.js}"],
 });

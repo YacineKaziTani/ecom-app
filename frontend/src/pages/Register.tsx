@@ -178,6 +178,18 @@ export default function Register() {
           {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
           {mutation.isPending ? t("auth.creating") : t("auth.create")}
         </button>
+
+        <p className="text-center text-xs text-muted-foreground">
+          {t("auth.acceptTerms")}{" "}
+          <Link to="/terms" target="_blank" className="link-accent">
+            {t("footer.terms")}
+          </Link>{" "}
+          {t("auth.acceptTermsAnd")}{" "}
+          <Link to="/privacy" target="_blank" className="link-accent">
+            {t("footer.privacy")}
+          </Link>
+          .
+        </p>
       </form>
     </AuthLayout>
   );
