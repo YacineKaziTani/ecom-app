@@ -1,9 +1,11 @@
 import { Link } from "react-router";
 import { useI18n } from "../i18n/I18nProvider";
-import { Plus, ImageOff, ChevronRight } from "lucide-react";
+import { Plus, ChevronRight } from "lucide-react";
+import { ProductPlaceholder } from "./ProductPlaceholder";
 import { Product } from "../api/types";
 import { useCart } from "../hooks/useCart";
 import { formatPrice } from "../lib/status";
+import { saleInfo } from "../lib/pricing";
 import toast from "react-hot-toast";
 import { optimizedImage } from "../lib/images";
 import { WishlistButton } from "./WishlistButton";
@@ -16,27 +18,37 @@ export function ProductCard({ product }: { product: Product }) {
   // Products with options (size, colour...) are added from their own page.
   const hasOptions = (product.variantCount ?? product.variants?.length ?? 0) > 0;
   const lowStock = !hasOptions && product.stock > 0 && product.stock <= 5;
+  const secondPhoto = product.galleryUrls?.[0];
+  const sale = saleInfo(product, Number(product.price));
   const roundButton =
     "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs transition-all duration-200 hover:scale-110 hover:shadow-md active:scale-95";
 
   return (
-    <article className="card-interactive group flex flex-col overflow-hidden">
+    <article className="card-interactive group flex min-w-0 flex-col overflow-hidden">
       <Link
         to={`/products/${product.id}`}
         className="relative block aspect-square w-full overflow-hidden bg-secondary"
       >
         {product.imageUrl ? (
-          <img
-            src={optimizedImage(product.imageUrl, 600)}
-            alt={product.name}
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"
-          />
+          <>
+            <img
+              src={optimizedImage(product.imageUrl, 600)}
+              alt={product.name}
+              loading="lazy"
+              className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"
+            />
+            {/* The second photo fades in on hover (mouse only). */}
+            {secondPhoto && (
+              <img
+                src={optimizedImage(secondPhoto, 600)}
+                alt=""
+                loading="lazy"
+                className="absolute inset-0 hidden h-full w-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100 [@media(hover:hover)]:block"
+              />
+            )}
+          </>
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
-            <ImageOff className="h-7 w-7" />
-            <span className="text-xs">{t("product.noImage")}</span>
-          </div>
+          <ProductPlaceholder name={product.name} className="transition-transform duration-700 ease-out group-hover:scale-[1.04]" />
         )}
 
         {/* Warm vignette that deepens on hover, giving the image some presence. */}
@@ -52,9 +64,14 @@ export function ProductCard({ product }: { product: Product }) {
 
         <WishlistButton productId={product.id} className="absolute end-3 top-3" />
 
-        {lowStock && (
-          <span className="badge-warning absolute start-3 top-3 shadow-sm">
-            {t("product.onlyLeft", { count: product.stock })}
+        {(sale || lowStock) && (
+          <span className="absolute start-3 top-3 flex flex-col items-start gap-1.5">
+            {sale && (
+              <span className="rounded-full bg-destructive px-2.5 py-1 text-xs font-bold leading-none text-white shadow-sm">
+                −{sale.percent}%
+              </span>
+            )}
+            {lowStock && <span className="badge-warning shadow-sm">{t("product.onlyLeft", { count: product.stock })}</span>}
           </span>
         )}
       </Link>
@@ -89,8 +106,15 @@ export function ProductCard({ product }: { product: Product }) {
         )}
 
         <div className="mt-auto flex items-end justify-between gap-2 pt-4">
-          <span className="font-serif text-xl font-bold leading-none text-foreground">
-            {formatPrice(product.price)}
+          <span className="min-w-0">
+            {sale && (
+              <span className="mb-1 block text-xs font-medium leading-none text-muted-foreground line-through">
+                {formatPrice(sale.before)}
+              </span>
+            )}
+            <span className={`block font-serif text-lg font-bold leading-none sm:text-xl ${sale ? "text-destructive" : "text-foreground"}`}>
+              {formatPrice(product.price)}
+            </span>
           </span>
 
           {hasOptions && !soldOut ? (

@@ -11,6 +11,7 @@ export interface ProductQuery {
   minPrice?: number;
   maxPrice?: number;
   inStock?: boolean;
+  onSale?: boolean; // a promotion is running
   ids?: string; // comma-separated product ids
   page?: number;
   limit?: number;
@@ -34,6 +35,7 @@ export interface ProductInput {
   name: string;
   description?: string;
   price: number;
+  compareAtPrice?: number | null; // crossed-out price; null ends the promotion
   stock: number;
   imageUrl?: string; // "" removes the image
   galleryUrls?: string[];
@@ -48,6 +50,9 @@ export const productsApi = {
     api.get<ProductListResponse>("/products", { params: query }).then((r) => r.data),
   get: (id: string) => api.get<Product>(`/products/${id}`).then((r) => r.data),
   related: (id: string) => api.get<Product[]>(`/products/${id}/related`).then((r) => r.data),
+  // "Tell me when it's back" (sold-out product or option).
+  stockAlert: (id: string, data: { email?: string; variantId?: string | null }) =>
+    api.post(`/products/${id}/stock-alerts`, data).then((r) => r.data),
   // CSV text; dryRun only checks it. Rejected files come back as an ApiError
   // whose data.errors lists { line, message }.
   importCsv: (csv: string, opts: { dryRun?: boolean; shopId?: string } = {}) =>

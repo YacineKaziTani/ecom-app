@@ -35,6 +35,15 @@ export interface Shop {
   slug: string;
   description?: string;
   logoUrl?: string;
+  // Shop page profile.
+  coverUrl?: string | null;
+  story?: string | null;
+  wilayaCode?: number | null;
+  instagramUrl?: string | null;
+  facebookUrl?: string | null;
+  tiktokUrl?: string | null;
+  // Only on the shop page (GET /shops/slug/:slug).
+  stats?: { productCount: number; ratingCount: number; ratingAverage: number };
   ownerId: string;
   createdAt: string;
   updatedAt: string;
@@ -66,6 +75,8 @@ export interface Product {
   name: string;
   description?: string;
   price: number;
+  // The crossed-out "before" price of a promotion (decimal from the API).
+  compareAtPrice?: number | string | null;
   stock: number;
   imageUrl?: string;
   galleryUrls?: string[];
@@ -305,6 +316,8 @@ export interface Order {
 
 // The business behind the store (Dashboard → Store info). Empty fields are null.
 export interface StoreSettings {
+  brandName: string; // the shop's public name
+  logoUrl: string | null;
   legalName: string | null;
   registerNumber: string | null;
   taxId: string | null;
@@ -319,5 +332,43 @@ export interface StoreSettings {
   deliveryDaysMin: number;
   deliveryDaysMax: number;
   exchangeDays: number; // 0 = no exchanges for a change of mind
+  freeShippingThreshold: number | null; // free delivery from this products total
+  facebookPixelId: string | null;
+  tiktokPixelId: string | null;
+  featuredShopId: string | null; // home page artisan; null = picked automatically
   updatedAt: string | null; // null until first saved
+}
+
+// A slide of the home page banner (Dashboard → Home page).
+export interface HomeBanner {
+  id: string;
+  imageUrl: string;
+  title: string;
+  subtitle: string | null;
+  ctaLabel: string | null;
+  link: string | null; // "/shops", "/?category=…" or https://…
+  lang: "en" | "fr" | "ar" | null; // null = every language
+  position: number;
+  isActive: boolean;
+}
+
+export interface HomeReview {
+  id: string;
+  rating: number;
+  comment: string;
+  author: string; // "Amina B."
+  createdAt: string;
+  productId: string;
+  productName: string;
+  productImage: string | null;
+}
+
+export interface HomeData {
+  banners: HomeBanner[];
+  categories: { id: string; name: string; imageUrl: string | null; productCount: number }[];
+  newArrivals: Product[];
+  bestSellers: Product[];
+  onSale: Product[];
+  featuredShop: { shop: Shop; products: Product[] } | null;
+  reviews: HomeReview[];
 }

@@ -6,7 +6,7 @@ import { Product } from "../entities/Product";
 import { ProductVariant } from "../entities/ProductVariant";
 import { Category } from "../entities/Category";
 import { Shop } from "../entities/Shop";
-import { requireAuth, requireAnyAdmin, attachShop } from "../middleware/auth";
+import { requireAuth, requireAnyAdmin, attachShop, optionalAuth } from "../middleware/auth";
 import { validateUuidParam } from "../middleware/validateUuid";
 import { imageUrlSchema, nameSchema, shortTextSchema } from "../utils/validators";
 import { paginated, parsePagination } from "../utils/pagination";
@@ -15,6 +15,9 @@ import { parseCsv } from "../utils/csv";
 import { audit } from "../services/audit";
 import { lockStock } from "../services/inventory";
 import { applySearch, orderByRelevance, suggestionFor } from "../services/productSearch";
+import { stockAlertLimiter } from "../middleware/rateLimit";
+import { sendBackInStockAlertsInBackground, subscribeToStockAlert } from "../services/stockAlerts";
+import { requestLocale } from "../utils/locale";
 
 const router = Router();
 const repo = () => AppDataSource.getRepository(Product);
@@ -44,7 +47,7 @@ function priceParam(raw: unknown): number | null {
 }
 
 // Listing filters: search, categoryId, shopId, minPrice, maxPrice,
-// inStock=true, ids (comma-separated, e.g. "recently viewed"), sort. Each product carries `variantCount` so a card can offer
+// inStock=true, onSale=true (a promotion is running), ids (comma-separated, e.g. "recently viewed"), sort. Each product carries `variantCount` so a card can offer
 // "choose options" instead of a one-click add to cart.
 router.get("/", async (req, res) => {
   const { search, categoryId, shopId, sort, inStock } = req.query as Record<
@@ -72,6 +75,8 @@ router.get("/", async (req, res) => {
   if (minPrice !== null) qb.andWhere("product.price >= :minPrice", { minPrice });
   if (maxPrice !== null) qb.andWhere("product.price <= :maxPrice", { maxPrice });
   if (inStock === "true") qb.andWhere("product.stock > 0");
+  const onSale = req.query.onSale === "true";
+  if (onSale) qb.andWhere("product.compareAtPrice > product.price");
   if (typeof req.query.ids === "string") {
     const ids = req.query.ids
       .split(",")
@@ -116,7 +121,12 @@ router.get("/", async (req, res) => {
 
   const [items, total] = await qb.getManyAndCount();
   // No results: offer the closest product name ("Did you mean …?").
-  const suggestion = searching && total === 0 ? await suggestionFor(search) : null;
+  // Only when the search alone found nothing: the suggestion ignores the
+  // other filters, so it could otherwise be the query itself, to no avail.
+  const otherFilters = Boolean(
+    req.query.categoryId || req.query.shopId || req.query.ids || minPrice !== null || maxPrice !== null || inStock === "true" || onSale,
+  );
+  const suggestion = searching && total === 0 && !otherFilters ? await suggestionFor(search) : null;
   res.json({ ...paginated(items, total, pageParams), suggestion });
 });
 
@@ -186,6 +196,8 @@ const productSchema = z.object({
   name: nameSchema,
   description: shortTextSchema,
   price: z.number().positive().max(1_000_000),
+  // The crossed-out "before" price of a promotion; null ends it.
+  compareAtPrice: z.number().positive().max(1_000_000).nullable().optional(),
   // Ignored when the product has options: its stock is then their total.
   stock: z.number().int().min(0).max(1_000_000),
   imageUrl: imageUrlSchema,
@@ -248,6 +260,7 @@ router.post("/", requireAuth, requireAnyAdmin, attachShop, async (req, res) => {
       .json({ message: "Invalid input", errors: parsed.error.flatten() });
 
   const { shopId: requestedShopId, variants, ...data } = parsed.data;
+  if (data.compareAtPrice != null && data.compareAtPrice <= data.price) throw compareAtTooLow();
   if (isSuperAdmin && !requestedShopId)
     return res.status(400).json({ message: "Choose the shop this product belongs to" });
   const shopId = isSuperAdmin ? requestedShopId! : req.shopId!;
@@ -290,6 +303,7 @@ router.put(
       }
 
       Object.assign(product, data);
+      if (product.compareAtPrice != null && Number(product.compareAtPrice) <= Number(product.price)) throw compareAtTooLow();
       if (variants) {
         const total = await replaceVariants(manager, product.id, stock.variantsOf(product.id), variants);
         if (variants.length > 0) product.stock = total;
@@ -300,7 +314,39 @@ router.put(
       await manager.getRepository(Product).save(product);
       return (await loadProduct(product.id, manager))!;
     });
+    // Back in stock? Tell whoever was waiting.
+    sendBackInStockAlertsInBackground([product.id]);
     res.json(product);
+  },
+);
+
+function compareAtTooLow() {
+  return new HttpError(400, "The crossed-out price must be higher than the selling price", { code: "COMPARE_AT_TOO_LOW" });
+}
+
+// "Tell me when it's back": a sold-out product, or one of its options.
+// Signed-in customers use their account email.
+router.post(
+  "/:id/stock-alerts",
+  validateUuidParam(),
+  stockAlertLimiter,
+  optionalAuth,
+  async (req, res) => {
+    const parsed = z
+      .object({
+        email: z.string().trim().toLowerCase().email().max(254).optional(),
+        variantId: z.string().uuid().nullish(),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Enter a valid email address" });
+    await subscribeToStockAlert({
+      productId: String(req.params.id), // checked by validateUuidParam
+      variantId: parsed.data.variantId ?? null,
+      email: parsed.data.email,
+      userId: req.user?.id,
+      locale: requestLocale(req),
+    });
+    res.status(201).json({ ok: true });
   },
 );
 
@@ -347,6 +393,11 @@ const COLUMN_ALIASES: Record<string, string> = {
   catégorie: "category",
   imageurl: "imageUrl",
   image: "imageUrl",
+  compareatprice: "compareAtPrice",
+  oldprice: "compareAtPrice",
+  ancienprix: "compareAtPrice",
+  prixbarre: "compareAtPrice",
+  prixbarré: "compareAtPrice",
 };
 
 const importSchema = z.object({
@@ -439,6 +490,7 @@ router.post("/import", requireAuth, requireAnyAdmin, attachShop, async (req, res
       .safeParse({
         name,
         price: csvNumber(raw.price),
+        compareAtPrice: csvNumber(raw.compareAtPrice),
         stock: csvNumber(raw.stock),
         description: raw.description || undefined,
         imageUrl: raw.imageUrl || undefined,
@@ -450,6 +502,10 @@ router.post("/import", requireAuth, requireAnyAdmin, attachShop, async (req, res
     }
     if (seen.has(key)) {
       errors.push({ line, message: `"${name}" appears more than once in the file` });
+      return;
+    }
+    if (row.data.compareAtPrice != null && row.data.price !== undefined && row.data.compareAtPrice <= row.data.price) {
+      errors.push({ line, message: "The crossed-out price must be higher than the price" });
       return;
     }
     seen.add(key);
@@ -488,6 +544,7 @@ router.post("/import", requireAuth, requireAnyAdmin, attachShop, async (req, res
     }
   });
   void audit(req, "product.import", "shop", shopId, summary);
+  sendBackInStockAlertsInBackground(toUpdate.map((u) => u.id));
   res.status(201).json(summary);
 });
 

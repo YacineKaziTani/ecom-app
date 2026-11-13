@@ -49,19 +49,25 @@ export default function ShopsDirectory() {
                 className="card-interactive group flex flex-col overflow-hidden"
               >
                 <div className="relative aspect-[16/10] w-full overflow-hidden bg-gradient-to-br from-secondary to-muted">
-                  {shop.logoUrl ? (
+                  {/* The cover photo, else the logo. */}
+                  {shop.coverUrl || shop.logoUrl ? (
                     <img
-                      src={optimizedImage(shop.logoUrl, 256)}
+                      src={optimizedImage((shop.coverUrl || shop.logoUrl)!, shop.coverUrl ? 700 : 256)}
                       alt={shop.name}
                       loading="lazy"
                       className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center">
-                      <Store className="h-9 w-9 text-muted-foreground" />
+                    <div className="hero-wash flex h-full w-full items-center justify-center">
+                      <Store className="h-9 w-9 text-accent" />
                     </div>
                   )}
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-foreground/30 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                  {shop.coverUrl && shop.logoUrl && (
+                    <span className="absolute bottom-3 start-3 h-12 w-12 overflow-hidden rounded-xl border-2 border-card bg-card shadow-md">
+                      <img src={optimizedImage(shop.logoUrl, 96)} alt="" className="h-full w-full object-cover" />
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-1 flex-col p-5">

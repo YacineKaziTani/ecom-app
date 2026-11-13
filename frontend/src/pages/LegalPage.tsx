@@ -6,6 +6,7 @@ import { PageLoader } from "../components/ui/PageLoader";
 import { RichText } from "../components/RichText";
 import { MissingDetailsNotice } from "../components/MissingDetailsNotice";
 import { useStoreSettings } from "../hooks/useStoreSettings";
+import { useBrand } from "../hooks/useBrand";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { useI18n } from "../i18n/I18nProvider";
 import type { MessageKey } from "../i18n/messages";
@@ -27,10 +28,11 @@ const isolate = (value: string) => `⁨${value}⁩`;
 export default function LegalPage({ doc }: { doc: LegalDoc }) {
   const { t, lang } = useI18n();
   const { data: s, isLoading } = useStoreSettings();
+  const { name: brand } = useBrand();
 
   const vars = useMemo<LegalVars>(
     () => ({
-      site: "ArtisanShop",
+      site: brand,
       legalName: isolate(s?.legalName ?? MISSING),
       registerNumber: isolate(s?.registerNumber ?? MISSING),
       taxId: isolate(s?.taxId ?? MISSING),
@@ -40,8 +42,9 @@ export default function LegalPage({ doc }: { doc: LegalDoc }) {
       deliveryMin: s?.deliveryDaysMin ?? 2,
       deliveryMax: s?.deliveryDaysMax ?? 7,
       exchangeDays: s?.exchangeDays ?? 7,
+      adPixels: [s?.facebookPixelId && "Meta (Facebook)", s?.tiktokPixelId && "TikTok"].filter((name): name is string => !!name),
     }),
-    [s],
+    [s, brand],
   );
   const legal = legalDocument(lang, doc, vars);
   useDocumentMeta(legal.title, legal.intro);

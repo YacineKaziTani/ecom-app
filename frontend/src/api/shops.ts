@@ -5,6 +5,13 @@ export interface ShopInput {
   name: string;
   description?: string;
   logoUrl?: string;
+  // Shop page profile ("" clears a field).
+  coverUrl?: string;
+  story?: string;
+  wilayaCode?: number | null;
+  instagramUrl?: string;
+  facebookUrl?: string;
+  tiktokUrl?: string;
 }
 
 export const shopsApi = {

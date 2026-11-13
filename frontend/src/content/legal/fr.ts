@@ -1,5 +1,6 @@
 import type { LegalContent } from "./types";
 
+const and = (names: string[]) => names.join(" et ");
 const days = (n: number) => (n === 1 ? "1 jour" : `${n} jours`);
 const dayRange = (min: number, max: number) => (min === max ? days(max) : `${min} à ${days(max)}`);
 
@@ -200,6 +201,9 @@ export const fr: LegalContent = (v) => ({
             list: [
               "Le vendeur des produits commandés et la société de livraison : uniquement ce qui est nécessaire pour préparer et livrer la commande (nom, téléphone, adresse).",
               "Nos prestataires techniques, uniquement pour faire fonctionner le service : hébergement, envoi d'e-mails et de SMS, stockage des images, suivi des erreurs et paiement par carte. Certains sont situés hors d'Algérie.",
+              ...(v.adPixels.length
+                ? [`${and(v.adPixels)}, uniquement si vous acceptez les cookies publicitaires : les pages consultées, les ajouts au panier et vos commandes, pour mesurer nos publicités.`]
+                : []),
               "Les autorités, lorsque la loi l'exige.",
             ],
           },
@@ -213,9 +217,14 @@ export const fr: LegalContent = (v) => ({
       },
       {
         heading: "Cookies et stockage dans votre navigateur",
-        body: [
-          "Nous n'utilisons que le nécessaire au fonctionnement du site : un cookie pour rester connecté, et un stockage dans votre navigateur pour le panier, la langue, le thème et les recherches récentes. Aucun cookie publicitaire ni de traçage.",
-        ],
+        body: v.adPixels.length
+          ? [
+              "Le site a besoin d'un cookie pour vous garder connecté, et d'un stockage dans votre navigateur pour le panier, la langue, le thème et les recherches récentes.",
+              `Uniquement si vous les acceptez, des cookies publicitaires de ${and(v.adPixels)} mesurent les visites et les commandes qu'apportent nos publicités. Vous pouvez changer d'avis à tout moment avec le lien « Cookies » en bas de chaque page.`,
+            ]
+          : [
+              "Nous n'utilisons que le nécessaire au fonctionnement du site : un cookie pour rester connecté, et un stockage dans votre navigateur pour le panier, la langue, le thème et les recherches récentes. Aucun cookie publicitaire ni de traçage.",
+            ],
       },
       {
         heading: "Vos droits",

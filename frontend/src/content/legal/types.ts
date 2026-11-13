@@ -30,6 +30,7 @@ export interface LegalVars {
   deliveryMin: number;
   deliveryMax: number;
   exchangeDays: number; // 0 = no exchanges for a change of mind
+  adPixels: string[]; // advertising pixels in use, e.g. ["Meta (Facebook)", "TikTok"]
 }
 
 export type LegalContent = (v: LegalVars) => Record<LegalDoc, LegalDocument>;

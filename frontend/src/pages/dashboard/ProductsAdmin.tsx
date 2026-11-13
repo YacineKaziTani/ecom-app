@@ -28,6 +28,7 @@ const emptyForm: ProductForm = {
   name: "",
   description: "",
   price: 0,
+  compareAtPrice: null,
   stock: 0,
   imageUrl: "",
   galleryUrls: [],
@@ -79,6 +80,9 @@ export default function ProductsAdmin() {
     qc.invalidateQueries({ queryKey: ["product"] });
   };
 
+  const saveError = (err: any) =>
+    err?.data?.code === "COMPARE_AT_TOO_LOW" ? t("dash.products.compareAtTooLow") : String(err);
+
   const createMutation = useMutation({
     mutationFn: productsApi.create,
     onSuccess: () => {
@@ -86,7 +90,7 @@ export default function ProductsAdmin() {
       toast.success(t("dash.products.created"));
       closeModal();
     },
-    onError: (err: any) => toast.error(String(err)),
+    onError: (err: any) => toast.error(saveError(err)),
   });
 
   const updateMutation = useMutation({
@@ -97,7 +101,7 @@ export default function ProductsAdmin() {
       toast.success(t("dash.products.updated"));
       closeModal();
     },
-    onError: (err: any) => toast.error(String(err)),
+    onError: (err: any) => toast.error(saveError(err)),
   });
 
   const deleteMutation = useMutation({
@@ -118,6 +122,7 @@ export default function ProductsAdmin() {
         name: product.name,
         description: product.description || "",
         price: Number(product.price),
+        compareAtPrice: product.compareAtPrice == null ? null : Number(product.compareAtPrice),
         stock: product.stock,
         imageUrl: product.imageUrl || "",
         galleryUrls: product.galleryUrls ?? [],
@@ -146,7 +151,12 @@ export default function ProductsAdmin() {
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const body = { ...form, variants: toInput(variants), stock: hasOptions ? rowsStock(variants) : form.stock };
+    const body = {
+      ...form,
+      compareAtPrice: form.compareAtPrice || null,
+      variants: toInput(variants),
+      stock: hasOptions ? rowsStock(variants) : form.stock,
+    };
     if (editing) {
       // null (not undefined) so clearing the category actually removes it.
       updateMutation.mutate({
@@ -400,7 +410,7 @@ export default function ProductsAdmin() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <div>
               <label htmlFor="price" className="label">
                 {t("dash.products.price")}
@@ -417,6 +427,22 @@ export default function ProductsAdmin() {
                 }
                 className="input"
               />
+            </div>
+            <div>
+              <label htmlFor="compareAtPrice" className="label">
+                {t("dash.products.compareAt")}
+              </label>
+              <input
+                id="compareAtPrice"
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.compareAtPrice ?? ""}
+                onChange={(e) => setForm({ ...form, compareAtPrice: e.target.value === "" ? null : Number(e.target.value) })}
+                className="input"
+                placeholder={t("dash.products.compareAtPlaceholder")}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">{t("dash.products.compareAtHint")}</p>
             </div>
             <div>
               <label htmlFor="stock" className="label">

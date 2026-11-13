@@ -50,3 +50,21 @@ export function lowStockEmail(
     (alerts.length > 1 ? t("stock.andMore", { count: alerts.length - 1 }) : "");
   return { subject, html, text };
 }
+
+// Sent to someone who asked to be told when a sold-out product (or option)
+// is available again.
+// (email.heading / email.paragraph escape the text.)
+export function backInStockEmail(name: string, link: string, locale: Locale = "en"): RenderedEmail {
+  const t = translator(locale);
+  const html = renderLayout({
+    title: t("backInStock.title"),
+    bodyHtml:
+      email.heading(t("backInStock.heading", { name })) +
+      email.paragraph(t("backInStock.body", { name })) +
+      email.paragraph(t("backInStock.why")),
+    cta: { label: t("backInStock.cta"), url: link },
+    locale,
+  });
+  const text = [t("backInStock.heading", { name }), "", t("backInStock.body", { name }), "", `${t("backInStock.cta")}: ${link}`, "", t("backInStock.why")].join("\n");
+  return { subject: t("backInStock.subject", { name }), html, text };
+}

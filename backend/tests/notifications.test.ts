@@ -127,7 +127,7 @@ describe("email content", () => {
     const order = await orders().findOneOrFail({ where: { id: placed.body.id }, relations: ["items"] });
 
     const email = orderPlacedEmail(order, "Amina", "https://shop.example.com/o/1");
-    expect(email.text).toMatch(/3\s000,00\sDA/); // 2 × 1 500 DA
+    expect(email.text).toMatch(/3\s000\sDA/); // 2 × 1 500 DA
     expect(email.text).toContain("Alger");
     expect(email.text).toMatch(/cash on delivery/);
     expect(email.html).toContain("Amina");

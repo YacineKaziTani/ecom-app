@@ -3,6 +3,7 @@ import { MessageCircle } from "lucide-react";
 import { useStoreSettings } from "../hooks/useStoreSettings";
 import { useI18n } from "../i18n/I18nProvider";
 import { whatsappLink } from "../lib/contact";
+import { cn } from "@/lib/utils";
 
 // Floating "chat on WhatsApp" button, shown once a number is saved in
 // Dashboard → Store info. On a product or shop page, the prefilled message
@@ -25,7 +26,11 @@ export function WhatsAppButton() {
       rel="noopener noreferrer"
       aria-label={t("whatsapp.button")}
       title={t("whatsapp.button")}
-      className="fixed bottom-4 end-4 z-40 flex h-12 w-12 items-center sm:bottom-5 sm:end-5 sm:h-14 sm:w-14 justify-center rounded-full bg-[#25d366] text-white shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25d366] focus-visible:ring-offset-2 focus-visible:ring-offset-background print:hidden"
+      className={cn(
+        "fixed end-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[#25d366] text-white shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25d366] focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:end-5 sm:h-14 sm:w-14 print:hidden",
+        // Above the phone buy bar of product pages.
+        pathname.startsWith("/products/") ? "bottom-24 lg:bottom-5" : "bottom-4 sm:bottom-5",
+      )}
     >
       <MessageCircle className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.2} />
     </a>

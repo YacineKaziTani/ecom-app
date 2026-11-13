@@ -2,6 +2,8 @@
 // language the order was placed in; account and shop emails use the
 // recipient's saved language (users.locale). Arabic emails render RTL.
 
+import { currentBrand } from "../services/storeSettings";
+
 export const LOCALES = ["en", "fr", "ar"] as const;
 export type Locale = (typeof LOCALES)[number];
 
@@ -64,6 +66,12 @@ const en = {
   "shopCancel.body": "The customer cancelled order {id} before it shipped. Its items are back in your stock — don't send it.",
 
   "stock.title": "Low stock",
+  "backInStock.title": "Back in stock",
+  "backInStock.subject": "Back in stock: {name}",
+  "backInStock.heading": "{name} is back!",
+  "backInStock.body": "Good news: {name} is available again. Handmade pieces sell quickly, so don't wait too long.",
+  "backInStock.cta": "See the product",
+  "backInStock.why": "You asked us to tell you when it was back. This is the only email we'll send about it.",
   "stock.headingSoldOut": "Some products just sold out",
   "stock.headingLow": "Running low on stock",
   "stock.body": "A recent order left these {shop} products nearly out of stock. Restock them so you don't miss sales.",
@@ -85,7 +93,7 @@ const en = {
 
   "sellerAdmin.subject": "New seller application — {shop}",
   "sellerAdmin.heading": "New seller application",
-  "sellerAdmin.body": "{name} wants to open \"{shop}\" on ArtisanShop.",
+  "sellerAdmin.body": "{name} wants to open \"{shop}\" on {brand}.",
   "sellerAdmin.cta": "Review applications",
   "sellerOk.subject": "Your shop \"{shop}\" is approved",
   "sellerOk.heading": "Welcome aboard, {name}!",
@@ -155,6 +163,12 @@ const fr: Record<EmailKey, string> = {
   "shopCancel.body": "Le client a annulé la commande {id} avant son expédition. Les articles ont été remis en stock — ne l'envoyez pas.",
 
   "stock.title": "Stock faible",
+  "backInStock.title": "De retour en stock",
+  "backInStock.subject": "De retour en stock : {name}",
+  "backInStock.heading": "{name} est de retour !",
+  "backInStock.body": "Bonne nouvelle : {name} est de nouveau disponible. Les pièces faites main partent vite, n'attendez pas trop.",
+  "backInStock.cta": "Voir le produit",
+  "backInStock.why": "Vous avez demandé à être prévenu de son retour. C'est le seul e-mail que nous vous enverrons à ce sujet.",
   "stock.headingSoldOut": "Certains produits viennent d'être épuisés",
   "stock.headingLow": "Stock bientôt épuisé",
   "stock.body": "Une commande récente a presque épuisé ces produits de {shop}. Réapprovisionnez-les pour ne pas manquer de ventes.",
@@ -176,7 +190,7 @@ const fr: Record<EmailKey, string> = {
 
   "sellerAdmin.subject": "Nouvelle demande vendeur — {shop}",
   "sellerAdmin.heading": "Nouvelle demande vendeur",
-  "sellerAdmin.body": "{name} souhaite ouvrir « {shop} » sur ArtisanShop.",
+  "sellerAdmin.body": "{name} souhaite ouvrir « {shop} » sur {brand}.",
   "sellerAdmin.cta": "Examiner les demandes",
   "sellerOk.subject": "Votre boutique « {shop} » est approuvée",
   "sellerOk.heading": "Bienvenue, {name} !",
@@ -244,6 +258,12 @@ const ar: Record<EmailKey, string> = {
   "shopCancel.body": "ألغى الزبون الطلب {id} قبل شحنه. أُعيدت المنتجات إلى مخزونك — لا ترسله.",
 
   "stock.title": "مخزون منخفض",
+  "backInStock.title": "عاد إلى المخزون",
+  "backInStock.subject": "عاد إلى المخزون: {name}",
+  "backInStock.heading": "{name} متوفر من جديد!",
+  "backInStock.body": "خبر سار: {name} متوفر من جديد. القطع اليدوية تنفد بسرعة، فلا تتأخر.",
+  "backInStock.cta": "عرض المنتج",
+  "backInStock.why": "طلبت منا إعلامك بعودته. هذه هي الرسالة الوحيدة التي سنرسلها لك بخصوصه.",
   "stock.headingSoldOut": "نفدت بعض المنتجات للتو",
   "stock.headingLow": "المخزون يوشك على النفاد",
   "stock.body": "تركت طلبية حديثة منتجات {shop} هذه على وشك النفاد. أعد تزويدها حتى لا تفوتك المبيعات.",
@@ -265,7 +285,7 @@ const ar: Record<EmailKey, string> = {
 
   "sellerAdmin.subject": "طلب بائع جديد — {shop}",
   "sellerAdmin.heading": "طلب بائع جديد",
-  "sellerAdmin.body": "يرغب {name} في فتح «{shop}» على ArtisanShop.",
+  "sellerAdmin.body": "يرغب {name} في فتح «{shop}» على {brand}.",
   "sellerAdmin.cta": "مراجعة الطلبات",
   "sellerOk.subject": "تمت الموافقة على متجرك «{shop}»",
   "sellerOk.heading": "مرحبًا بك معنا، {name}!",
@@ -283,8 +303,11 @@ export type Translate = (key: EmailKey, vars?: Record<string, string | number>) 
 
 export function translator(locale: Locale | null | undefined): Translate {
   const dict = STRINGS[isLocale(locale) ? locale : "en"];
+  // {brand} is the shop's current name unless given.
   return (key, vars) =>
-    dict[key].replace(/\{(\w+)\}/g, (_, name) => String(vars?.[name] ?? `{${name}}`));
+    dict[key].replace(/\{(\w+)\}/g, (_, name) =>
+      String(vars?.[name] ?? (name === "brand" ? currentBrand().name : `{${name}}`)),
+    );
 }
 
 // The first supported language in an Accept-Language header ("fr-DZ,fr;q=0.9,ar;q=0.8").

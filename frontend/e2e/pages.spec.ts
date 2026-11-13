@@ -25,13 +25,14 @@ const SUPER_ADMIN_PAGES = [
   "/dashboard/users",
   "/dashboard/shipping",
   "/dashboard/store-info",
+  "/dashboard/home-page",
   "/dashboard/applications",
   "/dashboard/blocked-numbers",
   "/dashboard/activity",
   "/dashboard/profile",
 ];
 
-const KEY_ON_SCREEN = /\b(?:common|nav|home|sort|product|cart|order|orders|status|dash|profile|addresses|role|shops?|shopPage|sell|forgot|reset|verify|notFound|stars|error|gallery|session|upload|twofa|search|footer|contact|legal|whatsapp|auth)\.[a-z][A-Za-z_.]*\b/;
+const KEY_ON_SCREEN = /\b(?:common|nav|home|sort|product|cart|order|orders|status|dash|profile|addresses|role|shops?|shopPage|sell|forgot|reset|verify|notFound|stars|error|gallery|session|upload|twofa|search|footer|contact|legal|whatsapp|auth|stockAlert|consent)\.[a-z][A-Za-z_.]*\b/;
 
 async function signIn(page: Page, email: string) {
   // Through the dev server's /api proxy, so the session cookies are the page's.
@@ -67,6 +68,25 @@ for (const lang of ["fr", "ar"] as const) {
       });
       const robe = (await res.json()).items[0];
       await visitAll(page, lang, [...PUBLIC_PAGES, `/products/${robe.id}`]);
+    });
+
+    test("public pages fit a phone screen, without sideways scrolling", async ({ page, request }) => {
+      const res = await request.get(`http://localhost:${process.env.E2E_API_PORT ?? 4100}/api/products`, {
+        params: { search: "Tajine E2E" },
+      });
+      const tajine = (await res.json()).items[0];
+      await page.setViewportSize({ width: 360, height: 800 });
+      const tooWide: string[] = [];
+      for (const path of [...PUBLIC_PAGES, `/products/${tajine.id}`]) {
+        await page.goto(path);
+        await page.waitForLoadState("networkidle");
+        const { scrollWidth, innerWidth } = await page.evaluate(() => ({
+          scrollWidth: document.documentElement.scrollWidth,
+          innerWidth: window.innerWidth,
+        }));
+        if (scrollWidth > innerWidth) tooWide.push(`${path}: ${scrollWidth}px`);
+      }
+      expect(tooWide).toEqual([]);
     });
 
     test("customer pages", async ({ page }) => {

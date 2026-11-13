@@ -15,6 +15,8 @@ import { checkEnvironment } from "./config/env";
 import { logger } from "./config/logger";
 import { verifyMailer } from "./config/mailer";
 import { startReservationExpiryJob } from "./services/orderLifecycle";
+import { startStockAlertJob } from "./services/stockAlerts";
+import { getStoreSettings } from "./services/storeSettings";
 import { settleBackgroundTasks } from "./utils/background";
 
 const PORT = Number(process.env.PORT) || 4000;
@@ -44,7 +46,10 @@ async function main() {
   }
 
   verifyMailer();
+  // Load the shop's name for emails and SMS sent before anyone reads it.
+  await getStoreSettings().catch((err) => logger.warn({ err }, "Couldn't load store settings"));
   const stopExpiryJob = startReservationExpiryJob();
+  const stopStockAlertJob = startStockAlertJob();
 
   const server = app.listen(PORT, () =>
     logger.info(`Server listening on port ${PORT}`),
@@ -59,6 +64,7 @@ async function main() {
     shuttingDown = true;
     logger.info({ signal }, "Shutting down");
     stopExpiryJob();
+    stopStockAlertJob();
     setTimeout(() => {
       logger.error("Graceful shutdown timed out — forcing exit");
       process.exit(1);

@@ -128,6 +128,9 @@ describe("product search", () => {
     expect(res.body.items).toEqual([]);
     expect(res.body.suggestion).toBe("Tajine marocain");
     expect((await request(app).get("/api/products").query({ search: "zzzzqqq" })).body.suggestion).toBeNull();
+    // With other filters the suggestion could be the empty result itself, so none is offered.
+    expect((await request(app).get("/api/products").query({ search: "tagine", inStock: "true" })).body.suggestion).toBeNull();
+    expect((await request(app).get("/api/products").query({ search: "tagine", minPrice: "1" })).body.suggestion).toBeNull();
     expect(await names("%")).toEqual([]);
     expect(await names("_")).toEqual([]);
   });

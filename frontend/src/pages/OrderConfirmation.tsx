@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { pixels } from "../lib/pixels";
 import { useI18n } from "../i18n/I18nProvider";
 import { useLocation, useParams, useSearchParams, Link } from "react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -54,6 +55,12 @@ export default function OrderConfirmation() {
   });
 
   const order = updated || stateOrder || fetchedOrder;
+  // Pay on delivery: the order is the sale. (Card orders count once paid,
+  // on the payment success page.)
+  useEffect(() => {
+    if (order && order.paymentMethod === "cod" && order.status !== "cancelled") pixels.purchase(order);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.id]);
   const guestEmail = order?.guestEmail || emailFromUrl || undefined;
 
   const payMutation = useMutation({

@@ -1,6 +1,8 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { messages, Lang, MessageKey } from "./messages";
 import { api } from "../api/client";
+import { useBrand } from "../hooks/useBrand";
+import { DEFAULT_BRAND } from "../lib/brand";
 
 export const LANGUAGES: { code: Lang; label: string; short: string }[] = [
   { code: "fr", label: "Français", short: "FR" },
@@ -40,8 +42,9 @@ interface I18nValue {
 
 const I18nContext = createContext<I18nValue | null>(null);
 
-function interpolate(text: string, vars?: Vars) {
-  return vars ? text.replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? `{${name}}`)) : text;
+// {brand} is always the shop's name (texts like "Sell on {brand}").
+function interpolate(text: string, vars: Vars) {
+  return text.replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? `{${name}}`));
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
@@ -51,6 +54,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     return initial;
   });
   const dir = lang === "ar" ? "rtl" : "ltr";
+  const { name: brand } = useBrand();
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -76,14 +80,14 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       lang,
       dir,
       setLang,
-      t: (key, vars) => interpolate(lookup(key), vars),
+      t: (key, vars) => interpolate(lookup(key), { brand, ...vars }),
       tp: (key, count, vars) => {
         const specific = `${key}_${rules.select(count)}`;
         const text = dict[specific] ?? dict[`${key}_other`] ?? fallback[`${key}_${new Intl.PluralRules("en").select(count)}`] ?? fallback[`${key}_other`] ?? key;
-        return interpolate(text, { count, ...vars });
+        return interpolate(text, { brand, count, ...vars });
       },
     };
-  }, [lang, dir, setLang]);
+  }, [lang, dir, setLang, brand]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
@@ -94,7 +98,7 @@ export function useOptionalI18n(): Pick<I18nValue, "t"> {
   const ctx = useContext(I18nContext);
   if (ctx) return ctx;
   const en = messages.en as Record<string, string>;
-  return { t: (key, vars) => interpolate(en[key] ?? key, vars) };
+  return { t: (key, vars) => interpolate(en[key] ?? key, { brand: DEFAULT_BRAND, ...vars }) };
 }
 
 export function useI18n() {

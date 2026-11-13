@@ -1,7 +1,9 @@
 import { Link } from "react-router";
-import { ShoppingBag } from "lucide-react";
+import { BrandMark, Wordmark } from "./Brand";
 import { useI18n } from "../i18n/I18nProvider";
 import type { MessageKey } from "../i18n/messages";
+import { useStoreSettings } from "../hooks/useStoreSettings";
+import { setAdsConsent } from "../lib/pixels";
 
 const columns: { title: MessageKey; links: { to: string; label: MessageKey }[] }[] = [
   {
@@ -43,18 +45,16 @@ const columns: { title: MessageKey; links: { to: string; label: MessageKey }[] }
 
 export function Footer() {
   const { t } = useI18n();
+  const { data: settings } = useStoreSettings();
+  const hasPixels = Boolean(settings?.facebookPixelId || settings?.tiktokPixelId);
   return (
     <footer className="mt-20 border-t border-border bg-surface">
       <div className="container-page py-14">
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="lg:pe-8">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-5">
+          <div className="col-span-2 lg:col-span-1 lg:pe-8">
             <Link to="/" className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <ShoppingBag className="h-4.5 w-4.5" strokeWidth={2.2} />
-              </span>
-              <span className="font-serif text-xl font-bold tracking-tight text-foreground" dir="ltr">
-                Artisan<span className="text-accent">Shop</span>
-              </span>
+              <BrandMark />
+              <Wordmark className="text-xl" />
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
               {t("footer.tagline")}
@@ -86,7 +86,15 @@ export function Footer() {
           <p className="text-xs text-muted-foreground">
             {t("footer.rights", { year: new Date().getFullYear() })}
           </p>
-          <p className="text-xs text-muted-foreground">{t("footer.crafted")}</p>
+          <p className="flex items-center gap-4 text-xs text-muted-foreground">
+            {hasPixels && (
+              // Asks the advertising-cookie question again.
+              <button type="button" onClick={() => setAdsConsent(null)} className="hover:text-accent">
+                {t("consent.manage")}
+              </button>
+            )}
+            <span>{t("footer.crafted")}</span>
+          </p>
         </div>
       </div>
     </footer>

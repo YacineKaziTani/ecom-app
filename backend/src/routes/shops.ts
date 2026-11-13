@@ -11,6 +11,7 @@ import { validateUuidParam } from "../middleware/validateUuid";
 import { slugify } from "../utils/slug";
 import { audit } from "../services/audit";
 import {
+  httpsUrlSchema,
   imageUrlSchema,
   nameSchema,
   shortTextSchema,
@@ -42,7 +43,17 @@ router.get("/slug/:slug", async (req, res) => {
   }
   const shop = await repo().findOne({ where: { slug: req.params.slug } });
   if (!shop) return res.status(404).json({ message: "Shop not found" });
-  res.json(shop);
+  // For the shop page header: how many products, and their overall rating.
+  const [stats] = await AppDataSource.query(
+    `SELECT COUNT(*)::int AS "productCount",
+            COALESCE(SUM("ratingCount"), 0)::int AS "ratingCount",
+            CASE WHEN SUM("ratingCount") > 0
+                 THEN ROUND(SUM("ratingAverage" * "ratingCount") / SUM("ratingCount"), 2)::float
+                 ELSE 0 END AS "ratingAverage"
+     FROM products WHERE "shopId" = $1`,
+    [shop.id],
+  );
+  res.json({ ...shop, stats });
 });
 
 // Admin: get MY shop
@@ -57,6 +68,19 @@ const shopSchema = z.object({
   name: nameSchema,
   description: shortTextSchema,
   logoUrl: imageUrlSchema,
+  // Shop page profile.
+  coverUrl: imageUrlSchema,
+  story: z
+    .string()
+    .trim()
+    .max(3000)
+    .transform((v) => v || null)
+    .nullable()
+    .optional(),
+  wilayaCode: z.number().int().min(1).max(58).nullable().optional(),
+  instagramUrl: httpsUrlSchema.optional(),
+  facebookUrl: httpsUrlSchema.optional(),
+  tiktokUrl: httpsUrlSchema.optional(),
 });
 
 router.post("/", requireAuth, requireAnyAdmin, async (req, res) => {
@@ -97,6 +121,12 @@ router.post("/", requireAuth, requireAnyAdmin, async (req, res) => {
     name: parsed.data.name,
     description: parsed.data.description,
     logoUrl: parsed.data.logoUrl,
+    coverUrl: parsed.data.coverUrl,
+    story: parsed.data.story,
+    wilayaCode: parsed.data.wilayaCode,
+    instagramUrl: parsed.data.instagramUrl,
+    facebookUrl: parsed.data.facebookUrl,
+    tiktokUrl: parsed.data.tiktokUrl,
     slug,
     ownerId,
   });

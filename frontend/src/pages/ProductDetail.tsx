@@ -3,7 +3,7 @@ import type { MessageKey } from "../i18n/messages";
 import { useI18n } from "../i18n/I18nProvider";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Minus,
@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   PackageSearch,
   ImageOff,
+  Maximize2,
 } from "lucide-react";
 import { productsApi } from "../api/products";
 import { Product } from "../api/types";
@@ -29,6 +30,12 @@ import { optimizedImage } from "../lib/images";
 import { WishlistButton } from "../components/WishlistButton";
 import { StarRating } from "../components/StarRating";
 import { ReviewsSection } from "../components/ReviewsSection";
+import { ProductPlaceholder } from "../components/ProductPlaceholder";
+import { ImageLightbox } from "../components/ImageLightbox";
+import { DeliveryEstimate } from "../components/DeliveryEstimate";
+import { StockAlertForm } from "../components/StockAlertForm";
+import { saleInfo } from "../lib/pricing";
+import { pixels } from "../lib/pixels";
 
 // Only promises the platform actually keeps.
 const guarantees: { icon: typeof Store; label: MessageKey; hint: MessageKey }[] = [
@@ -44,6 +51,12 @@ export default function ProductDetail() {
   const [variantId, setVariantId] = useState<string | null>(null);
   const { addItem } = useCart();
   const { t, tp } = useI18n();
+  const [lightbox, setLightbox] = useState<number | null>(null);
+  // Hover zoom on large screens: where the pointer is, in % of the photo.
+  const [zoomAt, setZoomAt] = useState<{ x: number; y: number } | null>(null);
+  // Phones: a buy bar appears while the main "Add to cart" is off screen.
+  const buyBoxRef = useRef<HTMLDivElement>(null);
+  const [buyBoxInView, setBuyBoxInView] = useState(true);
 
   const { data: product, isLoading } = useQuery({
     queryKey: ["product", id],
@@ -57,11 +70,22 @@ export default function ProductDetail() {
     setQty(1);
     setVariantId(null);
     setActiveImage(null);
+    setLightbox(null);
     setPreviouslyViewed(recentlyViewed().filter((x) => x !== id));
   }, [id]);
   useEffect(() => {
-    if (product) rememberViewed(product.id);
-  }, [product]);
+    if (!product) return;
+    rememberViewed(product.id);
+    pixels.viewContent({ id: product.id, name: product.name, price: Number(product.price) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id]);
+  useEffect(() => {
+    const el = buyBoxRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => setBuyBoxInView(entry.isIntersecting));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [product?.id]);
 
   useDocumentMeta(
     product?.name,
@@ -136,6 +160,11 @@ export default function ProductDetail() {
   const price = unitPrice(product, variant);
   const stock = variant ? variant.stock : product.stock;
   const soldOut = product.stock === 0 || (variant !== null && variant.stock === 0);
+  const sale = saleInfo(product, price);
+
+  const photos = product.imageUrl ? [product.imageUrl, ...(product.galleryUrls ?? [])] : [];
+  const shownPhoto = activeImage ?? product.imageUrl;
+  const canHoverZoom = () => window.matchMedia("(hover: hover) and (min-width: 1024px)").matches;
 
   function addToCart() {
     // Keep the cart snapshot small: the option list isn't needed there.
@@ -156,18 +185,37 @@ export default function ProductDetail() {
       <div className="grid gap-10 lg:grid-cols-2 lg:gap-14">
         {/* Gallery ---------------------------------------------- */}
         <div className="animate-fade-in">
-          <div className="relative aspect-square overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-secondary to-muted p-8 shadow-sm">
-            {product.imageUrl ? (
-              <img
-                src={optimizedImage(activeImage ?? product.imageUrl, 1200)}
-                alt={product.name}
-                className="h-full w-full object-contain drop-shadow-lg transition-transform duration-700 hover:scale-105"
-              />
+          <div
+            className={cn(
+              "relative aspect-square overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-secondary to-muted shadow-sm",
+              product.imageUrl && "p-8",
+            )}
+          >
+            {shownPhoto ? (
+              <button
+                type="button"
+                onClick={() => setLightbox(Math.max(0, photos.indexOf(shownPhoto)))}
+                onMouseMove={(e) => {
+                  if (!canHoverZoom()) return;
+                  const r = e.currentTarget.getBoundingClientRect();
+                  setZoomAt({ x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 });
+                }}
+                onMouseLeave={() => setZoomAt(null)}
+                aria-label={t("product.enlarge")}
+                className="group/photo block h-full w-full cursor-zoom-in"
+              >
+                <img
+                  src={optimizedImage(shownPhoto, 1200)}
+                  alt={product.name}
+                  style={zoomAt ? { transform: "scale(1.8)", transformOrigin: `${zoomAt.x}% ${zoomAt.y}%` } : undefined}
+                  className="h-full w-full object-contain drop-shadow-lg transition-transform duration-300 ease-out"
+                />
+                <span className="absolute end-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-card/90 text-foreground shadow-sm transition-opacity group-hover/photo:opacity-0">
+                  <Maximize2 className="h-4 w-4" />
+                </span>
+              </button>
             ) : (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
-                <ImageOff className="h-9 w-9" />
-                <span className="text-sm">{t("product.noImage")}</span>
-              </div>
+              <ProductPlaceholder name={product.name} size="lg" />
             )}
 
             {soldOut && (
@@ -262,9 +310,22 @@ export default function ProductDetail() {
             </Link>
           )}
 
-          <p className="mt-6 font-serif text-4xl font-bold text-foreground">
-            {formatPrice(price)}
-          </p>
+          <div className="mt-6 flex flex-wrap items-end gap-x-3 gap-y-1">
+            <p className={cn("font-serif text-4xl font-bold", sale ? "text-destructive" : "text-foreground")}>
+              {formatPrice(price)}
+            </p>
+            {sale && (
+              <>
+                <p className="pb-1 text-lg text-muted-foreground line-through">{formatPrice(sale.before)}</p>
+                <span className="mb-1.5 rounded-full bg-destructive px-2.5 py-1 text-xs font-bold leading-none text-white">
+                  −{sale.percent}%
+                </span>
+              </>
+            )}
+          </div>
+          {sale && (
+            <p className="mt-1 text-sm font-medium text-destructive">{t("product.youSave", { amount: formatPrice(sale.saving) })}</p>
+          )}
 
           {hasOptions && (
             <fieldset className="mt-6">
@@ -283,14 +344,13 @@ export default function ProductDetail() {
                         setVariantId(v.id);
                         setQty(1);
                       }}
-                      disabled={out}
                       aria-pressed={selected}
                       className={cn(
                         "min-w-12 rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors",
                         selected
                           ? "border-primary bg-primary text-primary-foreground"
                           : "border-border bg-card text-foreground hover:border-accent/60",
-                        out && "cursor-not-allowed text-muted-foreground line-through opacity-60 hover:border-border",
+                        out && !selected && "text-muted-foreground line-through opacity-60",
                       )}
                       title={out ? t("product.soldOut") : undefined}
                     >
@@ -345,8 +405,9 @@ export default function ProductDetail() {
             </p>
           </div>
 
-          {/* Buy box */}
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+          {/* Buy box (or, sold out: "tell me when it's back") */}
+          {soldOut && <StockAlertForm productId={product.id} variantId={variant?.id ?? null} />}
+          <div ref={buyBoxRef} className={cn("mt-8 flex flex-col gap-3 sm:flex-row sm:items-center", soldOut && "hidden")}>
             <div className="flex items-center justify-between rounded-lg border border-border bg-card p-1 sm:justify-start">
               <button
                 onClick={() => setQty((q) => Math.max(1, q - 1))}
@@ -394,12 +455,40 @@ export default function ProductDetail() {
               </span>
             </p>
           )}
+
+          <DeliveryEstimate />
         </div>
       </div>
+
+      {lightbox !== null && photos.length > 0 && (
+        <ImageLightbox images={photos} index={lightbox} alt={product.name} onIndex={setLightbox} onClose={() => setLightbox(null)} />
+      )}
+
+      {/* Phones: the buy bar while the main button is off screen. */}
+      {!buyBoxInView && !soldOut && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.25)] backdrop-blur animate-fade-up lg:hidden">
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-foreground">{product.name}</p>
+              <p className="font-serif text-lg font-bold leading-tight text-foreground">{formatPrice(price)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => (needsChoice ? buyBoxRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }) : addToCart())}
+              className="btn-primary flex-shrink-0"
+            >
+              <ShoppingBag className="h-4 w-4" />
+              {needsChoice ? t("product.chooseOption") : t("product.addToCart")}
+            </button>
+          </div>
+        </div>
+      )}
 
       <ReviewsSection productId={product.id} />
       <RelatedProducts productId={product.id} />
       <RecentlyViewed ids={previouslyViewed} />
+      {/* Room for the phone buy bar at the very bottom. */}
+      <div className="h-20 lg:hidden" aria-hidden />
     </div>
   );
 }

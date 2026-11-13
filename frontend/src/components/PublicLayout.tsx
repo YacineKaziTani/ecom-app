@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router";
 import { Navbar } from "./Navbar";
 import { Footer } from "./Footer";
 import { WhatsAppButton } from "./WhatsAppButton";
+import { AdPixels } from "./AdPixels";
 import { EmailVerificationBanner } from "./EmailVerificationBanner";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { PageLoader } from "./ui/PageLoader";
@@ -29,6 +30,7 @@ export function PublicLayout() {
       </main>
       <Footer />
       <WhatsAppButton />
+      <AdPixels />
     </div>
   );
 }

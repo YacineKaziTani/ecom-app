@@ -1,3 +1,4 @@
+import { currentBrand } from "../services/storeSettings";
 import crypto from "crypto";
 
 // Time-based one-time passwords (RFC 6238 / RFC 4226): SHA-1, 6 digits, 30s
@@ -79,7 +80,7 @@ export function verifyTotp(
   return null;
 }
 
-export function otpauthUrl(secret: string, account: string, issuer = "ArtisanShop"): string {
+export function otpauthUrl(secret: string, account: string, issuer = currentBrand().name): string {
   const label = `${encodeURIComponent(issuer)}:${encodeURIComponent(account)}`;
   return `otpauth://totp/${label}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=${STEP_SECONDS}`;
 }

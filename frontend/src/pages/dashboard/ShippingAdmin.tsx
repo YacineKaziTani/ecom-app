@@ -1,4 +1,4 @@
-import { useState, FormEvent } from "react";
+import { useEffect, useState, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert, Truck } from "lucide-react";
 import { shippingApi, ShippingZoneUpdate } from "../../api/shipping";
@@ -9,6 +9,8 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { TableSkeleton } from "../../components/ui/Skeleton";
 import toast from "react-hot-toast";
 import { useI18n } from "../../i18n/I18nProvider";
+import { settingsApi } from "../../api/settings";
+import { STORE_SETTINGS_KEY, useStoreSettings } from "../../hooks/useStoreSettings";
 
 // "" in a price field means "not set": for stop desk that's "not offered".
 const toPrice = (v: string) => (v.trim() === "" ? null : Number(v));
@@ -19,6 +21,19 @@ export default function ShippingAdmin() {
   const { t, lang } = useI18n();
   const [allHome, setAllHome] = useState("");
   const [allDesk, setAllDesk] = useState("");
+  const { data: settings } = useStoreSettings();
+  const [freeFrom, setFreeFrom] = useState("");
+  useEffect(() => {
+    if (settings) setFreeFrom(settings.freeShippingThreshold == null ? "" : String(settings.freeShippingThreshold));
+  }, [settings]);
+  const freeMutation = useMutation({
+    mutationFn: () => settingsApi.update({ freeShippingThreshold: freeFrom.trim() === "" ? null : Number(freeFrom) }),
+    onSuccess: (saved) => {
+      qc.setQueryData(STORE_SETTINGS_KEY, saved);
+      toast.success(t("dash.shipping.freeSaved"));
+    },
+    onError: (err: any) => toast.error(String(err)),
+  });
 
   const { data: zones, isLoading } = useQuery({
     queryKey: ["shipping-zones"],
@@ -64,6 +79,32 @@ export default function ShippingAdmin() {
         title={t("dash.nav.shipping")}
         description={t("dash.shipping.description")}
       />
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          freeMutation.mutate();
+        }}
+        className="card mb-6 flex flex-wrap items-end gap-3 p-4"
+      >
+        <div>
+          <label htmlFor="freeFrom" className="label">{t("dash.shipping.freeFrom")}</label>
+          <input
+            id="freeFrom"
+            type="number"
+            min="0"
+            step="1"
+            value={freeFrom}
+            onChange={(e) => setFreeFrom(e.target.value)}
+            className="input w-48"
+            placeholder={t("dash.shipping.example", { amount: 10000 })}
+          />
+        </div>
+        <button type="submit" disabled={freeMutation.isPending} className="btn-outline">
+          {t("common.save")}
+        </button>
+        <p className="w-full text-xs text-muted-foreground">{t("dash.shipping.freeHint")}</p>
+      </form>
 
       <form onSubmit={handleBulk} className="card mb-6 flex flex-wrap items-end gap-3 p-4">
         <div>

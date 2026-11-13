@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { pixels } from "../lib/pixels";
 import { useI18n } from "../i18n/I18nProvider";
 import { useSearchParams, Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -44,6 +45,9 @@ export default function PaymentSuccess() {
   const stillWaiting =
     order?.paymentStatus === "unpaid" && pollCount < MAX_POLLS;
   const confirmedPaid = order?.paymentStatus === "paid";
+  useEffect(() => {
+    if (order && confirmedPaid) pixels.purchase(order);
+  }, [order, confirmedPaid]);
 
   const state = confirmedPaid
     ? {

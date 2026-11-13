@@ -38,6 +38,10 @@ import { addressesApi } from "../api/addresses";
 import { Address } from "../api/types";
 import { useAddresses } from "../components/AddressBook";
 import { CommuneSelect } from "../components/CommuneSelect";
+import { ProductPlaceholder } from "../components/ProductPlaceholder";
+import { savedWilaya, saveWilaya } from "../lib/deliveryWilaya";
+import { useStoreSettings } from "../hooks/useStoreSettings";
+import { pixels } from "../lib/pixels";
 
 // "+213 550 12-34-56" and "0550123456" are the same number.
 const samePhone = (a: string, b: string) => {
@@ -66,7 +70,8 @@ export default function Cart() {
   const [guestEmail, setGuestEmail] = useState("");
   const [guestName, setGuestName] = useState("");
   const [phone, setPhone] = useState(user?.phone || "");
-  const [wilayaCode, setWilayaCode] = useState<number | "">(user?.wilayaCode ?? "");
+  // The profile's wilaya, else the one picked on a product page.
+  const [wilayaCode, setWilayaCode] = useState<number | "">(user?.wilayaCode ?? savedWilaya() ?? "");
   const [commune, setCommune] = useState(user?.commune || "");
   const [address, setAddress] = useState(user?.address || "");
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("home");
@@ -131,6 +136,18 @@ export default function Cart() {
     queryFn: shippingApi.zones,
     staleTime: 5 * 60 * 1000,
   });
+  const { data: storeSettings } = useStoreSettings();
+  // Ad pixels: checkout started, once per visit to the cart with items in it.
+  const checkoutTracked = useRef(false);
+  useEffect(() => {
+    if (checkoutTracked.current || lines.length === 0) return;
+    checkoutTracked.current = true;
+    pixels.initiateCheckout(
+      lines.map((l) => ({ id: l.product.id, name: l.product.name, price: linePrice(l), quantity: l.quantity })),
+      total(),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lines.length]);
   const { data: config } = useQuery({
     queryKey: ["store-config"],
     queryFn: configApi.get,
@@ -304,7 +321,14 @@ export default function Cart() {
 
   const subtotal = total();
   const discount = appliedCoupon?.discountAmount ?? 0;
-  const grandTotal = Math.max(subtotal - discount, 0) + (shippingFee ?? 0);
+  // Free delivery from the store's threshold (products total after the
+  // coupon), the same rule the server applies.
+  const itemsTotal = Math.max(subtotal - discount, 0);
+  const freeFrom = storeSettings?.freeShippingThreshold ?? null;
+  const freeDelivery = freeFrom !== null && itemsTotal >= freeFrom;
+  const deliveryFee = shippingFee == null ? null : freeDelivery ? 0 : shippingFee;
+  const zonePrice = (price: number) => (freeDelivery || price === 0 ? t("common.free") : formatPrice(price));
+  const grandTotal = itemsTotal + (deliveryFee ?? 0);
   const otpMin = config?.codOtpMinTotal ?? null;
   const needsCode = method === "cod" && otpMin !== null && (grandTotal >= otpMin || codeRequiredByServer);
   const itemCount = lines.reduce((n, l) => n + l.quantity, 0);
@@ -340,12 +364,14 @@ export default function Cart() {
                   to={`/products/${product.id}`}
                   className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-secondary"
                 >
-                  {product.imageUrl && (
+                  {product.imageUrl ? (
                     <img
                       src={optimizedImage(product.imageUrl, 160)}
                       alt={product.name}
                       className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
                     />
+                  ) : (
+                    <ProductPlaceholder name={product.name} size="sm" />
                   )}
                 </Link>
 
@@ -478,13 +504,36 @@ export default function Cart() {
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{t("cart.delivery")}</span>
               <span className="font-medium text-foreground">
-                {shippingFee == null
+                {deliveryFee == null
                   ? t("cart.chooseWilaya")
-                  : shippingFee === 0
+                  : deliveryFee === 0
                     ? t("common.free")
-                    : formatPrice(shippingFee)}
+                    : formatPrice(deliveryFee)}
               </span>
             </div>
+
+            {freeFrom !== null && freeFrom > 0 && (
+              <div className="rounded-lg bg-secondary/60 p-3">
+                <p className="text-xs font-medium text-foreground">
+                  {freeDelivery
+                    ? t("cart.freeDeliveryReached")
+                    : t("cart.freeDeliveryLeft", { amount: formatPrice(freeFrom - itemsTotal) })}
+                </p>
+                <div
+                  className="mt-2 h-1.5 overflow-hidden rounded-full bg-border"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.min(100, Math.round((itemsTotal / freeFrom) * 100))}
+                  aria-label={t("cart.freeDeliveryProgress")}
+                >
+                  <div
+                    className={cn("h-full rounded-full transition-all duration-500", freeDelivery ? "bg-success" : "bg-accent")}
+                    style={{ width: `${Math.min(100, (itemsTotal / freeFrom) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="divider" />
 
@@ -627,6 +676,7 @@ export default function Cart() {
                   onChange={(e) =>
                   {
                     setWilayaCode(e.target.value ? Number(e.target.value) : "");
+                    saveWilaya(e.target.value ? Number(e.target.value) : null);
                     setCommune(""); // communes belong to a wilaya
                   }
                   }
@@ -685,7 +735,7 @@ export default function Cart() {
                     onSelect={() => setDeliveryType("home")}
                     icon={Truck}
                     title={t("cart.toDoor")}
-                    detail={zone.homePrice === 0 ? t("common.free") : formatPrice(zone.homePrice)}
+                    detail={zonePrice(zone.homePrice)}
                   />
                   <ChoiceCard
                     selected={delivery === "desk"}
@@ -694,11 +744,7 @@ export default function Cart() {
                     icon={Store}
                     title={t("cart.stopDesk")}
                     detail={
-                      deskAvailable
-                        ? zone.deskPrice === 0
-                          ? t("common.free")
-                          : formatPrice(zone.deskPrice!)
-                        : t("cart.notOffered")
+                      deskAvailable ? zonePrice(zone.deskPrice!) : t("cart.notOffered")
                     }
                   />
                 </div>

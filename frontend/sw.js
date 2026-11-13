@@ -15,7 +15,7 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(SHELL_CACHE)
-      .then((cache) => cache.addAll(["/", "/manifest.webmanifest", "/icons/icon-192.png"]))
+      .then((cache) => cache.addAll(["/", "/icons/icon-192.png"]))
       .then(() => self.skipWaiting()),
   );
 });

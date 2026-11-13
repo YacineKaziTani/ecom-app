@@ -278,6 +278,16 @@
     text-wrap: balance;
   }
 
+  /* Playfair's default old-style digits dip below the line ("3 500" reads
+     oddly in prices and counters); lining digits sit on it. */
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-serif {
+    font-variant-numeric: lining-nums;
+  }
+
   p {
     text-wrap: pretty;
   }
@@ -346,7 +356,7 @@
 
 @utility badge {
   @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1
-         text-xs font-semibold capitalize leading-none;
+         text-xs font-semibold leading-none;
 }
 
 /* ------------------------------------------------------------------ *

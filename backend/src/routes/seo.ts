@@ -4,15 +4,18 @@ import { Product } from "../entities/Product";
 import { Shop } from "../entities/Shop";
 import { escapeHtml } from "../utils/escapeHtml";
 import { formatDzd } from "../utils/money";
+import { currentBrand, getStoreSettings } from "../services/storeSettings";
 
 // Served through the frontend's domain via vercel.json rewrites:
 //   /sitemap.xml, /robots.txt            → always
-//   /, /products/:id, /shops/:slug       → only for link-preview crawlers
+//   /products/:id, /shops/:slug          → only for link-preview crawlers
+// (The home page's own tags are written into index.html at build time.)
 //     (WhatsApp, Facebook, Telegram, X…), which don't run JavaScript and
 //     would otherwise see an empty single-page app with no title or image.
 const router = Router();
 const siteUrl = () => (process.env.CLIENT_URL || "http://localhost:5173").replace(/\/$/, "");
-const SITE_NAME = "ArtisanShop";
+// The shop's current name (Dashboard → Store info).
+const siteName = () => currentBrand().name;
 
 // 1200×630 is the size link previews expect.
 function previewImage(url?: string | null): string | undefined {
@@ -37,10 +40,10 @@ function previewPage(opts: {
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>${t} — ${SITE_NAME}</title>
+<title>${t} — ${escapeHtml(siteName())}</title>
 <meta name="description" content="${d}" />
 <link rel="canonical" href="${escapeHtml(url)}" />
-<meta property="og:site_name" content="${SITE_NAME}" />
+<meta property="og:site_name" content="${escapeHtml(siteName())}" />
 <meta property="og:type" content="${opts.type ?? "website"}" />
 <meta property="og:title" content="${t}" />
 <meta property="og:description" content="${d}" />
@@ -51,28 +54,13 @@ ${image ? `<meta property="og:image" content="${image}" />\n<meta property="og:i
 <body>
 <h1>${t}</h1>
 <p>${d}</p>
-<p><a href="${escapeHtml(url)}">View on ${SITE_NAME}</a></p>
+<p><a href="${escapeHtml(url)}">View on ${escapeHtml(siteName())}</a></p>
 </body>
 </html>`;
 }
 
-// The home page: the site's own preview image (frontend/public/og-image.png).
-router.get("/home", (_req, res) => {
-  res
-    .set("Cache-Control", "public, max-age=3600")
-    .type("html")
-    .send(
-      previewPage({
-        title: "Curated goods from independent makers",
-        description:
-          "Premium goods made by independent artisans, shipped from their workshops. Pay on delivery or by EDAHABIA / CIB card.",
-        path: "/",
-        image: `${siteUrl()}/og-image.png`,
-      }),
-    );
-});
-
 router.get("/products/:id", async (req, res) => {
+  await getStoreSettings(); // fresh shop name for the preview
   const product = /^[0-9a-f-]{36}$/i.test(req.params.id)
     ? await AppDataSource.getRepository(Product).findOne({ where: { id: req.params.id }, relations: ["shop"] })
     : null;
@@ -92,6 +80,7 @@ router.get("/products/:id", async (req, res) => {
 });
 
 router.get("/shops/:slug", async (req, res) => {
+  await getStoreSettings(); // fresh shop name for the preview
   const shop = /^[a-z0-9-]{1,150}$/.test(req.params.slug)
     ? await AppDataSource.getRepository(Shop).findOne({ where: { slug: req.params.slug } })
     : null;
@@ -102,9 +91,51 @@ router.get("/shops/:slug", async (req, res) => {
     .send(
       previewPage({
         title: shop.name,
-        description: shop.description || `Handmade goods from ${shop.name} on ${SITE_NAME}.`,
+        description: shop.description || `Handmade goods from ${shop.name} on ${siteName()}.`, // escaped by previewPage
         path: `/shops/${shop.slug}`,
         image: previewImage(shop.logoUrl),
+      }),
+    );
+});
+
+// The installable app's manifest, named after the shop. Icons: the logo when
+// it's on Cloudinary (resized to square PNGs), else the bundled ones.
+router.get("/manifest.webmanifest", async (_req, res) => {
+  const { brandName, logoUrl } = await getStoreSettings();
+  const cloudinary = logoUrl && logoUrl.includes("res.cloudinary.com") && logoUrl.includes("/image/upload/");
+  const logoAt = (size: number, extra = "") =>
+    logoUrl!.replace("/image/upload/", `/image/upload/c_pad,b_white,w_${size},h_${size}${extra},f_png/`);
+  const icons = cloudinary
+    ? [
+        { src: logoAt(192), sizes: "192x192", type: "image/png", purpose: "any" },
+        { src: logoAt(512), sizes: "512x512", type: "image/png", purpose: "any" },
+        { src: logoAt(512, ",bo_64px_solid_white"), sizes: "512x512", type: "image/png", purpose: "maskable" },
+      ]
+    : [
+        { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+        { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+        { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      ];
+  res
+    .set("Cache-Control", "public, max-age=3600")
+    .type("application/manifest+json")
+    .send(
+      JSON.stringify({
+        name: brandName,
+        short_name: brandName.length > 12 ? brandName.slice(0, 12) : brandName,
+        description: "Handmade goods from independent makers — pay on delivery.",
+        id: "/",
+        start_url: "/",
+        scope: "/",
+        display: "standalone",
+        background_color: "#faf8f4",
+        theme_color: "#2b4d3d",
+        categories: ["shopping", "lifestyle"],
+        icons,
+        shortcuts: [
+          { name: "My orders", url: "/orders", icons: [icons[0]] },
+          { name: "Cart", url: "/cart", icons: [icons[0]] },
+        ],
       }),
     );
 });

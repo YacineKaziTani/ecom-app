@@ -35,6 +35,7 @@ import phoneVerificationRoutes from "./routes/phoneVerifications";
 import addressRoutes from "./routes/addresses";
 import searchRoutes from "./routes/search";
 import settingsRoutes from "./routes/settings";
+import homeRoutes from "./routes/home";
 import { codOtpMinTotal } from "./services/sms";
 import { availablePaymentMethods } from "./services/shipping";
 import { RESERVATION_MINUTES } from "./services/orderLifecycle";
@@ -135,6 +136,7 @@ app.use("/api/phone-verifications", phoneVerificationRoutes);
 app.use("/api/addresses", addressRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/home", homeRoutes);
 app.use("/api", reviewRoutes); // /products/:id/reviews, /reviews/:id
 
 // Public storefront configuration the checkout needs.

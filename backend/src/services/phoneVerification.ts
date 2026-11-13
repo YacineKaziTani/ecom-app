@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { currentBrand } from "./storeSettings";
 import { EntityManager, IsNull, MoreThan } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { PhoneVerification } from "../entities/PhoneVerification";
@@ -28,7 +29,7 @@ export async function requestPhoneCode(phone: string): Promise<void> {
   await repo().save(
     repo().create({ phone, codeHash: hash(phone, code), expiresAt: new Date(Date.now() + CODE_TTL_MS) }),
   );
-  await sendSms(phone, `ArtisanShop: your code is ${code}. It expires in 10 minutes.`);
+  await sendSms(phone, `${currentBrand().name}: your code is ${code}. It expires in 10 minutes.`);
 }
 
 // Checks a code against the latest live one for this number. Wrong guesses are

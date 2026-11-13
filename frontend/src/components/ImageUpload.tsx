@@ -9,7 +9,7 @@ import { useI18n } from "../i18n/I18nProvider";
 interface ImageUploadProps {
   value?: string;
   onChange: (url: string) => void;
-  folder: "products" | "categories" | "shops";
+  folder: "products" | "categories" | "shops" | "banners" | "brand";
   label?: string;
 }
 

@@ -20,6 +20,7 @@ import { addressSchema, algerianPhoneSchema } from "../utils/validators";
 import type { CancelReason } from "../emails/orderEmails";
 import { requestLocale } from "../utils/locale";
 import { availablePaymentMethods, quoteShipping } from "../services/shipping";
+import { getStoreSettings } from "../services/storeSettings";
 import { HttpError, invalidCommune, StockIssue, stockConflict } from "../utils/httpError";
 import { findCommune } from "../services/communes";
 import { applyStockChanges, LowStockAlert, lockStock, mergeLines, unitPrice } from "../services/inventory";
@@ -340,7 +341,11 @@ router.post("/", optionalAuth, async (req, res) => {
         couponShopId = result.coupon.shopId ?? null;
       }
 
-      const total = subtotal - discountAmount + shipping.fee;
+      // Free delivery once the products total (after the coupon) reaches the
+      // store's threshold.
+      const freeFrom = (await getStoreSettings()).freeShippingThreshold;
+      const shippingFee = freeFrom !== null && subtotal - discountAmount >= freeFrom ? 0 : shipping.fee;
+      const total = subtotal - discountAmount + shippingFee;
       if (otpMinTotal !== null && total >= otpMinTotal) {
         if (!verifiedCodeId) {
           throw new HttpError(400, "Confirm your phone number with the code we text you", {
@@ -365,7 +370,7 @@ router.post("/", optionalAuth, async (req, res) => {
         discountAmount,
         couponCode: appliedCouponCode,
         couponShopId,
-        shippingFee: shipping.fee,
+        shippingFee,
         total,
         status: "pending",
         // Card orders hold stock only until this deadline unless paid; pay-on-

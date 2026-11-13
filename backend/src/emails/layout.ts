@@ -1,6 +1,8 @@
 import { escapeHtml } from "../utils/escapeHtml";
 import { formatDzd } from "../utils/money";
 import { Locale, translator } from "./i18n";
+import { currentBrand } from "../services/storeSettings";
+import { splitWordmark } from "../utils/brand";
 
 // Shared, email-client-safe (table based, inline styles) shell for every
 // transactional email. `bodyHtml` must already be escaped. Arabic renders
@@ -18,6 +20,12 @@ export function renderLayout({
 }): string {
   const t = translator(locale);
   const dir = locale === "ar" ? "rtl" : "ltr";
+  const brand = currentBrand();
+  const [plain, accent] = splitWordmark(brand.name);
+  const logo = brand.logoUrl
+    ? `
+                <img src="${escapeHtml(brand.logoUrl)}" alt="" width="48" height="48" style="display: block; margin: 0 auto 10px; width: 48px; height: 48px; border-radius: 12px; object-fit: cover;" />`
+    : "";
   const button = cta
     ? `
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 28px;">
@@ -56,8 +64,9 @@ export function renderLayout({
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 480px; background-color: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e6ede8;">
             <tr>
               <td style="background: linear-gradient(135deg, #2b4d3d, #1f342b); padding: 32px; text-align: center;">
+${logo}
                 <p style="margin: 0; font-size: 20px; font-weight: 800; color: #ffffff;">
-                  Artisan<span style="color: #9dbeab;">Shop</span>
+                  ${escapeHtml(plain)}<span style="color: #9dbeab;">${escapeHtml(accent)}</span>
                 </p>
               </td>
             </tr>

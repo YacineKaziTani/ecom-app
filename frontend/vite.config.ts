@@ -19,8 +19,39 @@ function serviceWorker(): Plugin {
   };
 }
 
+// Link previews of the home page (WhatsApp, Facebook…). Crawlers don't run
+// JavaScript, and Vercel serves index.html before any rewrite, so the tags
+// must be in the file itself. og:image needs an absolute URL: VITE_SITE_URL,
+// or the production domain Vercel exposes while building.
+function homePreview(): Plugin {
+  const site = (
+    process.env.VITE_SITE_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "")
+  ).replace(/\/$/, "");
+  const title = "ArtisanShop — Curated goods from independent makers";
+  const description =
+    "Premium goods made by independent artisans, shipped from their workshops. Pay on delivery or by EDAHABIA / CIB card.";
+  const og: [string, string][] = [
+    ["og:site_name", "ArtisanShop"],
+    ["og:type", "website"],
+    ["og:title", title],
+    ["og:description", description],
+    ...(site ? ([["og:url", `${site}/`]] as [string, string][]) : []),
+    ["og:image", `${site}/og-image.png`],
+    ["og:image:width", "1200"],
+    ["og:image:height", "630"],
+  ];
+  return {
+    name: "home-preview",
+    transformIndexHtml: () => [
+      ...og.map(([property, content]) => ({ tag: "meta", injectTo: "head" as const, attrs: { property, content } })),
+      { tag: "meta", injectTo: "head" as const, attrs: { name: "twitter:card", content: "summary_large_image" } },
+    ],
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), serviceWorker()],
+  plugins: [react(), serviceWorker(), homePreview()],
   server: {
     port: 5173,
     proxy: {

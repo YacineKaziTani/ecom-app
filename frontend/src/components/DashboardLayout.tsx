@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useState } from "react";
+import { BrandMark, Wordmark } from "./Brand";
 import { NavLink, Outlet, Link, useLocation } from "react-router";
 import {
   LayoutGrid,
@@ -15,13 +16,13 @@ import {
   X,
   Sun,
   Moon,
-  ShoppingBag,
   Truck,
   Wallet,
   UserPlus,
   History,
   Ban,
   Building2,
+  LayoutTemplate,
 } from "lucide-react";
 import { useAuth } from "../store/AuthContext";
 import { useTheme } from "../store/ThemeContext";
@@ -54,6 +55,7 @@ export function DashboardLayout() {
     { to: "/dashboard/users", label: t("dash.nav.users"), icon: Users, show: isSuperAdmin },
     { to: "/dashboard/shipping", label: t("dash.nav.shipping"), icon: Truck, show: isSuperAdmin },
     { to: "/dashboard/store-info", label: t("dash.nav.storeInfo"), icon: Building2, show: isSuperAdmin },
+    { to: "/dashboard/home-page", label: t("dash.nav.homePage"), icon: LayoutTemplate, show: isSuperAdmin },
     { to: "/dashboard/applications", label: t("dash.nav.applications"), icon: UserPlus, show: isSuperAdmin },
     { to: "/dashboard/blocked-numbers", label: t("dash.nav.blocked"), icon: Ban, show: isSuperAdmin },
     { to: "/dashboard/activity", label: t("dash.nav.activity"), icon: History, show: isSuperAdmin },
@@ -64,11 +66,10 @@ export function DashboardLayout() {
     <div className="flex h-full flex-col bg-sidebar">
       <div className="flex items-center justify-between px-5 py-5">
         <Link to="/dashboard" className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <ShoppingBag className="h-4.5 w-4.5" strokeWidth={2.2} />
-          </span>
-          <span className="font-serif text-lg font-bold tracking-tight text-sidebar-foreground">
-            Artisan<span className="text-accent">Admin</span>
+          <BrandMark />
+          <span className="min-w-0">
+            <Wordmark className="block truncate text-lg" />
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Admin</span>
           </span>
         </Link>
         <button
@@ -205,9 +206,7 @@ export function DashboardLayout() {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="font-serif text-base font-bold text-foreground">
-            Artisan<span className="text-accent">Admin</span>
-          </span>
+          <Wordmark className="truncate text-base" />
         </div>
 
         <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-10">

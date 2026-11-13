@@ -1,6 +1,8 @@
 import { ReactNode } from "react";
+import { BrandMark, Wordmark } from "./Brand";
+import { useBrand } from "../hooks/useBrand";
 import { Link } from "react-router";
-import { ArrowLeft, ShoppingBag, Quote } from "lucide-react";
+import { ArrowLeft, Quote } from "lucide-react";
 import { useI18n } from "../i18n/I18nProvider";
 
 interface AuthLayoutProps {
@@ -16,20 +18,15 @@ interface AuthLayoutProps {
  */
 export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
   const { t } = useI18n();
-  const brand = (
-    <span className="font-serif text-xl font-bold tracking-tight text-foreground" dir="ltr">
-      Artisan<span className="text-accent">Shop</span>
-    </span>
-  );
+  const { name } = useBrand();
+  const brand = <Wordmark className="text-xl" />;
 
   return (
     <div className="flex min-h-screen bg-background">
       {/* Brand panel — hidden on small screens where it would just be noise. */}
       <aside className="hero-wash relative hidden w-1/2 flex-col justify-between border-e border-border p-12 lg:flex xl:w-[55%]">
         <Link to="/" className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-            <ShoppingBag className="h-4.5 w-4.5" strokeWidth={2.2} />
-          </span>
+          <BrandMark />
           {brand}
         </Link>
 
@@ -41,7 +38,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
           <p className="mt-5 text-sm text-muted-foreground">{t("auth.quoteSub")}</p>
         </div>
 
-        <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} ArtisanShop</p>
+        <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} {name}</p>
       </aside>
 
       {/* Form side */}
@@ -57,9 +54,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
 
           {/* Compact brand mark for mobile, where the panel is hidden. */}
           <Link to="/" className="mb-6 flex items-center gap-2.5 lg:hidden">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <ShoppingBag className="h-4.5 w-4.5" strokeWidth={2.2} />
-            </span>
+            <BrandMark />
             {brand}
           </Link>
 

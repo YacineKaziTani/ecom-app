@@ -41,7 +41,7 @@ describe("SEO endpoints", () => {
     expect(res.text).toContain('property="og:title" content="Bol &quot;émaillé&quot; &lt;b&gt;bleu&lt;/b&gt;"');
     expect(res.text).not.toContain("<b>bleu</b>");
     expect(res.text).toContain("c_fill,w_1200,h_630");
-    expect(res.text).toMatch(/2\s500,00\sDA/);
+    expect(res.text).toMatch(/2\s500\sDA/);
   });
 
   it("previews shops and 404s unknown ones", async () => {

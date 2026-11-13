@@ -40,7 +40,7 @@ export function StatCard({
 
       <div className="relative flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="text-xs font-semibold uppercase leading-snug tracking-wider text-muted-foreground">
             {label}
           </p>
           <p className="mt-2 font-serif text-3xl font-bold leading-none text-foreground">

@@ -158,8 +158,10 @@ export default function OrdersAdmin() {
               <tr>
                 <th>{t("dash.col.order")}</th>
                 <th>{t("dash.col.customer")}</th>
-                <th>{t("dash.col.date")}</th>
-                <th className="text-end">{t("dash.col.items")}</th>
+                {/* Below 1536px the date moves under the order number and the
+                    item count goes, so the status column stays in view. */}
+                <th className="hidden 2xl:table-cell">{t("dash.col.date")}</th>
+                <th className="hidden text-end 2xl:table-cell">{t("dash.col.items")}</th>
                 <th className="text-end">{t("dash.col.total")}</th>
                 <th>{t("dash.col.payment")}</th>
                 <th>{t("dash.col.status")}</th>
@@ -180,7 +182,12 @@ export default function OrdersAdmin() {
                     const awaitingCall = o.paymentMethod === "cod" && o.status === "pending";
                     return (
                       <tr key={o.id}>
-                        <td className="font-mono text-xs font-semibold text-accent">#{o.id.slice(0, 8)}</td>
+                        <td>
+                          <span className="font-mono text-xs font-semibold text-accent">#{o.id.slice(0, 8)}</span>
+                          <span className="mt-0.5 block whitespace-nowrap text-xs text-muted-foreground 2xl:hidden">
+                            {formatDate(o.createdAt)}
+                          </span>
+                        </td>
                         <td className="text-foreground">
                           <span className="flex flex-wrap items-center gap-1.5">
                             {o.user ? (
@@ -201,8 +208,8 @@ export default function OrdersAdmin() {
                             </span>
                           )}
                         </td>
-                        <td className="whitespace-nowrap text-muted-foreground">{formatDate(o.createdAt)}</td>
-                        <td className="text-end tabular-nums text-muted-foreground">{o.items.length}</td>
+                        <td className="hidden whitespace-nowrap text-muted-foreground 2xl:table-cell">{formatDate(o.createdAt)}</td>
+                        <td className="hidden text-end tabular-nums text-muted-foreground 2xl:table-cell">{o.items.length}</td>
                         <td className="text-end font-medium tabular-nums text-foreground">{formatPrice(total)}</td>
                         <td>
                           <span className={paymentBadge(o)}>{t(paymentLabelKey(o))}</span>

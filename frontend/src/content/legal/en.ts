@@ -1,5 +1,6 @@
 import type { LegalContent } from "./types";
 
+const and = (names: string[]) => names.join(" and ");
 const days = (n: number) => (n === 1 ? "1 day" : `${n} days`);
 const dayRange = (min: number, max: number) => (min === max ? days(max) : `${min} to ${days(max)}`);
 
@@ -198,6 +199,9 @@ export const en: LegalContent = (v) => ({
             list: [
               "The seller of the products you order and the delivery company: only what they need to prepare and deliver your order (name, phone, address).",
               "Our technical providers, only to run the service: hosting, email and SMS sending, image storage, error tracking and card payment. Some of them are located outside Algeria.",
+              ...(v.adPixels.length
+                ? [`${and(v.adPixels)}, only if you accept advertising cookies: the pages you visit, what you add to your cart and your orders, to measure our ads.`]
+                : []),
               "The authorities, when the law requires it.",
             ],
           },
@@ -211,9 +215,14 @@ export const en: LegalContent = (v) => ({
       },
       {
         heading: "Cookies and storage in your browser",
-        body: [
-          "We only use what the site needs to work: a cookie that keeps you signed in, and storage in your browser for your cart, language, theme and recent searches. No advertising or tracking cookies.",
-        ],
+        body: v.adPixels.length
+          ? [
+              "The site needs a cookie that keeps you signed in, and storage in your browser for your cart, language, theme and recent searches.",
+              `Only if you accept them, advertising cookies from ${and(v.adPixels)} measure the visits and orders our ads bring. You can change your choice at any time with the “Cookies” link at the bottom of every page.`,
+            ]
+          : [
+              "We only use what the site needs to work: a cookie that keeps you signed in, and storage in your browser for your cart, language, theme and recent searches. No advertising or tracking cookies.",
+            ],
       },
       {
         heading: "Your rights",

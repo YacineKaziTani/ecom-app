@@ -56,3 +56,10 @@ export const resetPasswordLimiter = limiter(
   15,
   "Too many attempts — please try again shortly.",
 );
+
+// "Tell me when it's back" sign-ups: each can lead to an email later.
+export const stockAlertLimiter = limiter(
+  15 * MINUTE,
+  20,
+  "Too many requests — please try again in a few minutes.",
+);

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { MessageKey } from "../i18n/messages";
 import { useI18n } from "../i18n/I18nProvider";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Search, X, SlidersHorizontal, Sparkles, PackageSearch } from "lucide-react";
+import { Search, X, SlidersHorizontal, PackageSearch } from "lucide-react";
 import { productsApi, ProductSort } from "../api/products";
 import { categoriesApi } from "../api/categories";
 import { ProductCard } from "../components/ProductCard";
+import { HomeSections } from "../components/home/HomeSections";
 import { Pagination } from "../components/Pagination";
 import { ProductGridSkeleton } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -34,13 +35,15 @@ export default function Shop() {
 
   // Search and filters live in the URL (?search=&category=&min=&max=&stock=1
   // &sort=&page=): the navbar search lands here, results can be shared or
-  // bookmarked, and the Back button works.
+  // bookmarked, and coming back from a product returns to the same results.
+  // Filter changes replace the history entry rather than adding one each.
   const [params, setParams] = useSearchParams();
   const search = params.get("search") ?? "";
   const categoryId = params.get("category") ?? "";
   const minParam = params.get("min") ?? "";
   const maxParam = params.get("max") ?? "";
   const inStock = params.get("stock") === "1";
+  const onSale = params.get("promo") === "1";
   const page = Math.max(1, Math.trunc(Number(params.get("page"))) || 1);
   const sortParam = SORT_OPTIONS.find((o) => o.value === params.get("sort"))?.value;
   // Best matches first while searching, newest otherwise (same rule as the API).
@@ -71,9 +74,12 @@ export default function Shop() {
   const [searchInput, setSearchInput] = useState(search);
   const [minInput, setMinInput] = useState(minParam);
   const [maxInput, setMaxInput] = useState(maxParam);
-  useEffect(() => setSearchInput(search), [search]);
-  useEffect(() => setMinInput(minParam), [minParam]);
-  useEffect(() => setMaxInput(maxParam), [maxParam]);
+  // Only when the URL differs from what's typed (ignoring outer spaces), so a
+  // pause after "red " doesn't strip the space the next word needs.
+  const follow = (value: string) => (current: string) => (current.trim() === value ? current : value);
+  useEffect(() => setSearchInput(follow(search)), [search]);
+  useEffect(() => setMinInput(follow(minParam)), [minParam]);
+  useEffect(() => setMaxInput(follow(maxParam)), [maxParam]);
   const typedSearch = useDebouncedValue(searchInput.trim(), 400);
   const typedMin = useDebouncedValue(minInput.trim());
   const typedMax = useDebouncedValue(maxInput.trim());
@@ -98,7 +104,7 @@ export default function Shop() {
   const min = priceBound(minParam);
   const max = priceBound(maxParam);
   const { data, isLoading } = useQuery({
-    queryKey: ["products", { search, categoryId, sort: sortParam, page, min, max, inStock }],
+    queryKey: ["products", { search, categoryId, sort: sortParam, page, min, max, inStock, onSale }],
     queryFn: () =>
       productsApi.list({
         search: search || undefined,
@@ -107,15 +113,17 @@ export default function Shop() {
         minPrice: min,
         maxPrice: max,
         inStock: inStock || undefined,
+        onSale: onSale || undefined,
         page,
         limit: 12,
       }),
   });
 
   const activeCategory = categories?.find((c) => c.id === categoryId);
-  const hasFilters = Boolean(search || categoryId || minParam || maxParam || inStock);
-  // Searching or browsing a category: show the results first, without the banner.
-  const showHero = !search && !categoryId;
+  const hasFilters = Boolean(search || categoryId || minParam || maxParam || inStock || onSale);
+  // Searching, filtering or paging: show the results first, without the
+  // home page sections.
+  const showHome = !hasFilters && page === 1;
 
   function resetFilters() {
     setParams({}, { replace: true });
@@ -128,36 +136,24 @@ export default function Shop() {
 
   return (
     <div>
-      {/* Hero ---------------------------------------------------- */}
-      {showHero && (
-      <section className="hero-wash relative overflow-hidden border-b border-border">
-        <div className="container-page relative py-16 sm:py-24">
-          <div className="max-w-2xl animate-fade-up">
-            <span className="badge-accent mb-5 shadow-xs">
-              <Sparkles className="h-3.5 w-3.5" />
-              {t("home.badge")}
-            </span>
-
-            <h1 className="text-4xl font-bold leading-[1.05] text-foreground sm:text-5xl lg:text-6xl">
-              {t("home.titleLine1")}
-              <span className="block text-accent">{t("home.titleLine2")}</span>
-            </h1>
-
-            <p className="mt-5 max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg">
-              {t("home.subtitle")}
-            </p>
-
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <a href="#catalogue" className="btn-primary btn-lg">
-                {t("home.browse")}
-              </a>
-              <Link to="/shops" className="btn-outline btn-lg">
-                {t("home.meetMakers")}
-              </Link>
-            </div>
-          </div>
+      {/* Home page: banners, categories, product rows… ------------- */}
+      {showHome && (
+        // Both hide the home sections: start the results at the top.
+        <HomeSections
+          onCategory={(id) => {
+            update({ category: id });
+            window.scrollTo({ top: 0 });
+          }}
+          onPromotions={() => {
+            update({ promo: "1" });
+            window.scrollTo({ top: 0 });
+          }}
+        />
+      )}
+      {showHome && (
+        <div className="container-page pt-12 sm:pt-16">
+          <h2 className="text-2xl font-bold text-foreground sm:text-3xl">{t("home.catalogue")}</h2>
         </div>
-      </section>
       )}
 
       {/* Filter bar ---------------------------------------------- */}
@@ -222,6 +218,15 @@ export default function Shop() {
                   className="h-4 w-4 accent-primary"
                 />
                 {t("home.inStockOnly")}
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 whitespace-nowrap px-1 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  checked={onSale}
+                  onChange={(e) => update({ promo: e.target.checked ? "1" : null })}
+                  className="h-4 w-4 accent-primary"
+                />
+                {t("home.onSaleOnly")}
               </label>
             </div>
 

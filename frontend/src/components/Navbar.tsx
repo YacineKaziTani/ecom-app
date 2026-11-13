@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { BrandMark, Wordmark } from "./Brand";
 import type { Lang } from "../i18n/messages";
 import { useI18n, LANGUAGES } from "../i18n/I18nProvider";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
@@ -120,12 +121,8 @@ export function Navbar() {
         <div className="flex h-16 items-center justify-between gap-4">
           {/* Brand */}
           <Link to="/" className="group flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm transition-transform duration-300 group-hover:-rotate-6">
-              <ShoppingBag className="h-4.5 w-4.5" strokeWidth={2.2} />
-            </span>
-            <span className="font-serif text-xl font-bold tracking-tight text-foreground">
-              Artisan<span className="text-accent">Shop</span>
-            </span>
+            <BrandMark className="transition-transform duration-300 group-hover:-rotate-6" />
+            <Wordmark className="max-w-[9rem] truncate text-xl sm:max-w-none" />
           </Link>
 
           {/* Desktop nav */}
@@ -161,7 +158,7 @@ export function Navbar() {
               value={lang}
               onChange={(e) => setLang(e.target.value as Lang)}
               aria-label={t("nav.language")}
-              className="h-9 cursor-pointer rounded-lg border border-border bg-card px-1.5 text-xs font-semibold text-foreground"
+              className="hidden h-9 cursor-pointer rounded-lg border border-border bg-card px-1.5 text-xs font-semibold text-foreground sm:block"
             >
               {LANGUAGES.map((l) => (
                 <option key={l.code} value={l.code}>
@@ -172,7 +169,7 @@ export function Navbar() {
 
             <button
               onClick={toggleTheme}
-              className="icon-btn"
+              className="icon-btn hidden sm:inline-flex"
               aria-label={
                 theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")
               }
@@ -339,6 +336,12 @@ export function Navbar() {
                   {t("nav.profile")}
                 </NavLink>
                 <NavLink
+                  to="/orders"
+                  className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
+                >
+                  {t("nav.myOrders")}
+                </NavLink>
+                <NavLink
                   to="/wishlist"
                   className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
                 >
@@ -357,6 +360,35 @@ export function Navbar() {
                 {t("nav.signIn")}
               </Link>
             )}
+
+            {/* On phones the language and theme switches live here. */}
+            <div className="mt-3 flex items-center gap-2 border-t border-border px-3 pt-3 sm:hidden">
+              <div className="flex flex-1 rounded-lg border border-border p-0.5" role="group" aria-label={t("nav.language")}>
+                {LANGUAGES.map((l) => (
+                  <button
+                    key={l.code}
+                    type="button"
+                    onClick={() => setLang(l.code)}
+                    aria-pressed={lang === l.code}
+                    lang={l.code}
+                    className={cn(
+                      "flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition-colors",
+                      lang === l.code ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/60",
+                    )}
+                  >
+                    {l.short}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="icon-btn border border-border"
+                aria-label={theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")}
+              >
+                {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </button>
+            </div>
           </nav>
         </div>
       )}

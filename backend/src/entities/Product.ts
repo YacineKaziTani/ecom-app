@@ -40,6 +40,11 @@ export class Product {
   @Column({ type: "decimal", precision: 10, scale: 2 })
   price!: number;
 
+  // The "before" price of a promotion, shown crossed out with a −x% badge
+  // while it's higher than the selling price. Null: no promotion.
+  @Column({ type: "decimal", precision: 10, scale: 2, nullable: true })
+  compareAtPrice?: number | null;
+
   @Column({ default: 0 })
   stock!: number;
 

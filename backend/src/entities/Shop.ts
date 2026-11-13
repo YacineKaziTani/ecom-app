@@ -19,6 +19,26 @@ export class Shop {
   @Column({ type: "varchar", nullable: true })
   logoUrl?: string | null;
 
+  // Shop page profile: a wide cover photo, the artisan's story, where the
+  // workshop is, and its social pages.
+  @Column({ type: "varchar", length: 2048, nullable: true })
+  coverUrl?: string | null;
+
+  @Column({ type: "text", nullable: true })
+  story?: string | null;
+
+  @Column({ type: "int", nullable: true })
+  wilayaCode?: number | null;
+
+  @Column({ type: "varchar", length: 300, nullable: true })
+  instagramUrl?: string | null;
+
+  @Column({ type: "varchar", length: 300, nullable: true })
+  facebookUrl?: string | null;
+
+  @Column({ type: "varchar", length: 300, nullable: true })
+  tiktokUrl?: string | null;
+
   @OneToOne(() => User, (user) => user.shop, { onDelete: "CASCADE" })
   @JoinColumn({ name: "ownerId" })
   owner!: User;

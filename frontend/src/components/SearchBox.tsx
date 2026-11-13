@@ -1,7 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState, FormEvent, KeyboardEvent } from "react";
 import { useNavigate } from "react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Clock, ImageOff, Search, Store, Tag, X } from "lucide-react";
+import { Clock, Search, Store, Tag, X } from "lucide-react";
+import { ProductPlaceholder } from "./ProductPlaceholder";
 import { searchApi } from "../api/search";
 import { useI18n } from "../i18n/I18nProvider";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
@@ -239,7 +240,7 @@ function OptionContent({ option }: { option: Option }) {
             {option.imageUrl ? (
               <img src={optimizedImage(option.imageUrl, 72)} alt="" className="h-full w-full object-cover" />
             ) : (
-              <ImageOff className="h-4 w-4 text-muted-foreground" />
+              <ProductPlaceholder name={option.name} size="xs" />
             )}
           </span>
           <span className="min-w-0 flex-1 truncate">{option.name}</span>

@@ -6,7 +6,7 @@ export interface UploadResult {
 }
 
 export const uploadApi = {
-  image: (file: File, folder: "products" | "categories" | "shops") => {
+  image: (file: File, folder: "products" | "categories" | "shops" | "banners" | "brand") => {
     const formData = new FormData();
     formData.append("image", file);
     return api

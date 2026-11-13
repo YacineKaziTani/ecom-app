@@ -1,4 +1,5 @@
-import { Entity, PrimaryColumn, Column, UpdateDateColumn, Check } from "typeorm";
+import { Entity, PrimaryColumn, Column, UpdateDateColumn, Check, ManyToOne, JoinColumn } from "typeorm";
+import { Shop } from "./Shop";
 
 // The business behind the store, filled in by a super admin in
 // Dashboard → Store info: shown on the Contact page, the WhatsApp button and
@@ -8,6 +9,13 @@ import { Entity, PrimaryColumn, Column, UpdateDateColumn, Check } from "typeorm"
 export class StoreSettings {
   @PrimaryColumn({ type: "int", default: 1, primaryKeyConstraintName: "PK_store_settings_id" })
   id!: number;
+
+  // The shop's public name (navbar, emails, page titles, app name) and logo.
+  @Column({ type: "varchar", length: 60, default: "ArtisanShop" })
+  brandName!: string;
+
+  @Column({ type: "varchar", length: 2048, nullable: true })
+  logoUrl!: string | null;
 
   // Business or person legally responsible for the store.
   @Column({ type: "varchar", length: 120, nullable: true })
@@ -59,6 +67,32 @@ export class StoreSettings {
   // 0 = not offered. Wrong or damaged items are always taken back.
   @Column({ type: "int", default: 7 })
   exchangeDays!: number;
+
+  // Delivery is free when the products total (after any coupon) reaches this
+  // amount. Null: never free.
+  @Column({
+    type: "decimal",
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    transformer: { to: (v: number | null) => v, from: (v: string | null) => (v === null ? null : Number(v)) },
+  })
+  freeShippingThreshold!: number | null;
+
+  // Advertising pixels, loaded only for visitors who accept them.
+  @Column({ type: "varchar", length: 20, nullable: true })
+  facebookPixelId!: string | null;
+
+  @Column({ type: "varchar", length: 40, nullable: true })
+  tiktokPixelId!: string | null;
+
+  // The artisan shown on the home page (null: the one with the most products).
+  @Column({ type: "uuid", nullable: true })
+  featuredShopId!: string | null;
+
+  @ManyToOne(() => Shop, { onDelete: "SET NULL", nullable: true })
+  @JoinColumn({ name: "featuredShopId" })
+  featuredShop?: Shop | null;
 
   @UpdateDateColumn()
   updatedAt!: Date;

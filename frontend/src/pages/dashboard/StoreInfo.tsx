@@ -11,11 +11,14 @@ import type { MessageKey } from "../../i18n/messages";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { PageLoader } from "../../components/ui/PageLoader";
+import { ImageUpload } from "../../components/ImageUpload";
 import { STORE_SETTINGS_KEY, useStoreSettings } from "../../hooks/useStoreSettings";
 import { formatPhone, formatWhatsapp, missingDetails, RequiredDetail } from "../../lib/contact";
 import { cn } from "@/lib/utils";
 
 const TEXT_FIELDS = [
+  "brandName",
+  "logoUrl",
   "legalName",
   "registerNumber",
   "taxId",
@@ -27,6 +30,8 @@ const TEXT_FIELDS = [
   "facebookUrl",
   "instagramUrl",
   "tiktokUrl",
+  "facebookPixelId",
+  "tiktokPixelId",
 ] as const;
 const NUMBER_FIELDS = ["deliveryDaysMin", "deliveryDaysMax", "exchangeDays"] as const;
 type Field = (typeof TEXT_FIELDS)[number] | (typeof NUMBER_FIELDS)[number];
@@ -49,10 +54,14 @@ const ERROR_MESSAGE: Partial<Record<Field, MessageKey>> = {
   facebookUrl: "dash.store.err.url",
   instagramUrl: "dash.store.err.url",
   tiktokUrl: "dash.store.err.url",
+  facebookPixelId: "dash.store.err.facebookPixel",
+  tiktokPixelId: "dash.store.err.tiktokPixel",
 };
 
 function toForm(s: StoreSettings): Form {
   return {
+    brandName: s.brandName,
+    logoUrl: s.logoUrl ?? "",
     legalName: s.legalName ?? "",
     registerNumber: s.registerNumber ?? "",
     taxId: s.taxId ?? "",
@@ -64,6 +73,8 @@ function toForm(s: StoreSettings): Form {
     facebookUrl: s.facebookUrl ?? "",
     instagramUrl: s.instagramUrl ?? "",
     tiktokUrl: s.tiktokUrl ?? "",
+    facebookPixelId: s.facebookPixelId ?? "",
+    tiktokPixelId: s.tiktokPixelId ?? "",
     deliveryDaysMin: String(s.deliveryDaysMin),
     deliveryDaysMax: String(s.deliveryDaysMax),
     exchangeDays: String(s.exchangeDays),
@@ -194,6 +205,19 @@ export default function StoreInfo() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        <Section title={t("dash.store.brand")} hint={t("dash.store.brandHint")}>
+          {field("brandName", "dash.store.brandName", input("brandName", { maxLength: 60, placeholder: "ArtisanShop" }), "dash.store.brandNameHint", "sm:col-span-2")}
+          <div className="sm:col-span-2">
+            <ImageUpload
+              value={form.logoUrl}
+              onChange={(url) => setForm((f) => (f ? { ...f, logoUrl: url } : f))}
+              folder="brand"
+              label={t("dash.store.logo")}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">{t("dash.store.logoHint")}</p>
+          </div>
+        </Section>
+
         <Section title={t("dash.store.identity")} hint={t("dash.store.identityHint")}>
           {field("legalName", "dash.store.legalName", input("legalName", { maxLength: 120 }), undefined, "sm:col-span-2")}
           {field("registerNumber", "dash.store.registerNumber", input("registerNumber", { maxLength: 60 }))}
@@ -212,6 +236,11 @@ export default function StoreInfo() {
           {field("facebookUrl", "dash.store.facebook", input("facebookUrl", { type: "url", maxLength: 300, placeholder: "https://facebook.com/…", dir: "ltr" }))}
           {field("instagramUrl", "dash.store.instagram", input("instagramUrl", { type: "url", maxLength: 300, placeholder: "https://instagram.com/…", dir: "ltr" }))}
           {field("tiktokUrl", "dash.store.tiktok", input("tiktokUrl", { type: "url", maxLength: 300, placeholder: "https://tiktok.com/@…", dir: "ltr" }))}
+        </Section>
+
+        <Section title={t("dash.store.marketing")} hint={t("dash.store.marketingHint")}>
+          {field("facebookPixelId", "dash.store.facebookPixel", input("facebookPixelId", { maxLength: 20, placeholder: "123456789012345", dir: "ltr" }))}
+          {field("tiktokPixelId", "dash.store.tiktokPixel", input("tiktokPixelId", { maxLength: 30, placeholder: "C4ABCDEFGHIJ12345678", dir: "ltr" }))}
         </Section>
 
         <Section title={t("dash.store.policies")} hint={t("dash.store.policiesHint")}>

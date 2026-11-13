@@ -74,13 +74,20 @@ export function orderByRelevance(qb: SelectQueryBuilder<Product>, raw: string) {
 export async function suggestionFor(raw: string): Promise<string | null> {
   const query = searchTerms(raw).join(" ");
   if (query.length < 3) return null;
-  const [best] = await AppDataSource.query(
-    `SELECT name, word_similarity(search_normalize($1), search_normalize(name)) AS score
-     FROM products
-     ORDER BY score DESC
-     LIMIT 1`,
-    [query],
-  );
+  // `<%` with the threshold lowered to the minimum score lets the trigram
+  // index on search_normalize(name) narrow the candidates, instead of
+  // scoring every product.
+  const [best] = await AppDataSource.transaction(async (manager) => {
+    await manager.query(`SET LOCAL pg_trgm.word_similarity_threshold = ${SUGGESTION_MIN_SCORE}`);
+    return manager.query(
+      `SELECT name, word_similarity(search_normalize($1), search_normalize(name)) AS score
+       FROM products
+       WHERE search_normalize($1) <% search_normalize(name)
+       ORDER BY score DESC
+       LIMIT 1`,
+      [query],
+    );
+  });
   return best && Number(best.score) >= SUGGESTION_MIN_SCORE ? best.name : null;
 }
 

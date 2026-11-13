@@ -74,6 +74,8 @@ export const roleBadge: Record<UserRole, string> = {
 
 // Chargily charges in Algerian dinars, so every price is shown in DZD.
 const dzd = new Intl.NumberFormat("fr-DZ", { style: "currency", currency: "DZD" });
+// Whole amounts without centimes: "3 500 DA", not "3 500,00 DA".
+const dzdWhole = new Intl.NumberFormat("fr-DZ", { style: "currency", currency: "DZD", maximumFractionDigits: 0 });
 const dzdCompact = new Intl.NumberFormat("fr-DZ", {
   style: "currency",
   currency: "DZD",
@@ -81,7 +83,8 @@ const dzdCompact = new Intl.NumberFormat("fr-DZ", {
 });
 
 export function formatPrice(value: number | string): string {
-  return dzd.format(Number(value));
+  const amount = Number(value);
+  return (Number.isInteger(amount) ? dzdWhole : dzd).format(amount);
 }
 
 // Short form for chart axes, e.g. "12 k DA".

@@ -13,6 +13,15 @@ export const imageUrlSchema = z
   .optional()
   .transform((val) => (val === "" ? null : val));
 
+// An optional https link (social pages, external banner links); "" clears it.
+export const httpsUrlSchema = z
+  .string()
+  .trim()
+  .max(300)
+  .refine((v) => v === "" || /^https:\/\/[^\s]+\.[^\s]+$/i.test(v), { message: "Must start with https://" })
+  .transform((v) => v || null)
+  .nullable();
+
 export const nameSchema = z.string().trim().min(1).max(150);
 export const shortTextSchema = z.string().trim().max(2000).optional();
 export const addressSchema = z.string().trim().min(1).max(500);

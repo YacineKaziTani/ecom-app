@@ -3,7 +3,8 @@ import { useAuth } from "../store/AuthContext";
 import { useCartStore } from "../store/cartStore";
 import { cartApi, CartResponse } from "../api/cart";
 import { Product, ProductVariant } from "../api/types";
-import { CartLine, linePrice, parseLineKey } from "../lib/cart";
+import { CartLine, linePrice, parseLineKey, unitPrice } from "../lib/cart";
+import { pixels } from "../lib/pixels";
 
 // Presents one interface over two backends: a server-persisted cart for
 // logged-in users, and the localStorage-backed zustand store for guests.
@@ -47,6 +48,9 @@ export function useCart() {
     onSuccess: setCart,
   });
 
+  const tracked = (product: Product, quantity: number, variant: ProductVariant | null) =>
+    pixels.addToCart({ id: product.id, name: product.name, price: unitPrice(product, variant), quantity });
+
   if (user) {
     const lines: CartLine[] = (serverCart.data?.lines ?? []).map((l) => ({
       product: l.product,
@@ -56,8 +60,10 @@ export function useCart() {
     return {
       lines,
       isLoading: serverCart.isLoading,
-      addItem: (product: Product, quantity = 1, variant: ProductVariant | null = null) =>
-        addMutation.mutate({ productId: product.id, quantity, variantId: variant?.id }),
+      addItem: (product: Product, quantity = 1, variant: ProductVariant | null = null) => {
+        tracked(product, quantity, variant);
+        addMutation.mutate({ productId: product.id, quantity, variantId: variant?.id });
+      },
       removeItem: (key: string) => removeMutation.mutate(key),
       setQuantity: (key: string, quantity: number) => setQuantityMutation.mutate({ key, quantity }),
       clear: () => clearMutation.mutate(),
@@ -69,7 +75,10 @@ export function useCart() {
   return {
     lines: guest.lines,
     isLoading: false,
-    addItem: guest.addItem,
+    addItem: (product: Product, quantity = 1, variant: ProductVariant | null = null) => {
+      tracked(product, quantity, variant);
+      guest.addItem(product, quantity, variant);
+    },
     removeItem: guest.removeItem,
     setQuantity: guest.setQuantity,
     clear: guest.clear,

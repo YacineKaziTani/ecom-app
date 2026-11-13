@@ -2,8 +2,10 @@ import { useState } from "react";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { useParams, Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Store, PackageSearch } from "lucide-react";
+import { ArrowLeft, ExternalLink, MapPin, Store, PackageSearch } from "lucide-react";
 import { shopsApi } from "../api/shops";
+import { shippingApi } from "../api/shipping";
+import { StarRating } from "../components/StarRating";
 import { productsApi, ProductSort } from "../api/products";
 import { ProductCard } from "../components/ProductCard";
 import { Pagination } from "../components/Pagination";
@@ -25,7 +27,7 @@ export default function ShopPage() {
   const { slug } = useParams<{ slug: string }>();
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<ProductSort>("newest");
-  const { t } = useI18n();
+  const { t, tp, lang } = useI18n();
 
   const { data: shop, isLoading: shopLoading } = useQuery({
     queryKey: ["shop", slug],
@@ -33,6 +35,7 @@ export default function ShopPage() {
     enabled: !!slug,
   });
   useDocumentMeta(shop?.name, shop?.description);
+  const { data: zones } = useQuery({ queryKey: ["shipping-zones"], queryFn: shippingApi.zones, staleTime: 5 * 60 * 1000 });
 
   const { data, isLoading: productsLoading } = useQuery({
     queryKey: ["products", { shopId: shop?.id, sort, page }],
@@ -67,6 +70,16 @@ export default function ShopPage() {
     );
   }
 
+  const zone = shop.wilayaCode ? zones?.find((z) => z.code === shop.wilayaCode) : undefined;
+  const wilayaName = zone ? (lang === "ar" && zone.nameAr ? zone.nameAr : zone.name) : undefined;
+  const socials = (
+    [
+      ["Instagram", shop.instagramUrl],
+      ["Facebook", shop.facebookUrl],
+      ["TikTok", shop.tiktokUrl],
+    ] as [string, string | null | undefined][]
+  ).filter((entry): entry is [string, string] => !!entry[1]);
+
   return (
     <div className="container-page py-8 sm:py-10">
       <Link
@@ -76,39 +89,63 @@ export default function ShopPage() {
         <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" /> {t("shopPage.allShops")}
       </Link>
 
-      {/* Shop banner ------------------------------------------- */}
-      <div className="hero-wash mb-10 overflow-hidden rounded-2xl border border-border shadow-sm">
-        <div className="flex flex-col items-start gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
-          <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-            {shop.logoUrl ? (
-              <img
-                src={optimizedImage(shop.logoUrl, 256)}
-                alt={shop.name}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <Store className="h-9 w-9 text-accent" />
+      {/* Shop header: cover, logo, name, where, stats, links ------- */}
+      <div className="mb-10 overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+        <div className="relative h-40 bg-secondary sm:h-56 lg:h-64">
+          {shop.coverUrl ? (
+            <img src={optimizedImage(shop.coverUrl, 1600)} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="hero-wash h-full w-full" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+        </div>
+
+        <div className="px-6 pb-7 sm:px-8">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-end">
+            <div className="-mt-12 flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl border-4 border-card bg-accent-soft shadow-md sm:-mt-14 sm:h-28 sm:w-28">
+              {shop.logoUrl ? (
+                <img src={optimizedImage(shop.logoUrl, 256)} alt={shop.name} className="h-full w-full object-cover" />
+              ) : (
+                <Store className="h-10 w-10 text-accent" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="eyebrow">{t("shopPage.eyebrow")}</p>
+              <h1 className="mt-1 text-3xl font-bold text-foreground sm:text-4xl">{shop.name}</h1>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
+                {wilayaName && (
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {wilayaName}
+                  </span>
+                )}
+                {(shop.stats?.ratingCount ?? 0) > 0 && (
+                  <StarRating value={shop.stats!.ratingAverage} count={shop.stats!.ratingCount} />
+                )}
+                <span>{tp("home.productCount", shop.stats?.productCount ?? data?.total ?? 0)}</span>
+                <span>{t("shopPage.since", { year: new Date(shop.createdAt).getFullYear() })}</span>
+              </div>
+            </div>
+            {socials.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {socials.map(([name, url]) => (
+                  <a key={name} href={url} target="_blank" rel="noopener noreferrer" className="btn-outline btn-sm">
+                    {name}
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                ))}
+              </div>
             )}
           </div>
 
-          <div className="min-w-0 flex-1">
-            <p className="eyebrow">{t("shopPage.eyebrow")}</p>
-            <h1 className="mt-1.5 text-3xl font-bold text-foreground sm:text-4xl">
-              {shop.name}
-            </h1>
-            <p className="mt-2.5 max-w-xl leading-relaxed text-muted-foreground">
-              {shop.description || t("shops.defaultDescription")}
-            </p>
-          </div>
+          <p className="mt-5 max-w-3xl leading-relaxed text-muted-foreground">
+            {shop.description || t("shops.defaultDescription")}
+          </p>
 
-          {data && (
-            <div className="flex-shrink-0 rounded-xl border border-border bg-card px-5 py-4 text-center shadow-xs">
-              <p className="font-serif text-3xl font-bold text-foreground">
-                {data.total}
-              </p>
-              <p className="mt-0.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                {t("shopPage.productsLabel")}
-              </p>
+          {shop.story && (
+            <div className="mt-6 rounded-2xl border border-border bg-secondary/40 p-5 sm:p-6">
+              <h2 className="text-lg font-bold text-foreground">{t("shopPage.story")}</h2>
+              <p className="mt-2 whitespace-pre-line leading-relaxed text-foreground/85">{shop.story}</p>
             </div>
           )}
         </div>

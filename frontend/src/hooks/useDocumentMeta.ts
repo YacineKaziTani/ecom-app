@@ -1,9 +1,8 @@
 import { useEffect } from "react";
+import { useBrand } from "./useBrand";
 
-const SITE = "ArtisanShop";
-const DEFAULT_TITLE = "ArtisanShop — Curated goods from independent makers";
-const DEFAULT_DESCRIPTION =
-  "ArtisanShop — a curated marketplace of premium goods from independent makers.";
+const TAGLINE = "Curated goods from independent makers";
+const DEFAULT_DESCRIPTION = "A curated marketplace of premium goods from independent makers.";
 
 function setMeta(name: string, content: string) {
   let tag = document.head.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
@@ -22,9 +21,10 @@ export function useDocumentMeta(
   description?: string,
   structuredData?: object,
 ) {
+  const { name: site } = useBrand();
   useEffect(() => {
     if (!title) return;
-    document.title = `${title} — ${SITE}`;
+    document.title = `${title} — ${site}`;
     setMeta("description", (description || DEFAULT_DESCRIPTION).slice(0, 300));
 
     let script: HTMLScriptElement | null = null;
@@ -35,9 +35,9 @@ export function useDocumentMeta(
       document.head.appendChild(script);
     }
     return () => {
-      document.title = DEFAULT_TITLE;
+      document.title = `${site} — ${TAGLINE}`;
       setMeta("description", DEFAULT_DESCRIPTION);
       script?.remove();
     };
-  }, [title, description, JSON.stringify(structuredData)]);
+  }, [title, description, site, JSON.stringify(structuredData)]);
 }

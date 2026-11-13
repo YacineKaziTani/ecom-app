@@ -414,6 +414,25 @@ Checkout offers **Pay on delivery** next to online card payment (card appears on
 - Shop owners: a new order with their items — immediately for pay-on-delivery, once paid for card orders — listing only their own lines and the customer's delivery details.
 - All sent after the response, never blocking or failing the request (`services/notifications.ts`).
 
+## Home page, shop pages and product pages
+- **Home page** (`GET /api/home`, one request): banner slides, or — without any — the welcome text beside a collage of product photos; a strip of promises (pay on delivery, delivery time, damaged items taken back, independent artisans); category tiles (their own photo, or their best-rated product's); rows of new arrivals, promotions and best sellers (paid sales of the last 90 days, topped up with the best rated); the featured artisan; recent 4–5 star reviews. Sections with nothing to show are left out. Searching, filtering or paging shows the catalogue alone.
+- **Dashboard → Home page** (super admin): up to 8 banners (image, title, subtitle, button text and link — a page of the site or an https:// address — and the language they're shown in), reordered, hidden or deleted; and the featured artisan (or automatic: the shop with the most products in stock).
+- **Shop pages**: a cover photo, the artisan's story, the workshop's wilaya and Instagram / Facebook / TikTok links, set in **Dashboard → My shop**; the header shows the product count, the shop's overall rating and the year it joined. The shops list uses the covers.
+- **Product pages**: click a photo for a full-screen viewer (arrows, swipe, zoom where you tap); on a computer the photo zooms under the pointer. A delivery box gives the home and stop-desk prices and the delivery time for the wilaya the customer picks (remembered, and used at checkout). On phones a buy bar stays at the bottom while the main button is off screen. Cards show the product's second photo on hover; products without photos get a coloured tile with their initial.
+
+## Promotions and free delivery
+- A product's **crossed-out price** (`compareAtPrice`, product form or the CSV column `compareAtPrice` / `oldprice` / `prix barré`) must be higher than its price; cards and the product page then show it struck through with a −x% badge and "You save…". `GET /api/products?onSale=true` (the catalogue's *On sale* box) lists them, and the home page has a row of them, biggest discount first.
+- **Free delivery** from an amount set in **Dashboard → Shipping**: when an order's products total, after any coupon, reaches it, delivery costs 0 — computed by the server at checkout, and shown in the cart with a progress bar, on product pages and on the home page.
+
+## Back-in-stock alerts
+On a sold-out product (or a sold-out option, which can still be selected), customers leave their email — signed-in customers use their account's — with `POST /api/products/:id/stock-alerts` (rate limited; one pending alert per person and product option). When stock comes back they get one email in their language: right after a product edit or CSV import, and otherwise within 5 minutes (a background job also covers cancelled or expired orders). Each alert is marked before its email goes out, so nobody is emailed twice.
+
+## Advertising pixels
+Meta (Facebook / Instagram) and TikTok pixel IDs go in **Dashboard → Store info → Advertising**. Their scripts load only after a visitor accepts the advertising-cookie banner (the footer's *Cookies* link asks again); refusing changes nothing else. Events: page views, product views, add to cart, checkout started, and a purchase — when a pay-on-delivery order is placed or a card payment succeeds, once per order. The privacy policy mentions the pixels automatically while an ID is set.
+
+## Brand
+The shop's name and logo are set in **Dashboard → Store info → Brand** and used in the navbar, footer, sign-in pages, dashboard, page titles, legal pages, texts such as "Sell on …", emails (header and texts), the SMS confirmation code, the two-step sign-in app label, link previews and the installable app (name, and the logo as its icon when it's on Cloudinary). A name of two words, or one like "ArtisanShop", shows its last part in gold. Two things are fixed at build time and need replacing by hand after a rename: `frontend/public/og-image.png` (the home page's share picture) and the default `<title>` in `frontend/index.html`.
+
 ## Store info, contact and legal pages
 - **Dashboard → Store info** (super admin) holds the business details: name, RC or artisan card number, NIF, address, phone, WhatsApp, customer-service email, opening hours, social links, the usual delivery time and the exchange window (0 = no exchanges for a change of mind). Everything is optional; the page lists what's still missing. One row in `store_settings`, `GET /api/settings` (public) and `PUT /api/settings` (super admin, recorded in the activity log).
 - **`/contact`**: WhatsApp, phone, email, address and hours, quick links (track an order, delivery, cancelling, selling) and the legal information. Until a contact is saved it says the details are coming soon.
@@ -441,7 +460,8 @@ Checkout offers **Pay on delivery** next to online card payment (card appears on
 
 ## Search engines and link previews
 - `/sitemap.xml` (shops, products and the help pages) and `/robots.txt`, served by the backend through Vercel rewrites.
-- The home page, product and shop links shared on WhatsApp, Facebook, Telegram, X… show a proper title, price and image (the home page uses `frontend/public/og-image.png`, 1200×630): `vercel.json` routes those crawlers (by user agent) to `/api/seo/...`, which returns a small HTML page with Open Graph tags. Everyone else gets the normal app.
+- Product and shop links shared on WhatsApp, Facebook, Telegram, X… show a proper title, price and image: `vercel.json` routes those crawlers (by user agent) to `/api/seo/...`, which returns a small HTML page with Open Graph tags. Everyone else gets the normal app.
+- The home page's preview (`frontend/public/og-image.png`, 1200×630) is written into `index.html` at build time, because Vercel serves that file before any rewrite. The image needs an absolute URL: on Vercel the production domain is picked up automatically; elsewhere set `VITE_SITE_URL` (e.g. `https://www.yourshop.dz`) when building.
 - Every public page sets its own title and description, and product pages include schema.org `Product` data (price in DZD, stock, rating) for Google.
 
 ## Languages: Français, العربية, English
@@ -469,7 +489,7 @@ Cash-on-delivery orders that are refused at the door cost the shop two delivery 
 - **Cancelling an order**: customers (and guests, with their checkout email) can cancel until any shop ships its part. Stock and coupon use are released and the shops are told not to send it. An order already paid online needs a refund, so the customer is asked to contact the shop instead.
 
 ## Installable app (PWA)
-The storefront can be installed on a phone's home screen (`frontend/public/manifest.webmanifest`, icons in `public/icons`). A small service worker (`frontend/sw.js`, built to `dist/sw.js` with a fresh id per build) keeps the app shell and the built assets so the store opens even offline; API calls are never cached. `vercel.json` serves `sw.js` uncached and the hashed assets as immutable.
+The storefront can be installed on a phone's home screen. Its manifest is served by the API (`/api/seo/manifest.webmanifest`) so the app carries the shop's current name, and its logo as the icon when the logo is on Cloudinary (else the icons in `public/icons`). A small service worker (`frontend/sw.js`, built to `dist/sw.js` with a fresh id per build) keeps the app shell and the built assets so the store opens even offline; API calls are never cached. `vercel.json` serves `sw.js` uncached and the hashed assets as immutable.
 
 ## Monitoring in production
 - **Error tracking** — create a Sentry project (free tier is enough to start) and set `SENTRY_DSN` on Render and `VITE_SENTRY_DSN` on Vercel. Unexpected server errors and browser crashes then arrive with the request id, without cookies, headers or bodies.
